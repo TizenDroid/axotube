@@ -2,7 +2,6 @@ import { configRead } from '../config.js';
 
 const THEME_BLOCK_PREFIX = '/* ytaf-theme-start */';
 const THEME_BLOCK_SUFFIX = '/* ytaf-theme-end */';
-
 const style = document.createElement('style');
 let css = '';
 
@@ -17,6 +16,22 @@ const TEXT_THEMES = {
   yellow: ['#fdd663', '#d9b34d', '#b5913c'],
 };
 
+function safeColor(value) {
+  return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : '#0f0f0f';
+}
+
+function safeBackgroundUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    return raw.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]/g, '');
+  } catch (e) {
+    return '';
+  }
+}
+
 function luminance(color) {
   const m = /rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)/.exec(color);
   if (!m) return null;
@@ -29,16 +44,9 @@ function luminance(color) {
 function elementSelector(el) {
   const classes = String(el.className || '')
     .split(/\s+/)
-    .filter(Boolean);
-  if (!classes.length) return '';
-  return (
-    el.tagName.toLowerCase() +
-    classes
-      .map(function (c) {
-        return '.' + c;
-      })
-      .join('')
-  );
+    .filter((c) => c && /^[A-Za-z0-9_-]+$/.test(c));
+  if (!classes.length || !el.tagName) return '';
+  return el.tagName.toLowerCase() + classes.map((c) => '.' + c).join('');
 }
 
 function textThemeCss(theme) {
@@ -59,64 +67,38 @@ function textThemeCss(theme) {
   }
   let textCss = '';
   for (let t = 0; t < 3; t++) {
-    if (!groups[t].length) continue;
-    textCss += groups[t].join(',\n') + ' {\n    color: ' + palette[t] + ' !important;\n  }\n';
+    if (groups[t].length) textCss += groups[t].join(',\n') + ' {\n    color: ' + palette[t] + ' !important;\n  }\n';
   }
   return textCss;
 }
 
 function updateStyle() {
-  const bgUrl = configRead('routeBackgroundUrl');
+  const bgUrl = safeBackgroundUrl(configRead('routeBackgroundUrl'));
   const bg = bgUrl
-    ? `
-        background-image: url("${bgUrl}") !important;
-        background-size: cover !important;
-        background-position: center !important;
-        background-repeat: no-repeat !important;`
-    : `
-        background-color: ${configRead('routeColor')} !important;`;
+    ? `\n        background-image: url("${bgUrl}") !important;\n        background-size: cover !important;\n        background-position: center !important;\n        background-repeat: no-repeat !important;`
+    : `\n        background-color: ${safeColor(configRead('routeColor'))} !important;`;
   const navbar = bgUrl
-    ? `
-      ytlr-guide-response {
-          background-image: none !important;
-          background-color: rgba(15, 15, 15, 0.35) !important;
-      }
-      ytlr-guide-response > div {
-          background-image: none !important;
-          background-color: transparent !important;
-      }
-      ytlr-guide-response .zylon-ve {
-          background-image: none !important;
-          background-color: transparent !important;
-      }`
+    ? `\n      ytlr-guide-response {\n          background-image: none !important;\n          background-color: rgba(15, 15, 15, 0.35) !important;\n      }\n      ytlr-guide-response > div {\n          background-image: none !important;\n          background-color: transparent !important;\n      }\n      ytlr-guide-response .zylon-ve {\n          background-image: none !important;\n          background-color: transparent !important;\n      }`
     : '';
   const textTheme = textThemeCss(configRead('textTheme'));
-  css = `
-    /* ytaf-theme-start */
-    #container {
-        ${bg}
-    }
-    ${navbar}
-    ${textTheme}
-    /* ytaf-theme-end */
-`;
+  css = `\n    ${THEME_BLOCK_PREFIX}\n    #container {\n        ${bg}\n    }\n    ${navbar}\n    ${textTheme}\n    ${THEME_BLOCK_SUFFIX}\n`;
+
   const existingStyle = document.querySelector('style[nonce]');
   if (existingStyle) {
     let text = existingStyle.textContent || '';
     const startIdx = text.indexOf(THEME_BLOCK_PREFIX);
     const endIdx = text.indexOf(THEME_BLOCK_SUFFIX);
     if (startIdx !== -1 && endIdx !== -1) {
-      text =
-        text.slice(0, startIdx) +
-        text.slice(endIdx + THEME_BLOCK_SUFFIX.length);
+      text = text.slice(0, startIdx) + text.slice(endIdx + THEME_BLOCK_SUFFIX.length);
     }
     existingStyle.textContent = text + css;
   } else {
     style.textContent = css;
+    if (!style.parentNode && document.head) document.head.appendChild(style);
   }
 }
 
-document.head.appendChild(style);
+if (document.head) document.head.appendChild(style);
 updateStyle();
 setTimeout(updateStyle, 1500);
 
