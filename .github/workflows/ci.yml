@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - fix/**
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            mods/package-lock.json
+            service/package-lock.json
+      - name: Install mods dependencies
+        run: npm ci --prefix mods
+      - name: Install service dependencies
+        run: npm ci --prefix service
+      - name: Run regression tests
+        run: npm test
+      - name: Build mods and service
+        run: npm run build
+      - name: Build standalone bundle from fresh artifacts
+        run: node scripts/build-standalone.js
