@@ -1,16 +1,21 @@
 // DeArrow – community-approved video titles & thumbnails.
-//
-// Queries the DeArrow branding API for each tile and swaps in the most-voted
-// title (and, optionally a community timestamp thumbnail) at parse time. Caches
-// per video id, and re-applies cached results to later re-renders so a video is
-// never left with vanilla metadata once its branding has been fetched.
-
 import { configRead, nativeJSONParse, nativeJSONStringify } from "../config.js";
 import { fetchWithTimeout } from "../shared/fetch.js";
 
-// Session cache keyed by video id. Holds the fetch promise while in flight and
-// keeps the resolved branding object so subsequent shelves apply it instantly.
+export const MAX_DEARROW_CACHE_ENTRIES = 256;
 const deArrowCache = {};
+const deArrowCacheOrder = [];
+
+function putCache(videoId, entry) {
+  if (!Object.prototype.hasOwnProperty.call(deArrowCache, videoId)) {
+    deArrowCacheOrder.push(videoId);
+  }
+  deArrowCache[videoId] = entry;
+  while (deArrowCacheOrder.length > MAX_DEARROW_CACHE_ENTRIES) {
+    const oldest = deArrowCacheOrder.shift();
+    delete deArrowCache[oldest];
+  }
+}
 
 function applyDeArrow(item, videoId, data, titlesEnabled, thumbnailsEnabled) {
   try {
@@ -19,8 +24,7 @@ function applyDeArrow(item, videoId, data, titlesEnabled, thumbnailsEnabled) {
         max.votes > title.votes ? max : title,
       );
       if (item.tileRenderer?.metadata?.tileMetadataRenderer?.title) {
-        item.tileRenderer.metadata.tileMetadataRenderer.title.simpleText =
-          mostVoted.title;
+        item.tileRenderer.metadata.tileMetadataRenderer.title.simpleText = mostVoted.title;
       }
     }
 
@@ -29,7 +33,9 @@ function applyDeArrow(item, videoId, data, titlesEnabled, thumbnailsEnabled) {
         max.votes > thumbnail.votes ? max : thumbnail,
       );
       if (
-        mostVotedThumbnail.timestamp &&
+        mostVotedThumbnail.timestamp !== undefined &&
+        mostVotedThumbnail.timestamp !== null &&
+        Number.isFinite(Number(mostVotedThumbnail.timestamp)) &&
         item.tileRenderer?.header?.tileHeaderRenderer?.thumbnail
       ) {
         item.tileRenderer.header.tileHeaderRenderer.thumbnail.thumbnails = [
@@ -72,24 +78,29 @@ export function deArrowify(items) {
     const promise = fetchWithTimeout(
       `https://sponsor.ajay.app/api/branding?videoID=${videoId}`,
     )
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`DeArrow HTTP ${res.status}`);
+        return res.json();
+      })
       .then((data) => {
         const entry = deArrowCache[videoId];
         if (entry) entry.data = data;
         applyDeArrow(item, videoId, data, titlesEnabled, thumbnailsEnabled);
       })
       .catch(() => {});
-    deArrowCache[videoId] = promise;
+    putCache(videoId, promise);
   }
 }
 
-// Force a re-request for a video (used when the dearrow config flips on late).
 export function resetDeArrowCache(videoID) {
   if (videoID) {
     delete deArrowCache[videoID];
+    const i = deArrowCacheOrder.indexOf(videoID);
+    if (i !== -1) deArrowCacheOrder.splice(i, 1);
     return;
   }
   for (const key in deArrowCache) delete deArrowCache[key];
+  deArrowCacheOrder.length = 0;
 }
 
 export function deArrowDeepClone(value) {
