@@ -1,127 +1,166 @@
 // Picture in Picture Mode for axotube
 
-// Resolve lazily at call time: _yttv may not be populated when this module loads
 function getResolveCommand() {
-  return (
-    window._yttv_resolveCommand ||
-    (window._yttv
-      ? Object.values(window._yttv).find((a) => a && a.instance?.resolveCommand)
-          ?.instance?.resolveCommand
-      : null)
-  );
+  if (window._yttv_resolveCommand) return window._yttv_resolveCommand;
+  if (!window._yttv) return null;
+  try {
+    const root = Object.values(window._yttv).find(
+      (a) => a && a.instance && typeof a.instance.resolveCommand === "function",
+    );
+    return root?.instance?.resolveCommand || null;
+  } catch (e) {
+    return null;
+  }
 }
 
 window.isPipPlaying = false;
 let PlayerService = null;
 let observerPipEnter = null;
+let pipLoadTimer = null;
+let pipLoadAttempts = 0;
+const MAX_PIP_LOAD_ATTEMPTS = 120;
+
+function schedulePipLoad() {
+  if (pipLoadTimer || pipLoadAttempts >= MAX_PIP_LOAD_ATTEMPTS) return;
+  pipLoadTimer = setTimeout(() => {
+    pipLoadTimer = null;
+    pipLoad();
+  }, 250);
+}
 
 function pipLoad() {
+  pipLoadAttempts += 1;
   try {
     const mappings = window._yttv
-      ? Object.values(window._yttv).find((a) => a && a.mappings)
+      ? Object.values(window._yttv).find((a) => a && a.mappings instanceof Map)
       : null;
-    if (!mappings) return;
+    if (!mappings) {
+      schedulePipLoad();
+      return false;
+    }
 
-    PlayerService = mappings.get("PlayerService");
+    const playerService = mappings.get("PlayerService");
     const PlaybackPreviewService = mappings.get("PlaybackPreviewService");
+    if (!playerService || !PlaybackPreviewService) {
+      schedulePipLoad();
+      return false;
+    }
+    PlayerService = playerService;
 
-    if (!PlaybackPreviewService) return;
-
-    const PlaybackPreviewServiceStart = PlaybackPreviewService.start;
-    const PlaybackPreviewServiceStop = PlaybackPreviewService.stop;
-
-    PlaybackPreviewService.start = function (...args) {
-      if (window.isPipPlaying) return;
-      return PlaybackPreviewServiceStart.apply(this, args);
-    };
-
-    PlaybackPreviewService.stop = function (...args) {
-      if (window.isPipPlaying) return;
-      return PlaybackPreviewServiceStop.apply(this, args);
-    };
+    if (!PlaybackPreviewService.__axotubePipPatched) {
+      const PlaybackPreviewServiceStart = PlaybackPreviewService.start;
+      const PlaybackPreviewServiceStop = PlaybackPreviewService.stop;
+      if (typeof PlaybackPreviewServiceStart === "function") {
+        PlaybackPreviewService.start = function (...args) {
+          if (window.isPipPlaying) return;
+          return PlaybackPreviewServiceStart.apply(this, args);
+        };
+      }
+      if (typeof PlaybackPreviewServiceStop === "function") {
+        PlaybackPreviewService.stop = function (...args) {
+          if (window.isPipPlaying) return;
+          return PlaybackPreviewServiceStop.apply(this, args);
+        };
+      }
+      PlaybackPreviewService.__axotubePipPatched = true;
+    }
+    return true;
   } catch (e) {
     console.warn("PiP service loading failed:", e);
+    schedulePipLoad();
+    return false;
   }
 }
 
-if (document.readyState === "complete") {
-  pipLoad();
-} else {
-  window.addEventListener("load", pipLoad);
+if (document.readyState === "complete") pipLoad();
+else window.addEventListener("load", pipLoad);
+
+function cleanupPipStyles() {
+  const video = document.querySelector("video");
+  if (video) {
+    ["width", "height", "top", "left", "inset"].forEach((p) => video.style.removeProperty(p));
+  }
+  const container = document.querySelector("ytlr-player-container");
+  if (container) container.style.removeProperty("z-index");
+  const button = document.querySelector("#tt-pip-button");
+  if (button && button.parentNode) button.parentNode.removeChild(button);
 }
 
 function enablePip() {
-  if (!PlayerService) return;
+  if (!PlayerService && !pipLoad()) {
+    // A settings click can arrive before YouTube's service map. Retry the same
+    // user action for a short bounded window instead of silently doing nothing.
+    let attempts = 0;
+    const retry = () => {
+      attempts += 1;
+      if (PlayerService || pipLoad()) {
+        enablePip();
+      } else if (attempts < 20) {
+        setTimeout(retry, 200);
+      }
+    };
+    setTimeout(retry, 200);
+    return;
+  }
 
   try {
-    const videoElement = document.querySelector("video");
-    if (!videoElement) return;
-
-    const timestamp = Math.floor(videoElement.currentTime);
-
-    const ytlrPlayer = document.querySelector("ytlr-player");
-    const ytlrPlayerContainer = document.querySelector("ytlr-player-container");
-
-    if (!ytlrPlayer || !ytlrPlayerContainer) return;
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === "class") {
-          if (!ytlrPlayer.classList.contains("ytLrPlayerEnabled")) {
-            function setStyles() {
-              ytlrPlayerContainer.style.zIndex = "10";
-              ytlrPlayer.style.display = "block";
-              ytlrPlayer.style.backgroundColor = "rgba(0,0,0,0)";
-            }
-
-            setStyles();
-            setTimeout(setStyles, 500);
-
-            function onPipEnter() {
-              const video = document.querySelector("video");
-              if (!video) return;
-
-              video.style.removeProperty("inset");
-              const pipWidth = window.innerWidth / 3.5;
-              const pipHeight = window.innerHeight / 3.5;
-              video.style.width = `${pipWidth}px`;
-              video.style.height = `${pipHeight}px`;
-              video.style.top = "68vh";
-              video.style.left = "68vw";
-
-              window.isPipPlaying = true;
-              video.removeEventListener("play", onPipEnter);
-            }
-
-            videoElement.addEventListener("play", onPipEnter);
-            observer.disconnect();
-
-            setTimeout(() => {
-              try {
-                if (PlayerService && PlayerService.loadedPlaybackConfig) {
-                  PlayerService.loadedPlaybackConfig.watchEndpoint.startTimeSeconds =
-                    timestamp;
-                  PlayerService.loadVideo(PlayerService.loadedPlaybackConfig);
-                }
-              } catch (e) {
-                console.warn("PiP video load failed:", e);
-              }
-            }, 1000);
-          }
-        }
-      });
-    });
-
-    observer.observe(ytlrPlayer, { attributes: true });
-
     const resolveCommand = getResolveCommand();
     if (!resolveCommand) return;
 
-    resolveCommand({
-      signalAction: {
-        signal: "HISTORY_BACK",
-      },
+    const videoElement = document.querySelector("video");
+    const ytlrPlayer = document.querySelector("ytlr-player");
+    const ytlrPlayerContainer = document.querySelector("ytlr-player-container");
+    if (!videoElement || !ytlrPlayer || !ytlrPlayerContainer) return;
+
+    const timestamp = Math.floor(videoElement.currentTime);
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName !== "class") return;
+        if (ytlrPlayer.classList.contains("ytLrPlayerEnabled")) return;
+
+        function setStyles() {
+          ytlrPlayerContainer.style.zIndex = "10";
+          ytlrPlayer.style.display = "block";
+          ytlrPlayer.style.backgroundColor = "rgba(0,0,0,0)";
+        }
+        setStyles();
+        setTimeout(setStyles, 500);
+
+        function onPipEnter() {
+          const video = document.querySelector("video");
+          if (!video) return;
+          video.style.removeProperty("inset");
+          video.style.width = `${window.innerWidth / 3.5}px`;
+          video.style.height = `${window.innerHeight / 3.5}px`;
+          video.style.top = "68vh";
+          video.style.left = "68vw";
+          window.isPipPlaying = true;
+          video.removeEventListener("play", onPipEnter);
+        }
+
+        videoElement.addEventListener("play", onPipEnter);
+        observer.disconnect();
+        setTimeout(() => {
+          try {
+            if (PlayerService && PlayerService.loadedPlaybackConfig) {
+              const watchEndpoint = PlayerService.loadedPlaybackConfig.watchEndpoint;
+              if (watchEndpoint) watchEndpoint.startTimeSeconds = timestamp;
+              PlayerService.loadVideo(PlayerService.loadedPlaybackConfig);
+            }
+          } catch (e) {
+            console.warn("PiP video load failed:", e);
+          }
+        }, 1000);
+      });
     });
+
+    observer.observe(ytlrPlayer, { attributes: true, attributeFilter: ["class"] });
+    try {
+      resolveCommand({ signalAction: { signal: "HISTORY_BACK" } });
+    } catch (e) {
+      observer.disconnect();
+      throw e;
+    }
   } catch (e) {
     console.error("Enable PiP failed:", e);
   }
@@ -130,62 +169,42 @@ function enablePip() {
 function pipToFullscreen() {
   try {
     if (!PlayerService || !PlayerService.loadedPlaybackConfig) return;
-
     const videoElement = document.querySelector("video");
-    const { clickTrackingParams, commandMetadata, watchEndpoint } =
-      PlayerService.loadedPlaybackConfig;
-
-    if (videoElement && watchEndpoint) {
-      watchEndpoint.startTimeSeconds = Math.floor(videoElement.currentTime);
-    }
-
-    const command = {
-      clickTrackingParams,
-      commandMetadata,
-      watchEndpoint,
-    };
+    const { clickTrackingParams, commandMetadata, watchEndpoint } = PlayerService.loadedPlaybackConfig;
+    if (videoElement && watchEndpoint) watchEndpoint.startTimeSeconds = Math.floor(videoElement.currentTime);
 
     const resolveCommand = getResolveCommand();
     if (!resolveCommand) return;
-
-    resolveCommand(command);
+    resolveCommand({ clickTrackingParams, commandMetadata, watchEndpoint });
     window.isPipPlaying = false;
+    cleanupPipStyles();
   } catch (e) {
     console.error("PiP to fullscreen failed:", e);
   }
 }
 
 const originalClasses = {
-  ytlrSearchVoice: {
-    length: 0,
-    classes: [],
-  },
-  ytlrSearchVoiceMicButton: {
-    length: 0,
-    classes: [],
-  },
+  ytlrSearchVoice: { length: 0, classes: [] },
+  ytlrSearchVoiceMicButton: { length: 0, classes: [] },
 };
 
 function initPipObserver() {
   if (observerPipEnter) return;
+  if (!document.body) {
+    setTimeout(initPipObserver, 100);
+    return;
+  }
 
   observerPipEnter = new MutationObserver(() => {
     if (!window.isPipPlaying) return;
-
     try {
       const searchBar = document.querySelector("ytlr-search-bar");
-      if (!searchBar) return;
-
-      const pipButtonExists = document.querySelector("#tt-pip-button");
-      if (pipButtonExists) return;
-
+      if (!searchBar || document.querySelector("#tt-pip-button")) return;
       const voiceButton = searchBar.querySelector("ytlr-search-voice");
-      if (!voiceButton) return;
+      if (!voiceButton || !voiceButton.children[0] || !voiceButton.children[0].children[0]) return;
 
       const iconClassNames = window._yttv
-        ? Object.values(window._yttv).find(
-            (a) => a instanceof Map && a.has("CLEAR_COOKIES"),
-          )
+        ? Object.values(window._yttv).find((a) => a instanceof Map && a.has("CLEAR_COOKIES"))
         : null;
       if (!iconClassNames) return;
 
@@ -194,77 +213,40 @@ function initPipObserver() {
       const pipButton = document.createElement("ytlr-search-voice");
 
       for (let i = 0; i < voiceButton.classList.length; i++) {
-        if (originalClasses.ytlrSearchVoice.length === 0) {
-          originalClasses.ytlrSearchVoice.length = voiceButton.classList.length;
-        }
-
-        if (
-          originalClasses.ytlrSearchVoice.length !==
-          voiceButton.classList.length
-        ) {
-          for (const className of originalClasses.ytlrSearchVoice.classes) {
-            pipButton.classList.add(className);
-          }
+        if (originalClasses.ytlrSearchVoice.length === 0) originalClasses.ytlrSearchVoice.length = voiceButton.classList.length;
+        if (originalClasses.ytlrSearchVoice.length !== voiceButton.classList.length) {
+          for (const className of originalClasses.ytlrSearchVoice.classes) pipButton.classList.add(className);
           break;
         }
-
-        if (
-          !originalClasses.ytlrSearchVoice.classes.includes(
-            voiceButton.classList[i],
-          )
-        )
-          originalClasses.ytlrSearchVoice.classes.push(
-            voiceButton.classList[i],
-          );
-
+        if (!originalClasses.ytlrSearchVoice.classes.includes(voiceButton.classList[i])) {
+          originalClasses.ytlrSearchVoice.classes.push(voiceButton.classList[i]);
+        }
         pipButton.classList.add(voiceButton.classList[i]);
       }
 
       pipButton.style.left = "10.25em";
       pipButton.id = "tt-pip-button";
-      const pipButtonMicButton = document.createElement(
-        "ytlr-search-voice-mic-button",
-      );
-
+      const pipButtonMicButton = document.createElement("ytlr-search-voice-mic-button");
       for (let i = 0; i < voiceButton.children[0].classList.length; i++) {
         if (originalClasses.ytlrSearchVoiceMicButton.length === 0) {
-          originalClasses.ytlrSearchVoiceMicButton.length =
-            voiceButton.children[0].classList.length;
+          originalClasses.ytlrSearchVoiceMicButton.length = voiceButton.children[0].classList.length;
         }
-
-        if (
-          originalClasses.ytlrSearchVoiceMicButton.length !==
-          voiceButton.children[0].classList.length
-        ) {
-          for (const className of originalClasses.ytlrSearchVoiceMicButton
-            .classes) {
-            pipButtonMicButton.classList.add(className);
-          }
+        if (originalClasses.ytlrSearchVoiceMicButton.length !== voiceButton.children[0].classList.length) {
+          for (const className of originalClasses.ytlrSearchVoiceMicButton.classes) pipButtonMicButton.classList.add(className);
           break;
         }
-
-        if (
-          !originalClasses.ytlrSearchVoiceMicButton.classes.includes(
-            voiceButton.children[0].classList[i],
-          )
-        )
-          originalClasses.ytlrSearchVoiceMicButton.classes.push(
-            voiceButton.children[0].classList[i],
-          );
-
+        if (!originalClasses.ytlrSearchVoiceMicButton.classes.includes(voiceButton.children[0].classList[i])) {
+          originalClasses.ytlrSearchVoiceMicButton.classes.push(voiceButton.children[0].classList[i]);
+        }
         pipButtonMicButton.classList.add(voiceButton.children[0].classList[i]);
       }
 
       const pipIcon = document.createElement("yt-icon");
-      for (
-        let i = 0;
-        i < voiceButton.children[0].children[0].classList.length;
-        i++
-      ) {
+      for (let i = 0; i < voiceButton.children[0].children[0].classList.length; i++) {
         pipIcon.classList.add(voiceButton.children[0].children[0].classList[i]);
       }
-      pipIcon.classList.remove(iconClassToBeRemoved);
-      pipIcon.classList.add(iconClearCookiesClass);
+      if (iconClassToBeRemoved) pipIcon.classList.remove(iconClassToBeRemoved);
+      if (iconClearCookiesClass) pipIcon.classList.add(iconClearCookiesClass);
 
       pipButtonMicButton.appendChild(pipIcon);
       pipButton.appendChild(pipButtonMicButton);
@@ -277,10 +259,7 @@ function initPipObserver() {
   observerPipEnter.observe(document.body, { childList: true, subtree: true });
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initPipObserver);
-} else {
-  initPipObserver();
-}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initPipObserver);
+else initPipObserver();
 
 export { enablePip, pipToFullscreen };
