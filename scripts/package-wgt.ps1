@@ -8,8 +8,24 @@ $tizen = "C:\tizen-studio\tools\ide\bin\tizen.bat"
 $root = Split-Path -Parent $PSScriptRoot
 $standalone = Join-Path $root "standalone"
 
+Push-Location $root
+try {
+    Write-Host "==> npm test"
+    npm run test
+    if ($LASTEXITCODE -ne 0) { throw "tests failed" }
+
+    Write-Host "==> npm run build:standalone"
+    npm run build:standalone
+    if ($LASTEXITCODE -ne 0) { throw "standalone build failed" }
+} finally {
+    Pop-Location
+}
+
 if (-not (Test-Path (Join-Path $standalone "service\dist\index.js"))) {
-    throw "standalone/service/dist/index.js missing - run 'npm run build:standalone' first"
+    throw "standalone/service/dist/index.js missing after fresh build"
+}
+if (-not (Test-Path (Join-Path $standalone "userscript\userScript.js"))) {
+    throw "standalone/userscript/userScript.js missing after fresh build"
 }
 
 Push-Location $standalone
