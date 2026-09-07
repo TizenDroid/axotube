@@ -26,7 +26,7 @@
     "build": "npm run build --prefix mods && npm run build --prefix service",
     "build:mods": "npm run build --prefix mods",
     "build:service": "npm run build --prefix service",
-    "build:standalone": "npm run build && node scripts/build-standalone.js",
+    "build:standalone": "node scripts/build-standalone.js",
     "package:wgt": "powershell -ExecutionPolicy Bypass -File scripts/package-wgt.ps1",
     "test": "node --test tests/*.test.cjs"
   }
