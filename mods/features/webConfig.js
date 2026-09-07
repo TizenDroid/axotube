@@ -21,6 +21,7 @@ let lastPushed = "";
 let lastNowPlaying = "";
 let pushTimer = null;
 let serviceToastShown = false;
+let pairingCodeShown = false;
 
 function isTizen() {
   return typeof window !== "undefined" && window.h5vcc && window.h5vcc.tizentube;
@@ -37,11 +38,29 @@ function hasResolver() {
   return false;
 }
 
+function showPairingCode() {
+  if (pairingCodeShown || !hasResolver()) return;
+  fetchWithTimeout(`${WEB_CONFIG_URL}/api/pairing-code`)
+    .then((res) => {
+      if (!res.ok) throw new Error(`pairing code HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((data) => {
+      if (!data || !data.code || pairingCodeShown) return;
+      pairingCodeShown = true;
+      try {
+        showToast("axotube", `Phone pairing code: ${data.code}`);
+      } catch (err) {}
+    })
+    .catch(() => {});
+}
+
 function showServiceToast() {
   if (serviceToastShown || !isTizen() || !hasResolver()) return;
   try {
     showToast("axotube", "Service connected");
     serviceToastShown = true;
+    setTimeout(showPairingCode, 1200);
   } catch (err) {}
 }
 
