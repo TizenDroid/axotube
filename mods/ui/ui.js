@@ -12,53 +12,85 @@ import AXOTUBE_VERSION from "../version.js";
 let initialized = false;
 let keyTimeout = null;
 
+function applyReducedMotionFlags() {
+  try {
+    if (!window.tectonicConfig?.featureSwitches) return;
+    const flags = window.tectonicConfig.featureSwitches;
+    const reduced = !!configRead("enableReducedMotion");
+    flags.enableAnimations = !reduced;
+    flags.enableOnScrollLinearAnimation = !reduced;
+    flags.enableListAnimations = !reduced;
+    flags.horizontalListDurationMs = reduced ? 0 : 200;
+    flags.verticalListDurationMs = reduced ? 0 : 300;
+    flags.listAnimationCurve = reduced ? "linear" : "";
+    flags.enableSkipButtonSlideInAnimation = !reduced;
+    flags.enableLikeButtonAnimation = !reduced;
+  } catch (e) {
+    console.warn("Reduced motion flags apply failed:", e);
+  }
+}
+
+function applyReducedMotionBody() {
+  try {
+    if (!document.body) return;
+    document.body.classList.toggle(
+      "axotube-reduced-motion",
+      !!configRead("enableReducedMotion"),
+    );
+  } catch (e) {
+    console.warn("Reduced motion apply failed:", e);
+  }
+}
+
+function restoreScreenOpacity() {
+  const container = document.getElementById("container");
+  if (container) container.style.setProperty("opacity", "1", "important");
+}
+
+function clearDimmingTimer() {
+  if (keyTimeout) {
+    clearTimeout(keyTimeout);
+    keyTimeout = null;
+  }
+  restoreScreenOpacity();
+}
+
+function armDimmingTimer() {
+  clearDimmingTimer();
+  if (!configRead("enableScreenDimming")) return;
+  keyTimeout = setTimeout(() => {
+    keyTimeout = null;
+    if (!configRead("enableScreenDimming")) {
+      restoreScreenOpacity();
+      return;
+    }
+    const videoPlayer = document.querySelector(".html5-video-player");
+    if (!videoPlayer) return;
+    const playerStateObject = videoPlayer.getPlayerStateObject?.();
+    if (playerStateObject?.isPlaying) return;
+    const container = document.getElementById("container");
+    if (container) {
+      container.style.setProperty(
+        "opacity",
+        (1 - configRead("dimmingOpacity")).toString(),
+        "important",
+      );
+    }
+  }, configRead("dimmingTimeout") * 1000);
+}
+
 function execute_once_dom_loaded() {
   if (initialized) return;
-
-  // Wait for basic DOM to be ready
-  if (!document.body || !window._yttv) {
-    return;
-  }
-
+  if (!document.body || !window._yttv) return;
   initialized = true;
 
-  const applyReducedMotionFlags = () => {
-    try {
-      if (!window.tectonicConfig?.featureSwitches) return;
-      const flags = window.tectonicConfig.featureSwitches;
-      const reduced = !!configRead("enableReducedMotion");
-      // Reduced motion overrides the enableFixedUI "full-animation" wiring
-      // (written below) so it applies last when both are on.
-      flags.enableAnimations = !reduced;
-      flags.enableOnScrollLinearAnimation = !reduced;
-      flags.enableListAnimations = !reduced;
-      flags.horizontalListDurationMs = reduced ? 0 : 200;
-      flags.verticalListDurationMs = reduced ? 0 : 300;
-      flags.listAnimationCurve = reduced ? "linear" : "";
-      flags.enableSkipButtonSlideInAnimation = !reduced;
-      flags.enableLikeButtonAnimation = !reduced;
-    } catch (e) {
-      console.warn("Reduced motion flags apply failed:", e);
-    }
-  };
-
-  const applyReducedMotion = () => {
-    try {
-      document.body.classList.toggle(
-        "axotube-reduced-motion",
-        !!configRead("enableReducedMotion"),
-      );
-    } catch (e) {
-      console.warn("Reduced motion apply failed:", e);
-    }
-  };
   applyReducedMotionFlags();
-  applyReducedMotion();
+  applyReducedMotionBody();
 
   const existingStyle = document.querySelector("style[nonce]");
   if (existingStyle) {
     existingStyle.textContent += css;
-  } else {
+  } else if (document.head) {
     const style = document.createElement("style");
     style.textContent = css;
     document.head.appendChild(style);
@@ -68,13 +100,11 @@ function execute_once_dom_loaded() {
     window.__releaseBootLoader();
   }
 
-  const ui = configRead("enableFixedUI");
-  if (ui) {
+  if (configRead("enableFixedUI")) {
     try {
       if (window.tectonicConfig) {
         window.tectonicConfig.featureSwitches.isLimitedMemory = false;
-        window.tectonicConfig.clientData.legacyApplicationQuality =
-          "full-animation";
+        window.tectonicConfig.clientData.legacyApplicationQuality = "full-animation";
         window.tectonicConfig.featureSwitches.enableAnimations = true;
         window.tectonicConfig.featureSwitches.enableOnScrollLinearAnimation = true;
         window.tectonicConfig.featureSwitches.enableListAnimations = true;
@@ -83,60 +113,26 @@ function execute_once_dom_loaded() {
       console.warn("Could not apply UI fixes:", e);
     }
   }
-
   applyReducedMotionFlags();
 
-  var eventHandler = (evt) => {
-    if (configRead("enableScreenDimming")) {
-      if (keyTimeout) {
-        clearTimeout(keyTimeout);
-      }
-      const container = document.getElementById("container");
-      if (container) {
-        container.style.setProperty("opacity", "1", "important");
-      }
-      keyTimeout = setTimeout(
-        () => {
-          const videoPlayer = document.querySelector(".html5-video-player");
-          if (!videoPlayer) return;
-          const playerStateObject = videoPlayer.getPlayerStateObject?.();
-          if (playerStateObject?.isPlaying) return;
-          const container = document.getElementById("container");
-          if (container) {
-            container.style.setProperty(
-              "opacity",
-              (1 - configRead("dimmingOpacity")).toString(),
-              "important",
-            );
-          }
-        },
-        configRead("dimmingTimeout") * 1000,
-      );
-    }
+  const eventHandler = (evt) => {
+    if (configRead("enableScreenDimming")) armDimmingTimer();
+    else clearDimmingTimer();
 
-    if (evt.keyCode == 404) {
-      if (evt.type === "keydown") {
-        try {
-          modernUI();
-        } catch (e) {
-          console.error("Settings open failed:", e);
-        }
+    if (evt.keyCode == 404 && evt.type === "keydown") {
+      try {
+        modernUI();
+      } catch (e) {
+        console.error("Settings open failed:", e);
       }
-    } else if (evt.keyCode == 39) {
-      if (evt.type === "keydown") {
-        if (
-          document.querySelector("ytlr-search-text-box > .zylon-focus") &&
-          window.isPipPlaying
-        ) {
-          try {
-            const ytlrPlayer = document.querySelector("ytlr-player");
-            if (ytlrPlayer) {
-              ytlrPlayer.style.setProperty("background-color", "rgb(0, 0, 0)");
-            }
-            pipToFullscreen();
-          } catch (e) {
-            console.warn("PiP exit failed:", e);
-          }
+    } else if (evt.keyCode == 39 && evt.type === "keydown") {
+      if (document.querySelector("ytlr-search-text-box > .zylon-focus") && window.isPipPlaying) {
+        try {
+          const ytlrPlayer = document.querySelector("ytlr-player");
+          if (ytlrPlayer) ytlrPlayer.style.setProperty("background-color", "rgb(0, 0, 0)");
+          pipToFullscreen();
+        } catch (e) {
+          console.warn("PiP exit failed:", e);
         }
       }
     }
@@ -149,10 +145,7 @@ function execute_once_dom_loaded() {
 
   setTimeout(() => {
     if (configRead("showWelcomeToast")) {
-      showToast(
-        t("welcomeMsg.title"),
-        `${t("welcomeMsg.subtitle")} · v${AXOTUBE_VERSION}`,
-      );
+      showToast(t("welcomeMsg.title"), `${t("welcomeMsg.subtitle")} · v${AXOTUBE_VERSION}`);
     }
   }, 1000);
 
@@ -164,35 +157,27 @@ function execute_once_dom_loaded() {
       console.warn("Launch command failed:", e);
     }
   } else if (configRead("reloadHomeOnStartup")) {
-    // Force the app back to the home route on startup (TV apps usually resume
-    // where they left off otherwise).
     try {
-      if (location.hash && location.hash.substring(1) !== "/") {
-        location.hash = "/";
-      }
+      if (location.hash && location.hash.substring(1) !== "/") location.hash = "/";
     } catch (e) {
       console.warn("Reload home on startup failed:", e);
     }
   }
 
-  const commandExecutor = getCommandExecutor();
-  if (commandExecutor) {
-    try {
-      commandExecutor.executeFunction(
-        new commandExecutor.commandFunction("reloadGuideAction"),
-      );
-    } catch (e) {
-      console.warn("Guide reload failed:", e);
+  try {
+    const commandExecutor = getCommandExecutor();
+    if (commandExecutor) {
+      commandExecutor.executeFunction(new commandExecutor.commandFunction("reloadGuideAction"));
     }
+  } catch (e) {
+    console.warn("Guide reload failed:", e);
   }
 
   if (configRead("enableFixedUI")) {
     try {
       const observer = new MutationObserver(() => {
         const body = document.body;
-        if (body?.classList.contains("app-quality-root")) {
-          body.classList.remove("app-quality-root");
-        }
+        if (body?.classList.contains("app-quality-root")) body.classList.remove("app-quality-root");
       });
       observer.observe(document.body, { attributes: true });
     } catch (e) {
@@ -203,21 +188,14 @@ function execute_once_dom_loaded() {
   ensureResolveCommandPatched();
 }
 
-// window._yttv can exist (and pass the readiness check above) before
-// .instance.resolveCommand is populated -- patchResolveCommand() then finds
-// nothing to wrap and silently no-ops. Since execute_once_dom_loaded only
-// ever runs once (the `initialized` latch above), that used to mean the
-// patch was simply never retried and every settings/custom-action button
-// fell through to YouTube's native resolveCommand ("Unhandled command.").
-// Retry independently of that latch until the patch actually takes.
 let resolveCommandPatchAttempts = 0;
 function ensureResolveCommandPatched() {
-  if (patchResolveCommand()) return;
+  try {
+    if (patchResolveCommand()) return;
+  } catch (e) {}
   resolveCommandPatchAttempts += 1;
   if (resolveCommandPatchAttempts >= 100) {
-    console.warn(
-      "axotube: gave up waiting for window._yttv instance.resolveCommand to appear",
-    );
+    console.warn("axotube: gave up waiting for window._yttv instance.resolveCommand to appear");
     return;
   }
   setTimeout(ensureResolveCommandPatched, 100);
@@ -225,15 +203,8 @@ function ensureResolveCommandPatched() {
 
 function checkInitialization() {
   if (initialized) return;
-
-  if (
-    document.readyState === "complete" ||
-    document.readyState === "interactive"
-  ) {
-    if (window._yttv) {
-      execute_once_dom_loaded();
-      return;
-    }
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    if (window._yttv) execute_once_dom_loaded();
   }
 }
 
@@ -245,23 +216,26 @@ let initAttempts = 0;
 const initInterval = setInterval(() => {
   initAttempts += 1;
   checkInitialization();
-  if (initialized || initAttempts >= 100) {
-    clearInterval(initInterval);
-  }
+  if (initialized || initAttempts >= 100) clearInterval(initInterval);
 }, 100);
 
-configChangeEmitter.addEventListener("configChange", updateStyle);
+const THEME_KEYS = {
+  routeColor: true,
+  routeBackgroundUrl: true,
+  themePreset: true,
+  textTheme: true,
+};
 
 configChangeEmitter.addEventListener("configChange", (e) => {
-  if (e.detail?.key === "enableReducedMotion") {
-    try {
-      document.body.classList.toggle(
-        "axotube-reduced-motion",
-        !!configRead("enableReducedMotion"),
-      );
-    } catch (err) {
-      console.warn("Reduced motion update failed:", err);
-    }
+  const key = e.detail?.key;
+  if (THEME_KEYS[key]) updateStyle();
+
+  if (key === "enableReducedMotion") {
+    applyReducedMotionBody();
     applyReducedMotionFlags();
+  }
+
+  if (key === "enableScreenDimming" && !configRead("enableScreenDimming")) {
+    clearDimmingTimer();
   }
 });
