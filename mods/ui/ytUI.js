@@ -3,41 +3,47 @@
 // rescan when the cached one stops resolving.
 let cachedCommandRoot = null;
 
+function validRoot(root) {
+  return !!(root && root.instance && typeof root.instance.resolveCommand === "function");
+}
+
 function dispatchCommand(cmd, _) {
-  const cached = cachedCommandRoot;
-  if (
-    cached &&
-    cached.instance &&
-    cached.instance.resolveCommand
-  ) {
-    const result = cached.instance.resolveCommand(cmd, _);
-    if (result !== undefined) return result;
+  if (validRoot(cachedCommandRoot)) {
+    // A resolver is allowed to return undefined. Calling it again based on the
+    // return value can execute non-idempotent commands twice.
+    return cachedCommandRoot.instance.resolveCommand(cmd, _);
   }
-  for (const key in window._yttv) {
-    if (
-      window._yttv[key] &&
-      window._yttv[key].instance &&
-      window._yttv[key].instance.resolveCommand
-    ) {
-      cachedCommandRoot = window._yttv[key];
-      return window._yttv[key].instance.resolveCommand(cmd, _);
+  cachedCommandRoot = null;
+  if (typeof window === "undefined" || !window._yttv) return;
+  try {
+    for (const key in window._yttv) {
+      if (validRoot(window._yttv[key])) {
+        cachedCommandRoot = window._yttv[key];
+        return cachedCommandRoot.instance.resolveCommand(cmd, _);
+      }
     }
+  } catch (err) {
+    cachedCommandRoot = null;
   }
 }
+
 function canDispatch() {
-  const cached = cachedCommandRoot;
-  if (cached && cached.instance && cached.instance.resolveCommand) return true;
-  for (const key in window._yttv) {
-    if (
-      window._yttv[key] &&
-      window._yttv[key].instance &&
-      window._yttv[key].instance.resolveCommand
-    ) {
-      return true;
+  if (validRoot(cachedCommandRoot)) return true;
+  cachedCommandRoot = null;
+  if (typeof window === "undefined" || !window._yttv) return false;
+  try {
+    for (const key in window._yttv) {
+      if (validRoot(window._yttv[key])) {
+        cachedCommandRoot = window._yttv[key];
+        return true;
+      }
     }
+  } catch (err) {
+    cachedCommandRoot = null;
   }
   return false;
 }
+
 function showToast(title, subtitle, thumbnails) {
   const overlayToastRenderer = {
     title: {
@@ -88,8 +94,8 @@ function OverlayPanelHeaderRenderer(title, subtitle, thumbnails) {
 
 function Modal(header, content, id, update) {
   const titleSubtitleObj =
-    typeof header === "string" ? { title: header, subtitle: "" } : header;
-  const overlayPanelHeaderRenderer = header.overlayPanelHeaderRenderer || {
+    typeof header === "string" ? { title: header, subtitle: "" } : (header || { title: "", subtitle: "" });
+  const overlayPanelHeaderRenderer = titleSubtitleObj.overlayPanelHeaderRenderer || {
     title: {
       simpleText: titleSubtitleObj.title,
     },
@@ -153,7 +159,6 @@ function Modal(header, content, id, update) {
 
 function showModal(header, content, id, update) {
   const modalCmd = Modal(header, content, id, update);
-
   dispatchCommand(modalCmd);
 }
 
@@ -183,7 +188,7 @@ function buttonItem(title, icon, commands) {
     };
   }
 
-  if (title.subtitle) {
+  if (title && title.subtitle) {
     button.compactLinkRenderer.subtitle = {
       simpleText: title.subtitle,
     };
