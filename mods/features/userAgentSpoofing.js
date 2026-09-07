@@ -53,29 +53,46 @@ const cobaltVersion = '25.lts.30.1034958-gold';
 const v8Version = 'v8/8.8.278.17-jit';
 const starboardVersion = '15';
 const auxField = 'com.google.android.youtube.tv/5.30.301';
+const USER_AGENT_APPLIED_SESSION_KEY = 'axotube-user-agent-applied';
+const MAX_READY_ATTEMPTS = 120;
+let readyAttempts = 0;
 
 function generateUserAgent(profile) {
     return `Mozilla/5.0 (${profile.architecture}; ${profile.os}) Cobalt/${cobaltVersion} (unlike Gecko) ${v8Version} ${profile.rasterizer} Starboard/${starboardVersion}, ${profile.manufacturer}_${profile.deviceType}_${profile.chipsetModel}_${profile.modelYear}/${profile.firmwareVersion} (${profile.brand}, ${profile.model}) ${auxField}`;
 }
 
 function trySpoofUserAgent() {
-    if (!document.querySelector('.content-container') || !window.h5vcc || !window.h5vcc.tizentube || !window.h5vcc.tizentube.SetUserAgent) {
-        if (document.readyState !== 'complete') setTimeout(trySpoofUserAgent, 250);
+    const api = window.h5vcc && window.h5vcc.tizentube;
+    if (!document.querySelector('.content-container') || !api || typeof api.SetUserAgent !== 'function') {
+        readyAttempts += 1;
+        if (readyAttempts < MAX_READY_ATTEMPTS) setTimeout(trySpoofUserAgent, 250);
         return;
     }
 
     const ua = localStorage.getItem('userAgent');
     if (ua) {
-        window.h5vcc.tizentube.SetUserAgent(ua);
-        location.reload();
+        try {
+            api.SetUserAgent(ua);
+            if (sessionStorage.getItem(USER_AGENT_APPLIED_SESSION_KEY) !== ua) {
+                sessionStorage.setItem(USER_AGENT_APPLIED_SESSION_KEY, ua);
+                location.reload();
+            }
+        } catch (e) {
+            console.warn('Failed to apply saved axotube user agent:', e);
+        }
         return;
     }
 
     const randomProfile = deviceProfiles[Math.floor(Math.random() * deviceProfiles.length)];
     const spoofedUserAgent = generateUserAgent(randomProfile);
-    localStorage.setItem('userAgent', spoofedUserAgent);
-    window.h5vcc.tizentube.SetUserAgent(spoofedUserAgent);
-    location.reload();
+    try {
+        localStorage.setItem('userAgent', spoofedUserAgent);
+        api.SetUserAgent(spoofedUserAgent);
+        sessionStorage.setItem(USER_AGENT_APPLIED_SESSION_KEY, spoofedUserAgent);
+        location.reload();
+    } catch (e) {
+        console.warn('Failed to create/apply axotube user agent:', e);
+    }
 }
 
 trySpoofUserAgent();
