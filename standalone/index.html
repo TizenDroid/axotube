@@ -1,24 +1,11 @@
 <!DOCTYPE html>
-
 <head>
     <style>
         @keyframes indeterminate-bar {
-            0% {
-                left: 0%;
-                width: 0;
-            }
-
-            50% {
-                left: 0%;
-                width: 100%;
-            }
-
-            100% {
-                left: 100%;
-                width: 0;
-            }
+            0% { left: 0%; width: 0; }
+            50% { left: 0%; width: 100%; }
+            100% { left: 100%; width: 0; }
         }
-
         .progress-container {
             position: relative;
             width: 300px;
@@ -28,7 +15,6 @@
             border-radius: 2px;
             overflow: hidden;
         }
-
         .progress-bar {
             position: absolute;
             top: 0;
@@ -37,83 +23,107 @@
             background-color: #0DC1E9;
             animation: indeterminate-bar 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
+        #status { color:#aaa; margin-top:22px; font-size:22px; font-family:Roboto,Arial,sans-serif; }
     </style>
     <script>
         "use strict";
-        tizen.tvinputdevice.registerKey("ColorF0Red");
-        tizen.tvinputdevice.registerKey("ColorF1Green");
-        tizen.tvinputdevice.registerKey("ColorF2Yellow");
-        tizen.tvinputdevice.registerKey("ColorF3Blue");
 
-        var keys = [
-            "MediaPlayPause",
-            "MediaPlay",
-            "MediaPause",
-            "MediaStop",
-            "MediaFastForward",
-            "MediaRewind",
-            "MediaTrackNext",
-            "MediaTrackPrevious"
-        ];
-
-        for (var i = 0; i < keys.length; i++) {
-            tizen.tvinputdevice.registerKey(keys[i]);
+        function safeRegisterKey(key) {
+            try {
+                if (window.tizen && tizen.tvinputdevice && typeof tizen.tvinputdevice.registerKey === "function") {
+                    tizen.tvinputdevice.registerKey(key);
+                }
+            } catch (e) {
+                console.warn("Could not register key " + key + ": " + e.message);
+            }
         }
 
-        var pkgId = tizen.application.getCurrentApplication().appInfo.packageId;
-        var serviceId = pkgId + ".StandaloneService";
+        [
+            "ColorF0Red", "ColorF1Green", "ColorF2Yellow", "ColorF3Blue",
+            "MediaPlayPause", "MediaPlay", "MediaPause", "MediaStop",
+            "MediaFastForward", "MediaRewind", "MediaTrackNext", "MediaTrackPrevious"
+        ].forEach(safeRegisterKey);
 
         function getCastArgs() {
             try {
                 var data = tizen.application.getCurrentApplication().getRequestedAppControl().appControl.data;
+                if (!data || !data[0] || !data[0].value || !data[0].value[0]) return "";
                 var parsedData = JSON.parse(data[0].value[0]);
-                return parsedData.args;
+                return typeof parsedData.args === "string" ? parsedData.args : "";
             } catch (e) {
-                return undefined;
+                return "";
             }
+        }
+
+        function sanitizeCastArgs(raw) {
+            var input = String(raw || "").replace(/^[?&]+/, "");
+            if (!input) return "";
+            var out = [];
+            input.split("&").forEach(function (part) {
+                if (!part) return;
+                var eq = part.indexOf("=");
+                var key = eq === -1 ? part : part.slice(0, eq);
+                var value = eq === -1 ? "" : part.slice(eq + 1);
+                try { key = decodeURIComponent(key.replace(/\+/g, " ")); } catch (e) {}
+                try { value = decodeURIComponent(value.replace(/\+/g, " ")); } catch (e) {}
+                if (!/^[A-Za-z0-9_.-]{1,64}$/.test(key)) return;
+                out.push(encodeURIComponent(key) + "=" + encodeURIComponent(value));
+            });
+            return out.join("&");
         }
 
         var PROXY_URL = "http://localhost:8099";
         var DIAL_URL = "http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube";
+        var healthAttempts = 0;
+        var MAX_HEALTH_ATTEMPTS = 100;
+
+        function setStatus(text) {
+            var el = document.getElementById("status");
+            if (el) el.textContent = text;
+        }
 
         function openYouTube() {
-            var args = getCastArgs();
+            var args = sanitizeCastArgs(getCastArgs());
             var target = PROXY_URL + "/tv?additionalDataUrl=" + DIAL_URL + (args ? "&" + args : "");
-            fetch(PROXY_URL + "/tizentube/health")
+            healthAttempts += 1;
+            fetch(PROXY_URL + "/tizentube/health", { cache: "no-store" })
                 .then(function (r) {
                     if (r.ok) {
                         location.href = target;
-                    } else {
+                    } else if (healthAttempts < MAX_HEALTH_ATTEMPTS) {
                         setTimeout(openYouTube, 300);
+                    } else {
+                        setStatus("Could not start axotube service. Restart the app.");
                     }
                 })
                 .catch(function () {
-                    setTimeout(openYouTube, 300);
+                    if (healthAttempts < MAX_HEALTH_ATTEMPTS) setTimeout(openYouTube, 300);
+                    else setStatus("Could not start axotube service. Restart the app.");
                 });
         }
 
-        tizen.application.launchAppControl(
-            new tizen.ApplicationControl("http://tizen.org/appcontrol/operation/service"),
-            serviceId,
-            function () {
-                openYouTube();
-            },
-            function (e) {
-                alert("Launch Service failed: " + e.message);
+        function launchService() {
+            try {
+                var pkgId = tizen.application.getCurrentApplication().appInfo.packageId;
+                var serviceId = pkgId + ".StandaloneService";
+                tizen.application.launchAppControl(
+                    new tizen.ApplicationControl("http://tizen.org/appcontrol/operation/service"),
+                    serviceId,
+                    openYouTube,
+                    function (e) { setStatus("Launch Service failed: " + (e && e.message ? e.message : e)); }
+                );
+            } catch (e) {
+                setStatus("Launch Service failed: " + e.message);
             }
-        );
+        }
+
+        if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", launchService);
+        else launchService();
     </script>
 </head>
-
-<body
-    style="background-color: #0f0f0f; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-    <h1
-        style="color: #FFFFFF; font-size: 80px; font-family: Roboto,Noto Sans CJK ZH-HK,Noto Sans Thai,Arial,Helvetica,sans-serif; margin: 0;">
-        axotube
-    </h1>
-    <div class="progress-container">
-        <div class="progress-bar"></div>
-    </div>
+<body style="background-color: #0f0f0f; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+    <h1 style="color: #FFFFFF; font-size: 80px; font-family: Roboto,Noto Sans CJK ZH-HK,Noto Sans Thai,Arial,Helvetica,sans-serif; margin: 0;">axotube</h1>
+    <div class="progress-container"><div class="progress-bar"></div></div>
+    <div id="status">Starting…</div>
 </body>
-
 </html>
