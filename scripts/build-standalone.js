@@ -6,24 +6,36 @@ const ROOT = path.resolve(__dirname, "..");
 const STANDALONE = path.join(ROOT, "standalone");
 
 function run(cmd, cwd) {
-    console.log(`> ${cmd}`);
-    execSync(cmd, { cwd, stdio: "inherit" });
+  console.log(`> ${cmd}`);
+  execSync(cmd, { cwd, stdio: "inherit" });
 }
 
-if (!fs.existsSync(path.join(ROOT, "dist", "userScript.js"))) {
-    run("npm run build", ROOT);
+// Never trust an existing dist/ bundle here. This script is also used directly
+// by CI/developers, so it must produce standalone artifacts from current source.
+run("npm run build", ROOT);
+
+const builtUserScript = path.join(ROOT, "dist", "userScript.js");
+const builtService = path.join(ROOT, "dist", "service.js");
+if (!fs.existsSync(builtUserScript) || !fs.existsSync(builtService)) {
+  throw new Error("Root build did not produce dist/userScript.js and dist/service.js");
 }
 
 fs.mkdirSync(path.join(STANDALONE, "userscript"), { recursive: true });
 fs.copyFileSync(
-    path.join(ROOT, "dist", "userScript.js"),
-    path.join(STANDALONE, "userscript", "userScript.js")
+  builtUserScript,
+  path.join(STANDALONE, "userscript", "userScript.js"),
 );
-console.log("copied dist/userScript.js -> standalone/userscript/userScript.js");
+console.log("copied fresh dist/userScript.js -> standalone/userscript/userScript.js");
 
 const svcDir = path.join(STANDALONE, "service");
-if (!fs.existsSync(path.join(svcDir, "node_modules"))) {
-    run("npm install", svcDir);
-}
+// standalone/service intentionally has a tiny independent package. Versions are
+// pinned exactly in its package.json, so npm install is deterministic at the
+// direct dependency layer even when this checkout has no node_modules yet.
+run("npm install --no-audit --no-fund", svcDir);
 run("npm run build", svcDir);
-console.log("built standalone/service/dist/index.js");
+
+const standaloneService = path.join(svcDir, "dist", "index.js");
+if (!fs.existsSync(standaloneService)) {
+  throw new Error("Standalone service build did not produce dist/index.js");
+}
+console.log("built standalone/service/dist/index.js from current source");
