@@ -1,29 +1,44 @@
-import { configRead } from "../config.js";
+import { configRead, configChangeEmitter } from "../config.js";
 import { showModal, buttonItem, overlayPanelItemListRenderer } from "./ytUI.js";
 
-let speedInitialized = false;
+let boundVideo = null;
+let keyHandlersInitialized = false;
 
-function initSpeed() {
-  if (speedInitialized) return;
-
-  const videoElement = document.querySelector("video");
-  if (!videoElement) {
-    return;
-  }
-
-  speedInitialized = true;
-
+function applyConfiguredSpeed(video) {
+  if (!video) return;
   try {
-    videoElement.addEventListener("canplay", () => {
-      const video = document.querySelector("video");
-      if (video) {
-        video.playbackRate = configRead("videoSpeed");
-      }
-    });
+    video.playbackRate = configRead("videoSpeed");
+  } catch (e) {
+    console.warn("Speed apply failed:", e);
+  }
+}
+
+function attachVideo() {
+  const video = document.querySelector("video");
+  if (!video || video === boundVideo) return;
+
+  if (boundVideo) {
+    try { boundVideo.removeEventListener("canplay", onCanPlay); } catch (e) {}
+  }
+  boundVideo = video;
+  try {
+    boundVideo.addEventListener("canplay", onCanPlay);
   } catch (e) {
     console.warn("Speed initialization failed:", e);
   }
+  // canplay may already have fired before this module attached.
+  applyConfiguredSpeed(boundVideo);
+}
 
+function onCanPlay() {
+  const current = document.querySelector("video");
+  if (current !== boundVideo) attachVideo();
+  applyConfiguredSpeed(current || boundVideo);
+}
+
+function initKeyHandlers() {
+  if (keyHandlersInitialized) return;
+  keyHandlersInitialized = true;
   const eventHandler = (evt) => {
     if (evt.keyCode == 406 || evt.keyCode == 191) {
       evt.preventDefault();
@@ -35,32 +50,33 @@ function initSpeed() {
       return true;
     }
   };
-
   document.addEventListener("keydown", eventHandler, true);
   document.addEventListener("keypress", eventHandler, true);
   document.addEventListener("keyup", eventHandler, true);
 }
 
-function checkSpeedInit() {
-  if (!speedInitialized) {
-    initSpeed();
-  }
+function initSpeed() {
+  initKeyHandlers();
+  attachVideo();
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", checkSpeedInit);
+  document.addEventListener("DOMContentLoaded", initSpeed);
 } else {
-  checkSpeedInit();
+  initSpeed();
 }
 
-let speedCheckAttempts = 0;
-const speedCheckInterval = setInterval(() => {
-  speedCheckAttempts += 1;
-  checkSpeedInit();
-  if (speedInitialized || speedCheckAttempts >= 60) {
-    clearInterval(speedCheckInterval);
+if (window.addEventListener) {
+  window.addEventListener("hashchange", () => setTimeout(attachVideo, 0));
+}
+setInterval(attachVideo, 2000);
+
+configChangeEmitter.addEventListener("configChange", (event) => {
+  if (event.detail?.key === "videoSpeed") {
+    attachVideo();
+    applyConfiguredSpeed(boundVideo);
   }
-}, 500);
+});
 
 function speedSettings() {
   const currentSpeed = configRead("videoSpeed");
@@ -73,18 +89,12 @@ function speedSettings() {
     const fixedSpeed = Math.round(speed * 100) / 100;
     buttons.push(
       buttonItem({ title: `${fixedSpeed}x` }, null, [
-        {
-          signalAction: {
-            signal: "POPUP_BACK",
-          },
-        },
+        { signalAction: { signal: "POPUP_BACK" } },
         {
           setClientSettingEndpoint: {
             settingDatas: [
               {
-                clientSettingEnum: {
-                  item: "videoSpeed",
-                },
+                clientSettingEnum: { item: "videoSpeed" },
                 intValue: fixedSpeed.toString(),
               },
             ],
@@ -98,25 +108,17 @@ function speedSettings() {
         },
       ]),
     );
-    if (currentSpeed === fixedSpeed) {
-      selectedIndex = buttons.length - 1;
-    }
+    if (currentSpeed === fixedSpeed) selectedIndex = buttons.length - 1;
   }
 
   buttons.push(
     buttonItem({ title: `Fix stuttering (1.0001x)` }, null, [
-      {
-        signalAction: {
-          signal: "POPUP_BACK",
-        },
-      },
+      { signalAction: { signal: "POPUP_BACK" } },
       {
         setClientSettingEndpoint: {
           settingDatas: [
             {
-              clientSettingEnum: {
-                item: "videoSpeed",
-              },
+              clientSettingEnum: { item: "videoSpeed" },
               intValue: "1.0001",
             },
           ],
