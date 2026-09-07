@@ -1,10 +1,7 @@
 // Cast receiver. When a phone casts to the TV, the TizenBrew standalone app
 // loads this module's appPath with the cast payload appended as URL query
-// params (e.g. youtube.com/tv?v=VIDEOID&... or ...?search_query=...). The
-// userscript previously ignored location.search entirely, so casts that carry
-// a search query or playlist never synced with the TV UI. This module reads the
-// query string once, maps it to a resolveCommand endpoint command, and
-// dispatches it once the YouTube TV app (window._yttv) is ready.
+// params. This module maps those params to a resolveCommand payload and waits
+// for a real YouTube resolver before dispatching it.
 import resolveCommand from "../resolveCommand.js";
 
 function parseQuery(queryString) {
@@ -28,27 +25,29 @@ function parseQuery(queryString) {
 
 function buildCommand(params) {
   if (!params || typeof params !== "object") return null;
-
   if (params.v) {
     const watch = { videoId: params.v };
     if (params.list) watch.playlistId = params.list;
     return { watchEndpoint: watch };
   }
-
-  if (params.list) {
-    return { playlistEndpoint: { playlistId: params.list } };
-  }
-
+  if (params.list) return { playlistEndpoint: { playlistId: params.list } };
   const query = params.search_query || params.q;
-  if (query) {
-    return { searchEndpoint: { query } };
-  }
-
-  if (params.browseId) {
-    return { browseEndpoint: { browseId: params.browseId } };
-  }
-
+  if (query) return { searchEndpoint: { query } };
+  if (params.browseId) return { browseEndpoint: { browseId: params.browseId } };
   return null;
+}
+
+function canDispatch() {
+  if (typeof window === "undefined" || !window._yttv) return false;
+  try {
+    for (const key in window._yttv) {
+      const candidate = window._yttv[key];
+      if (candidate && candidate.instance && typeof candidate.instance.resolveCommand === "function") {
+        return true;
+      }
+    }
+  } catch (err) {}
+  return false;
 }
 
 function dispatchWhenReady(cmd) {
@@ -56,24 +55,18 @@ function dispatchWhenReady(cmd) {
   const dispatch = () => {
     try {
       resolveCommand(cmd);
-    } catch (err) {
-      // Best-effort; never break the rest of the script.
-    }
+    } catch (err) {}
   };
 
-  if (typeof window !== "undefined" && window._yttv && Object.keys(window._yttv).length > 0) {
+  if (canDispatch()) {
     dispatch();
     return;
   }
 
-  // Wait for the app to be ready before dispatching.
   let attempts = 0;
   const interval = setInterval(() => {
     attempts += 1;
-    const ready =
-      typeof window !== "undefined" &&
-      window._yttv &&
-      Object.keys(window._yttv).length > 0;
+    const ready = canDispatch();
     if (ready || attempts > 50) {
       clearInterval(interval);
       if (ready) dispatch();
@@ -84,6 +77,4 @@ function dispatchWhenReady(cmd) {
 try {
   const params = parseQuery(location.search);
   dispatchWhenReady(buildCommand(params));
-} catch (err) {
-  // location.search may be unavailable in odd embedded contexts; ignore.
-}
+} catch (err) {}
