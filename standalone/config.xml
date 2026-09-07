@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets"
-    id="https://axotube.github.io" version="1.19.0" viewmodes="maximized">
+    id="https://axotube.github.io" version="1.19.2" viewmodes="maximized">
     <access origin="*" subdomains="true"></access>
     <tizen:allow-navigation>*</tizen:allow-navigation>
     <tizen:application
@@ -10,7 +10,7 @@
     <content
         src="index.html" />
     <feature name="http://tizen.org/feature/screen.size.all" />
-    <feature
+    <tizen:feature
         name="http://tizen.org/feature/web.service" />
     <icon src="icon_16b9.png" width="1920"
         height="1080" />
