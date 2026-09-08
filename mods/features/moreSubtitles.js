@@ -204,7 +204,7 @@ function attemptSubtitlePatch() {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", attemptSubtitlePatch, { once: true });
+  document.addEventListener("DOMContentLoaded", attemptSubtitlePatch);
 } else {
   attemptSubtitlePatch();
 }
