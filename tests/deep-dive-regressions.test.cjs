@@ -26,14 +26,14 @@ test('remote input does not write screen opacity when dimming is already inactiv
   const src = read('mods/ui/ui.js');
   has(src, 'let screenIsDimmed = false');
   const handler = between(src, 'const eventHandler = (evt) => {', 'return true;');
-  assert.ok(!handler.includes('else clearDimmingTimer()'), 'disabled dimming must not write opacity on every key event');
+  assert.ok(!handler.includes('else clearDimmingTimer()'));
 });
 
 test('SponsorBlock manual actions preserve native timely actions', () => {
   const src = read('mods/features/adblock.js');
   has(src, 'function isAxotubeSponsorTimelyAction');
   has(src, 'filter((action) => !isAxotubeSponsorTimelyAction(action))');
-  assert.ok(!src.includes('timelyActionRenderers = []'), 'disabling manual skips must not erase native YouTube timed actions');
+  assert.ok(!src.includes('timelyActionRenderers = []'));
 });
 
 test('phone command ACK retry never executes the same command twice', () => {
@@ -68,8 +68,8 @@ test('preferred quality only marks success after quality is actually available',
 test('subtitle readiness uses one bounded retry loop', () => {
   const src = read('mods/features/moreSubtitles.js');
   has(src, 'SUBTITLE_POLL_LIMIT');
-  assert.ok(!src.includes('return setTimeout(patchSubtitleMenu'), 'recursive retry must not run alongside the poll loop');
-  assert.ok(!src.includes('const interval = setInterval'), 'subtitle patching should use one bounded scheduler');
+  assert.ok(!src.includes('return setTimeout(patchSubtitleMenu'));
+  assert.ok(!src.includes('const interval = setInterval'));
 });
 
 test('response HQ thumbnail cache is bounded', () => {
@@ -87,7 +87,7 @@ test('DeArrow fans out pending requests and retries after transient failures', (
 test('HQ observer batches without RAF starvation and clears queued work on stop', () => {
   const src = read('mods/features/hqThumbnailsFocusObserver.js');
   const observerBlock = between(src, 'observer = new MutationObserver', 'observer.observe(container');
-  assert.ok(!observerBlock.includes('cancelAnimationFrame(pendingFrame)'), 'continuous mutations must not postpone processing forever');
+  assert.ok(!observerBlock.includes('cancelAnimationFrame(pendingFrame)'));
   const stop = between(src, 'var stopObserver = function () {', 'var syncWithConfig');
   has(stop, 'pendingMutations = null');
 });
@@ -98,22 +98,28 @@ test('PiP DOM observer and transition timers stop when PiP exits', () => {
   has(src, 'function stopPipUiObserver');
   has(src, 'stopPipUiObserver()');
   has(src, 'clearPipTransitionTimers');
+  has(read('mods/resolveCommand.js'), 'cleanupPipStyles()');
 });
 
 test('standalone proxy has an upstream request deadline', () => {
   const src = read('standalone/service/index.js');
+  has(src, 'UPSTREAM_TIMEOUT_MS');
   has(src, 'timeout: UPSTREAM_TIMEOUT_MS');
 });
 
 test('standalone health check has a per-request deadline', () => {
   const src = read('standalone/index.html');
   has(src, 'function fetchWithDeadline');
-  has(src, 'Promise.race');
+  has(src, 'HEALTH_REQUEST_TIMEOUT_MS');
+  has(src, 'reject(new Error("Request timed out"))');
 });
 
 test('known updater architecture never falls back to a different APK architecture', () => {
   const src = read('mods/features/updater.js');
-  has(src, 'return asset ? asset.browser_download_url : null');
+  const fn = between(src, 'function findDownloadUrl', 'function checkForUpdates');
+  has(fn, 'return asset ? asset.browser_download_url : null');
+  has(fn, 'architecture.includes("arm64")');
+  has(fn, 'architecture.includes("arm")');
 });
 
 test('AdBlock stringify hook restores caller objects after serialization', () => {
@@ -123,13 +129,14 @@ test('AdBlock stringify hook restores caller objects after serialization', () =>
   has(stringify, 'delete playbackContext.isInlinePlaybackNoAd');
 });
 
-test('old-Tizen polyfills preserve replaceAll callback semantics and normal objects', () => {
-  const src = read('mods/polyfills.js');
-  const replaceAll = between(src, 'String.prototype.replaceAll = function', '// ─────────────────────────────────────────────────────────────────────────────\n// Object.entries');
-  has(replaceAll, 'new RegExp');
-  const fromEntries = between(src, 'Object.fromEntries = function', '// ─────────────────────────────────────────────────────────────────────────────\n// queueMicrotask');
-  has(fromEntries, 'var obj = {}');
-  has(fromEntries, 'Object.defineProperty');
+test('old-Tizen correction layer fixes only behavior-probed broken shims', () => {
+  const entry = read('mods/userScript.js');
+  has(entry, 'import "./polyfillCorrections.js"');
+  const src = read('mods/polyfillCorrections.js');
+  has(src, 'replaceAllBroken');
+  has(src, 'new RegExp');
+  has(src, 'var obj = {}');
+  has(src, 'Object.defineProperty');
 });
 
 test('settings command patch fails open for unknown native command shapes', () => {
@@ -142,9 +149,22 @@ test('pairing failures are rate-limited per client instead of globally', () => {
   const src = read('service/service.js');
   has(src, 'pairAttemptsByAddress');
   has(src, 'allowPairAttempt(req)');
+  has(src, 'resetPairAttempts(req)');
 });
 
-test('CI fails when committed dist is stale after a build', () => {
+test('TV exposes a usable Web Config address with the pairing code', () => {
+  const service = read('service/service.js');
+  has(service, 'getLanWebConfigUrls');
+  has(service, 'urls: getLanWebConfigUrls()');
+  const client = read('mods/features/webConfig.js');
+  has(client, 'axotube Web Config');
+  has(client, 'Open ${url} on your phone');
+});
+
+test('CI builds fresh distributables and publishes them for release sync', () => {
   const src = read('.github/workflows/ci.yml');
-  has(src, 'git diff --exit-code -- dist');
+  has(src, 'Build mods and service');
+  has(src, 'Build standalone bundle from fresh artifacts');
+  has(src, 'actions/upload-artifact@v4');
+  has(src, 'axotube-built-artifacts');
 });
