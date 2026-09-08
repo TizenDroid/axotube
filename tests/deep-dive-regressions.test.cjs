@@ -161,6 +161,15 @@ test('TV exposes a usable Web Config address with the pairing code', () => {
   has(client, 'Open ${url} on your phone');
 });
 
+test('speed increment keeps decimal Web Config control but caps modal work', () => {
+  const web = read('service/webConfigPage.js');
+  has(web, 'key==="speedSettingsIncrement"?0.01:1');
+  const speed = read('mods/ui/speedUI.js');
+  has(speed, 'MAX_SPEED_OPTIONS = 100');
+  has(speed, 'MAX_SPEED / MAX_SPEED_OPTIONS');
+  has(speed, 'buttons.length < MAX_SPEED_OPTIONS');
+});
+
 test('CI builds fresh distributables and publishes them for release sync', () => {
   const src = read('.github/workflows/ci.yml');
   has(src, 'Build mods and service');
