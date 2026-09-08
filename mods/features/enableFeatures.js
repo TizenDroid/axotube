@@ -2,19 +2,30 @@
 import { configRead, configChangeEmitter } from '../config.js';
 
 let retryTimer = null;
+let retryAttempts = 0;
+const MAX_RETRY_ATTEMPTS = 20;
+const RETRY_DELAY_MS = 500;
 
 configChangeEmitter.addEventListener('configChange', () => {
-    enableFeatures();
+    enableFeatures(true);
 });
 
-function enableFeatures() {
+function scheduleRetry() {
+    if (retryAttempts >= MAX_RETRY_ATTEMPTS) return;
+    retryAttempts += 1;
+    retryTimer = setTimeout(() => enableFeatures(false), RETRY_DELAY_MS);
+}
+
+function enableFeatures(resetRetryBudget = false) {
+    if (resetRetryBudget) retryAttempts = 0;
+
     if (retryTimer) {
         clearTimeout(retryTimer);
         retryTimer = null;
     }
 
     if (!window._yttv) {
-        retryTimer = setTimeout(enableFeatures, 250);
+        scheduleRetry();
         return;
     }
 
@@ -28,17 +39,16 @@ function enableFeatures() {
     }
 
     if (!featureMap) {
-        // _yttv is created before all service maps are populated on some builds.
-        // Keep waiting for the capability we actually need instead of latching early.
-        retryTimer = setTimeout(enableFeatures, 250);
+        scheduleRetry();
         return;
     }
 
+    retryAttempts = 0;
     featureMap.set("ENABLE_PREVIEWS_WITH_SOUND", configRead('enablePreviews'));
 }
 
 if (document.readyState === 'complete') {
-    enableFeatures();
+    enableFeatures(true);
 } else {
-    window.addEventListener('load', enableFeatures);
+    window.addEventListener('load', () => enableFeatures(true));
 }
