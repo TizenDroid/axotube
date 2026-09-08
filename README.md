@@ -5,6 +5,7 @@ axotube is a TizenBrew module that enhances your favourite streaming websites vi
 ## Credits
 
 - **Aayu5h** - Main Developer & Maintainer
+- **Ticklect** - Contributor
 - **Reis Can (reisxd)** - Original Creator of TizenTube (upstream project)
 
 ## How to Install
