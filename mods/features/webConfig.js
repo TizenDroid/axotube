@@ -23,6 +23,7 @@ let pushTimer = null;
 let serviceToastShown = false;
 let pairingCodeShown = false;
 let lastExecutedCommandId = null;
+let lastExecutedCommandNeedsReload = false;
 
 function isTizen() {
   return typeof window !== "undefined" && window.h5vcc && window.h5vcc.tizentube;
@@ -180,8 +181,14 @@ function ackCommand(id) {
 
 function acknowledgeExecutedCommand(id) {
   return ackCommand(id).then((acked) => {
-    if (acked && lastExecutedCommandId === id) lastExecutedCommandId = null;
-    return acked;
+    if (!acked || lastExecutedCommandId !== id) return acked;
+    const shouldReload = lastExecutedCommandNeedsReload;
+    lastExecutedCommandId = null;
+    lastExecutedCommandNeedsReload = false;
+    if (shouldReload) {
+      try { window.location.reload(); } catch (err) {}
+    }
+    return true;
   });
 }
 
@@ -205,10 +212,8 @@ function consumeCommand() {
 
       if (data.command.action === "reload") {
         lastExecutedCommandId = id;
-        return acknowledgeExecutedCommand(id).then((acked) => {
-          if (!acked) return;
-          try { window.location.reload(); } catch (err) {}
-        });
+        lastExecutedCommandNeedsReload = true;
+        return acknowledgeExecutedCommand(id);
       }
 
       const cmd = buildCommand(data.command);
@@ -216,6 +221,7 @@ function consumeCommand() {
       return dispatchWhenReady(cmd).then((ok) => {
         if (!ok) return;
         lastExecutedCommandId = id;
+        lastExecutedCommandNeedsReload = false;
         try { showToast("axotube", "Command received"); } catch (err) {}
         return acknowledgeExecutedCommand(id);
       });
