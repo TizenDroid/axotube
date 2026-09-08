@@ -117,6 +117,7 @@ function speedSettings() {
     if (currentSpeed === fixedSpeed) selectedIndex = buttons.length - 1;
   }
 
+  if (currentSpeed === 1.0001) selectedIndex = buttons.length;
   buttons.push(
     buttonItem({ title: `Fix stuttering (1.0001x)` }, null, [
       { signalAction: { signal: "POPUP_BACK" } },
