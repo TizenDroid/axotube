@@ -21,6 +21,10 @@ let pipUiObserver = null;
 let pipEntryObserver = null;
 const pipTransitionTimers = [];
 const MAX_PIP_LOAD_ATTEMPTS = 120;
+const originalClasses = {
+  ytlrSearchVoice: { length: 0, classes: [] },
+  ytlrSearchVoiceMicButton: { length: 0, classes: [] },
+};
 
 function schedulePipLoad() {
   if (pipLoadTimer || pipLoadAttempts >= MAX_PIP_LOAD_ATTEMPTS) return;
@@ -91,6 +95,22 @@ function clearPipTransitionTimers() {
   while (pipTransitionTimers.length) clearTimeout(pipTransitionTimers.pop());
 }
 
+function copyCompatibleClasses(source, target, memory) {
+  if (!source || !source.classList || !target) return;
+  if (memory.length === 0) memory.length = source.classList.length;
+
+  if (memory.length !== source.classList.length && memory.classes.length) {
+    for (const className of memory.classes) target.classList.add(className);
+    return;
+  }
+
+  for (let i = 0; i < source.classList.length; i++) {
+    const className = source.classList[i];
+    if (!memory.classes.includes(className)) memory.classes.push(className);
+    target.classList.add(className);
+  }
+}
+
 function ensurePipButton() {
   if (!window.isPipPlaying) return;
   try {
@@ -107,14 +127,16 @@ function ensurePipButton() {
     const iconClassToBeRemoved = iconClassNames.get("MICROPHONE_ON");
     const iconClearCookiesClass = iconClassNames.get("CLEAR_COOKIES");
     const pipButton = document.createElement("ytlr-search-voice");
-    for (let i = 0; i < voiceButton.classList.length; i++) pipButton.classList.add(voiceButton.classList[i]);
+    copyCompatibleClasses(voiceButton, pipButton, originalClasses.ytlrSearchVoice);
     pipButton.style.left = "10.25em";
     pipButton.id = "tt-pip-button";
 
     const pipButtonMicButton = document.createElement("ytlr-search-voice-mic-button");
-    for (let i = 0; i < voiceButton.children[0].classList.length; i++) {
-      pipButtonMicButton.classList.add(voiceButton.children[0].classList[i]);
-    }
+    copyCompatibleClasses(
+      voiceButton.children[0],
+      pipButtonMicButton,
+      originalClasses.ytlrSearchVoiceMicButton,
+    );
 
     const pipIcon = document.createElement("yt-icon");
     for (let i = 0; i < voiceButton.children[0].children[0].classList.length; i++) {
