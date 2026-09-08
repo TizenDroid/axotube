@@ -51,7 +51,11 @@ function showPairingCode() {
       if (!data || !data.code || pairingCodeShown) return;
       pairingCodeShown = true;
       try {
-        showToast("axotube", `Phone pairing code: ${data.code}`);
+        const url = Array.isArray(data.urls) && data.urls.length ? data.urls[0] : null;
+        showToast(
+          "axotube Web Config",
+          url ? `Open ${url} on your phone · code ${data.code}` : `Phone pairing code: ${data.code}`,
+        );
       } catch (err) {}
     })
     .catch(() => {});
@@ -204,8 +208,6 @@ function consumeCommand() {
       if (!data || !data.command || !data.id) return;
       const id = data.id;
 
-      // A command can remain at the front of the FIFO if the TV executed it but
-      // the ACK request was lost. Retry only the ACK; never execute it twice.
       if (data.id === lastExecutedCommandId) {
         return acknowledgeExecutedCommand(id);
       }
