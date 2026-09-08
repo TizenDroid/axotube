@@ -68,7 +68,7 @@ module.exports.webConfigPage = `<!DOCTYPE html>
     enableSponsorBlockSponsor:"SponsorBlock", enableSponsorBlockIntro:"SponsorBlock", enableSponsorBlockOutro:"SponsorBlock",
     enableSponsorBlockInteraction:"SponsorBlock", enableSponsorBlockSelfPromo:"SponsorBlock", enableSponsorBlockPreview:"SponsorBlock",
     enableSponsorBlockMusicOfftopic:"SponsorBlock", enableSponsorBlockFiller:"SponsorBlock", enableSponsorBlockHighlight:"SponsorBlock",
-    videoSpeed:"Player", preferredVideoQuality:"Player", videoPreferredCodec:"Player", enablePreviousNextButtons:"Player",
+    videoSpeed:"Player", speedSettingsIncrement:"Player", preferredVideoQuality:"Player", videoPreferredCodec:"Player", enablePreviousNextButtons:"Player",
     enableSuperThanksButton:"Player", enableSpeedControlsButton:"Player", enablePatchingVideoPlayer:"Player", enableMPButton:"Player",
     enableSwapMPWithPIP:"Player", enablePreviews:"Player", autoFrameRate:"Player", autoFrameRatePauseVideoFor:"Player",
     enableDeArrowTitles:"Player", enableDeArrowThumbnails:"Player",
@@ -196,7 +196,7 @@ module.exports.webConfigPage = `<!DOCTYPE html>
     }
 
     if (SCHEMA.ranges[key]) {
-      var range = document.createElement("input"); range.type="range"; range.min=SCHEMA.ranges[key][0]; range.max=SCHEMA.ranges[key][1]; range.step=(key==="dimmingOpacity"?0.1:(key==="videoSpeed"?0.05:1)); range.value=value; ctrl.appendChild(range);
+      var range = document.createElement("input"); range.type="range"; range.min=SCHEMA.ranges[key][0]; range.max=SCHEMA.ranges[key][1]; range.step=(key==="dimmingOpacity"?0.1:(key==="videoSpeed"?0.05:(key==="speedSettingsIncrement"?0.01:1))); range.value=value; ctrl.appendChild(range);
       var label = addText(ctrl,"span","",String(value));
       range.addEventListener("input", function(){ state[key]=Number(range.value); label.textContent=range.value; });
       return;

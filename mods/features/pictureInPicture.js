@@ -15,10 +15,16 @@ function getResolveCommand() {
 
 window.isPipPlaying = false;
 let PlayerService = null;
-let observerPipEnter = null;
 let pipLoadTimer = null;
 let pipLoadAttempts = 0;
+let pipUiObserver = null;
+let pipEntryObserver = null;
+const pipTransitionTimers = [];
 const MAX_PIP_LOAD_ATTEMPTS = 120;
+const originalClasses = {
+  ytlrSearchVoice: { length: 0, classes: [] },
+  ytlrSearchVoiceMicButton: { length: 0, classes: [] },
+};
 
 function schedulePipLoad() {
   if (pipLoadTimer || pipLoadAttempts >= MAX_PIP_LOAD_ATTEMPTS) return;
@@ -75,31 +81,130 @@ function pipLoad() {
 if (document.readyState === "complete") pipLoad();
 else window.addEventListener("load", pipLoad);
 
-function cleanupPipStyles() {
-  const video = document.querySelector("video");
-  if (video) {
-    ["width", "height", "top", "left", "inset"].forEach((p) => video.style.removeProperty(p));
+function rememberPipTimer(callback, delay) {
+  const timer = setTimeout(() => {
+    const index = pipTransitionTimers.indexOf(timer);
+    if (index !== -1) pipTransitionTimers.splice(index, 1);
+    callback();
+  }, delay);
+  pipTransitionTimers.push(timer);
+  return timer;
+}
+
+function clearPipTransitionTimers() {
+  while (pipTransitionTimers.length) clearTimeout(pipTransitionTimers.pop());
+}
+
+function copyCompatibleClasses(source, target, memory) {
+  if (!source || !source.classList || !target) return;
+  if (memory.length === 0) memory.length = source.classList.length;
+
+  if (memory.length !== source.classList.length && memory.classes.length) {
+    for (const className of memory.classes) target.classList.add(className);
+    return;
   }
-  const container = document.querySelector("ytlr-player-container");
-  if (container) container.style.removeProperty("z-index");
+
+  for (let i = 0; i < source.classList.length; i++) {
+    const className = source.classList[i];
+    if (!memory.classes.includes(className)) memory.classes.push(className);
+    target.classList.add(className);
+  }
+}
+
+function ensurePipButton() {
+  if (!window.isPipPlaying) return;
+  try {
+    const searchBar = document.querySelector("ytlr-search-bar");
+    if (!searchBar || document.querySelector("#tt-pip-button")) return;
+    const voiceButton = searchBar.querySelector("ytlr-search-voice");
+    if (!voiceButton || !voiceButton.children[0] || !voiceButton.children[0].children[0]) return;
+
+    const iconClassNames = window._yttv
+      ? Object.values(window._yttv).find((a) => a instanceof Map && a.has("CLEAR_COOKIES"))
+      : null;
+    if (!iconClassNames) return;
+
+    const iconClassToBeRemoved = iconClassNames.get("MICROPHONE_ON");
+    const iconClearCookiesClass = iconClassNames.get("CLEAR_COOKIES");
+    const pipButton = document.createElement("ytlr-search-voice");
+    copyCompatibleClasses(voiceButton, pipButton, originalClasses.ytlrSearchVoice);
+    pipButton.style.left = "10.25em";
+    pipButton.id = "tt-pip-button";
+
+    const pipButtonMicButton = document.createElement("ytlr-search-voice-mic-button");
+    copyCompatibleClasses(
+      voiceButton.children[0],
+      pipButtonMicButton,
+      originalClasses.ytlrSearchVoiceMicButton,
+    );
+
+    const pipIcon = document.createElement("yt-icon");
+    for (let i = 0; i < voiceButton.children[0].children[0].classList.length; i++) {
+      pipIcon.classList.add(voiceButton.children[0].children[0].classList[i]);
+    }
+    if (iconClassToBeRemoved) pipIcon.classList.remove(iconClassToBeRemoved);
+    if (iconClearCookiesClass) pipIcon.classList.add(iconClearCookiesClass);
+
+    pipButtonMicButton.appendChild(pipIcon);
+    pipButton.appendChild(pipButtonMicButton);
+    searchBar.appendChild(pipButton);
+  } catch (e) {
+    console.warn("PiP button creation failed:", e);
+  }
+}
+
+function startPipUiObserver() {
+  if (pipUiObserver || !window.isPipPlaying || !document.body) return;
+  pipUiObserver = new MutationObserver(() => {
+    if (!window.isPipPlaying) {
+      stopPipUiObserver();
+      return;
+    }
+    ensurePipButton();
+  });
+  pipUiObserver.observe(document.body, { childList: true, subtree: true });
+  ensurePipButton();
+}
+
+function stopPipUiObserver() {
+  if (pipUiObserver) {
+    pipUiObserver.disconnect();
+    pipUiObserver = null;
+  }
   const button = document.querySelector("#tt-pip-button");
   if (button && button.parentNode) button.parentNode.removeChild(button);
 }
 
+function cleanupPipStyles() {
+  clearPipTransitionTimers();
+  if (pipEntryObserver) {
+    pipEntryObserver.disconnect();
+    pipEntryObserver = null;
+  }
+  stopPipUiObserver();
+
+  const video = document.querySelector("video");
+  if (video) {
+    ["width", "height", "top", "left", "inset"].forEach((p) => video.style.removeProperty(p));
+  }
+  const player = document.querySelector("ytlr-player");
+  if (player) {
+    player.style.removeProperty("display");
+    player.style.removeProperty("background-color");
+  }
+  const container = document.querySelector("ytlr-player-container");
+  if (container) container.style.removeProperty("z-index");
+}
+
 function enablePip() {
   if (!PlayerService && !pipLoad()) {
-    // A settings click can arrive before YouTube's service map. Retry the same
-    // user action for a short bounded window instead of silently doing nothing.
     let attempts = 0;
     const retry = () => {
       attempts += 1;
-      if (PlayerService || pipLoad()) {
-        enablePip();
-      } else if (attempts < 20) {
-        setTimeout(retry, 200);
-      }
+      if (PlayerService || pipLoad()) enablePip();
+      else if (attempts < 20) rememberPipTimer(retry, 200);
     };
-    setTimeout(retry, 200);
+    rememberPipTimer(retry, 200);
     return;
   }
 
@@ -112,19 +217,21 @@ function enablePip() {
     const ytlrPlayerContainer = document.querySelector("ytlr-player-container");
     if (!videoElement || !ytlrPlayer || !ytlrPlayerContainer) return;
 
+    cleanupPipStyles();
     const timestamp = Math.floor(videoElement.currentTime);
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName !== "class") return;
-        if (ytlrPlayer.classList.contains("ytLrPlayerEnabled")) return;
+    pipEntryObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName !== "class") continue;
+        if (ytlrPlayer.classList.contains("ytLrPlayerEnabled")) continue;
 
         function setStyles() {
+          if (!ytlrPlayer.isConnected || !ytlrPlayerContainer.isConnected) return;
           ytlrPlayerContainer.style.zIndex = "10";
           ytlrPlayer.style.display = "block";
           ytlrPlayer.style.backgroundColor = "rgba(0,0,0,0)";
         }
         setStyles();
-        setTimeout(setStyles, 500);
+        rememberPipTimer(setStyles, 500);
 
         function onPipEnter() {
           const video = document.querySelector("video");
@@ -135,12 +242,16 @@ function enablePip() {
           video.style.top = "68vh";
           video.style.left = "68vw";
           window.isPipPlaying = true;
+          startPipUiObserver();
           video.removeEventListener("play", onPipEnter);
         }
 
         videoElement.addEventListener("play", onPipEnter);
-        observer.disconnect();
-        setTimeout(() => {
+        if (pipEntryObserver) {
+          pipEntryObserver.disconnect();
+          pipEntryObserver = null;
+        }
+        rememberPipTimer(() => {
           try {
             if (PlayerService && PlayerService.loadedPlaybackConfig) {
               const watchEndpoint = PlayerService.loadedPlaybackConfig.watchEndpoint;
@@ -151,14 +262,15 @@ function enablePip() {
             console.warn("PiP video load failed:", e);
           }
         }, 1000);
-      });
+        break;
+      }
     });
 
-    observer.observe(ytlrPlayer, { attributes: true, attributeFilter: ["class"] });
+    pipEntryObserver.observe(ytlrPlayer, { attributes: true, attributeFilter: ["class"] });
     try {
       resolveCommand({ signalAction: { signal: "HISTORY_BACK" } });
     } catch (e) {
-      observer.disconnect();
+      cleanupPipStyles();
       throw e;
     }
   } catch (e) {
@@ -183,83 +295,4 @@ function pipToFullscreen() {
   }
 }
 
-const originalClasses = {
-  ytlrSearchVoice: { length: 0, classes: [] },
-  ytlrSearchVoiceMicButton: { length: 0, classes: [] },
-};
-
-function initPipObserver() {
-  if (observerPipEnter) return;
-  if (!document.body) {
-    setTimeout(initPipObserver, 100);
-    return;
-  }
-
-  observerPipEnter = new MutationObserver(() => {
-    if (!window.isPipPlaying) return;
-    try {
-      const searchBar = document.querySelector("ytlr-search-bar");
-      if (!searchBar || document.querySelector("#tt-pip-button")) return;
-      const voiceButton = searchBar.querySelector("ytlr-search-voice");
-      if (!voiceButton || !voiceButton.children[0] || !voiceButton.children[0].children[0]) return;
-
-      const iconClassNames = window._yttv
-        ? Object.values(window._yttv).find((a) => a instanceof Map && a.has("CLEAR_COOKIES"))
-        : null;
-      if (!iconClassNames) return;
-
-      const iconClassToBeRemoved = iconClassNames.get("MICROPHONE_ON");
-      const iconClearCookiesClass = iconClassNames.get("CLEAR_COOKIES");
-      const pipButton = document.createElement("ytlr-search-voice");
-
-      for (let i = 0; i < voiceButton.classList.length; i++) {
-        if (originalClasses.ytlrSearchVoice.length === 0) originalClasses.ytlrSearchVoice.length = voiceButton.classList.length;
-        if (originalClasses.ytlrSearchVoice.length !== voiceButton.classList.length) {
-          for (const className of originalClasses.ytlrSearchVoice.classes) pipButton.classList.add(className);
-          break;
-        }
-        if (!originalClasses.ytlrSearchVoice.classes.includes(voiceButton.classList[i])) {
-          originalClasses.ytlrSearchVoice.classes.push(voiceButton.classList[i]);
-        }
-        pipButton.classList.add(voiceButton.classList[i]);
-      }
-
-      pipButton.style.left = "10.25em";
-      pipButton.id = "tt-pip-button";
-      const pipButtonMicButton = document.createElement("ytlr-search-voice-mic-button");
-      for (let i = 0; i < voiceButton.children[0].classList.length; i++) {
-        if (originalClasses.ytlrSearchVoiceMicButton.length === 0) {
-          originalClasses.ytlrSearchVoiceMicButton.length = voiceButton.children[0].classList.length;
-        }
-        if (originalClasses.ytlrSearchVoiceMicButton.length !== voiceButton.children[0].classList.length) {
-          for (const className of originalClasses.ytlrSearchVoiceMicButton.classes) pipButtonMicButton.classList.add(className);
-          break;
-        }
-        if (!originalClasses.ytlrSearchVoiceMicButton.classes.includes(voiceButton.children[0].classList[i])) {
-          originalClasses.ytlrSearchVoiceMicButton.classes.push(voiceButton.children[0].classList[i]);
-        }
-        pipButtonMicButton.classList.add(voiceButton.children[0].classList[i]);
-      }
-
-      const pipIcon = document.createElement("yt-icon");
-      for (let i = 0; i < voiceButton.children[0].children[0].classList.length; i++) {
-        pipIcon.classList.add(voiceButton.children[0].children[0].classList[i]);
-      }
-      if (iconClassToBeRemoved) pipIcon.classList.remove(iconClassToBeRemoved);
-      if (iconClearCookiesClass) pipIcon.classList.add(iconClearCookiesClass);
-
-      pipButtonMicButton.appendChild(pipIcon);
-      pipButton.appendChild(pipButtonMicButton);
-      searchBar.appendChild(pipButton);
-    } catch (e) {
-      console.warn("PiP button creation failed:", e);
-    }
-  });
-
-  observerPipEnter.observe(document.body, { childList: true, subtree: true });
-}
-
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initPipObserver);
-else initPipObserver();
-
-export { enablePip, pipToFullscreen };
+export { enablePip, pipToFullscreen, cleanupPipStyles, startPipUiObserver, stopPipUiObserver };

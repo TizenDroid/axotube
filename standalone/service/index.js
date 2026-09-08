@@ -4,6 +4,7 @@
 var express = require('express');
 var app = express();
 var PORT = 8099;
+var UPSTREAM_TIMEOUT_MS = 10000;
 var fetch = require('node-fetch');
 var URL = require('url');
 var path = require('path');
@@ -155,7 +156,8 @@ app.all('*', function (req, res) {
         method: req.method,
         headers: buildUpstreamHeaders(req, parsedTarget, isCorsBypass),
         body: hasBody ? req : undefined,
-        redirect: 'manual'
+        redirect: 'manual',
+        timeout: UPSTREAM_TIMEOUT_MS
     };
 
     fetch(targetUrl, fetchOptions)
@@ -212,8 +214,6 @@ app.all('*', function (req, res) {
                 if (!isCorsBypass && req.url.indexOf('/tv') === 0 && req.url.indexOf('/tv_config') === -1) {
                     text += '<script src="http://localhost:' + PORT + '/axotube/userScript.js"></script>';
                 }
-                // Every bypass target is now an explicitly trusted Google/YouTube host,
-                // so the legacy rewrites remain available without becoming an open proxy.
                 text = rewriteTrustedText(text);
                 res.send(text);
             });

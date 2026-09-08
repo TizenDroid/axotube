@@ -11,6 +11,7 @@ import AXOTUBE_VERSION from "../version.js";
 
 let initialized = false;
 let keyTimeout = null;
+let screenIsDimmed = false;
 
 function applyReducedMotionFlags() {
   try {
@@ -43,8 +44,10 @@ function applyReducedMotionBody() {
 }
 
 function restoreScreenOpacity() {
+  if (!screenIsDimmed) return;
   const container = document.getElementById("container");
   if (container) container.style.setProperty("opacity", "1", "important");
+  screenIsDimmed = false;
 }
 
 function clearDimmingTimer() {
@@ -75,6 +78,7 @@ function armDimmingTimer() {
         (1 - configRead("dimmingOpacity")).toString(),
         "important",
       );
+      screenIsDimmed = true;
     }
   }, configRead("dimmingTimeout") * 1000);
 }
@@ -117,7 +121,6 @@ function execute_once_dom_loaded() {
 
   const eventHandler = (evt) => {
     if (configRead("enableScreenDimming")) armDimmingTimer();
-    else clearDimmingTimer();
 
     if (evt.keyCode == 404 && evt.type === "keydown") {
       try {

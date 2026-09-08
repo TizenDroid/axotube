@@ -76,17 +76,41 @@
         var DIAL_URL = "http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube";
         var healthAttempts = 0;
         var MAX_HEALTH_ATTEMPTS = 100;
+        var HEALTH_REQUEST_TIMEOUT_MS = 2000;
 
         function setStatus(text) {
             var el = document.getElementById("status");
             if (el) el.textContent = text;
         }
 
+        function fetchWithDeadline(url, options, timeoutMs) {
+            return new Promise(function (resolve, reject) {
+                var settled = false;
+                var timeoutId = setTimeout(function () {
+                    if (settled) return;
+                    settled = true;
+                    reject(new Error("Request timed out"));
+                }, timeoutMs);
+
+                fetch(url, options).then(function (response) {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timeoutId);
+                    resolve(response);
+                }, function (error) {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timeoutId);
+                    reject(error);
+                });
+            });
+        }
+
         function openYouTube() {
             var args = sanitizeCastArgs(getCastArgs());
             var target = PROXY_URL + "/tv?additionalDataUrl=" + DIAL_URL + (args ? "&" + args : "");
             healthAttempts += 1;
-            fetch(PROXY_URL + "/tizentube/health", { cache: "no-store" })
+            fetchWithDeadline(PROXY_URL + "/tizentube/health", { cache: "no-store" }, HEALTH_REQUEST_TIMEOUT_MS)
                 .then(function (r) {
                     if (r.ok) {
                         location.href = target;

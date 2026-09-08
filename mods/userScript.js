@@ -5,12 +5,14 @@
  *  1. polyfills.js    – browser-API + ES-builtin polyfills for Chromium 47
  *                       (EventTarget ctor, AbortController, CustomEvent,
  *                       Object.entries/values, Array.flat, …)
- *  2. whatwg-fetch    – fetch() polyfill
- *  3. app modules     – everything else
+ *  2. polyfillCorrections.js – behavior corrections for legacy shims
+ *  3. whatwg-fetch    – fetch() polyfill
+ *  4. app modules     – everything else
  */
 
 // ── 1. Browser-API + ES-builtin polyfills (EventTarget ctor, AbortController, …) ─
 import "./polyfills.js";
+import "./polyfillCorrections.js";
 
 // ── 2. Fetch polyfill ─────────────────────────────────────────────────────────
 import "whatwg-fetch";

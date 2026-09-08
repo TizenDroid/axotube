@@ -8,12 +8,23 @@
 import { configRead } from "../config.js";
 import {
   THUMBNAIL_URLS,
+  MAX_HQ_CACHE_ENTRIES,
   isVideoThumbnailArray,
 } from "../shared/hqThumbnails.js";
 
-// Memoize the generated thumbnail array per video id so repeated shelves and
-// re-processed items don't rebuild/recursively re-walk the tile data.
 const hqThumbnailsCache = {};
+const hqThumbnailsCacheOrder = [];
+
+function rememberHqThumbnails(videoID, thumbnails) {
+  if (!Object.prototype.hasOwnProperty.call(hqThumbnailsCache, videoID)) {
+    hqThumbnailsCacheOrder.push(videoID);
+  }
+  hqThumbnailsCache[videoID] = thumbnails;
+  while (hqThumbnailsCacheOrder.length > MAX_HQ_CACHE_ENTRIES) {
+    const oldest = hqThumbnailsCacheOrder.shift();
+    delete hqThumbnailsCache[oldest];
+  }
+}
 
 export function buildHqThumbnails(videoID) {
   const thumbnails = [];
@@ -49,16 +60,16 @@ export function hqify(items) {
 
       const primaryThumbnails =
         item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails;
-      // Skip tiles already upgraded with the cached array
       if (primaryThumbnails === hqThumbnailsCache[videoID]) continue;
 
-      const thumbnails =
-        hqThumbnailsCache[videoID] || buildHqThumbnails(videoID);
-      hqThumbnailsCache[videoID] = thumbnails;
+      let thumbnails = hqThumbnailsCache[videoID];
+      if (!thumbnails) {
+        thumbnails = buildHqThumbnails(videoID);
+        rememberHqThumbnails(videoID, thumbnails);
+      }
 
       if (item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails) {
-        item.tileRenderer.header.tileHeaderRenderer.thumbnail.thumbnails =
-          thumbnails;
+        item.tileRenderer.header.tileHeaderRenderer.thumbnail.thumbnails = thumbnails;
       }
 
       if (
@@ -66,8 +77,7 @@ export function hqify(items) {
           ?.playbackEndpoint?.startPlaylistItemEndpoint?.playlistItemData
           ?.thumbnail?.thumbnails
       ) {
-        item.tileRenderer.onFocusCommand.startInlinePlaybackCommand.playbackEndpoint.startPlaylistItemEndpoint.playlistItemData.thumbnail.thumbnails =
-          thumbnails;
+        item.tileRenderer.onFocusCommand.startInlinePlaybackCommand.playbackEndpoint.startPlaylistItemEndpoint.playlistItemData.thumbnail.thumbnails = thumbnails;
       }
 
       if (item.tileRenderer.onFocusCommand) {

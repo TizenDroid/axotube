@@ -3,6 +3,8 @@ import { showModal, buttonItem, overlayPanelItemListRenderer } from "./ytUI.js";
 
 let boundVideo = null;
 let keyHandlersInitialized = false;
+const MAX_SPEED_OPTIONS = 100;
+const MAX_SPEED = 5;
 
 function applyConfiguredSpeed(video) {
   if (!video) return;
@@ -26,7 +28,6 @@ function attachVideo() {
   } catch (e) {
     console.warn("Speed initialization failed:", e);
   }
-  // canplay may already have fired before this module attached.
   applyConfiguredSpeed(boundVideo);
 }
 
@@ -81,11 +82,16 @@ configChangeEmitter.addEventListener("configChange", (event) => {
 function speedSettings() {
   const currentSpeed = configRead("videoSpeed");
   let selectedIndex = 0;
-  const maxSpeed = 5;
-  const increment = configRead("speedSettingsIncrement") || 0.25;
+  const configuredIncrement = Number(configRead("speedSettingsIncrement"));
+  const requestedIncrement = Number.isFinite(configuredIncrement) && configuredIncrement > 0
+    ? configuredIncrement
+    : 0.25;
+  // Rendering hundreds of buttons is expensive on older Tizen TVs. Keep the
+  // setting precise in Web Config, but coarsen only the modal list when needed.
+  const increment = Math.max(requestedIncrement, MAX_SPEED / MAX_SPEED_OPTIONS);
   const buttons = [];
 
-  for (let speed = increment; speed <= maxSpeed; speed += increment) {
+  for (let speed = increment; speed <= MAX_SPEED && buttons.length < MAX_SPEED_OPTIONS; speed += increment) {
     const fixedSpeed = Math.round(speed * 100) / 100;
     buttons.push(
       buttonItem({ title: `${fixedSpeed}x` }, null, [

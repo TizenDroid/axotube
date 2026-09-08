@@ -6,6 +6,12 @@ export const MAX_DEARROW_CACHE_ENTRIES = 256;
 const deArrowCache = {};
 const deArrowCacheOrder = [];
 
+function removeCache(videoId) {
+  delete deArrowCache[videoId];
+  const index = deArrowCacheOrder.indexOf(videoId);
+  if (index !== -1) deArrowCacheOrder.splice(index, 1);
+}
+
 function putCache(videoId, entry) {
   if (!Object.prototype.hasOwnProperty.call(deArrowCache, videoId)) {
     deArrowCacheOrder.push(videoId);
@@ -67,36 +73,48 @@ export function deArrowify(items) {
     const videoId = item.tileRenderer.contentId;
     if (!videoId) continue;
 
+    const waiter = { item, titlesEnabled, thumbnailsEnabled };
     const cached = deArrowCache[videoId];
     if (cached) {
       if (cached.data) {
         applyDeArrow(item, videoId, cached.data, titlesEnabled, thumbnailsEnabled);
+      } else if (Array.isArray(cached.waiters)) {
+        cached.waiters.push(waiter);
       }
       continue;
     }
 
-    const promise = fetchWithTimeout(
-      `https://sponsor.ajay.app/api/branding?videoID=${videoId}`,
-    )
+    const entry = { data: null, waiters: [waiter] };
+    putCache(videoId, entry);
+
+    fetchWithTimeout(`https://sponsor.ajay.app/api/branding?videoID=${videoId}`)
       .then((res) => {
         if (!res.ok) throw new Error(`DeArrow HTTP ${res.status}`);
         return res.json();
       })
       .then((data) => {
-        const entry = deArrowCache[videoId];
-        if (entry) entry.data = data;
-        applyDeArrow(item, videoId, data, titlesEnabled, thumbnailsEnabled);
+        entry.data = data;
+        const waiters = entry.waiters.slice();
+        entry.waiters.length = 0;
+        for (const pending of waiters) {
+          applyDeArrow(
+            pending.item,
+            videoId,
+            data,
+            pending.titlesEnabled,
+            pending.thumbnailsEnabled,
+          );
+        }
       })
-      .catch(() => {});
-    putCache(videoId, promise);
+      .catch(() => {
+        if (deArrowCache[videoId] === entry) removeCache(videoId);
+      });
   }
 }
 
 export function resetDeArrowCache(videoID) {
   if (videoID) {
-    delete deArrowCache[videoID];
-    const i = deArrowCacheOrder.indexOf(videoID);
-    if (i !== -1) deArrowCacheOrder.splice(i, 1);
+    removeCache(videoID);
     return;
   }
   for (const key in deArrowCache) delete deArrowCache[key];

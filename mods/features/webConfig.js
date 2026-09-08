@@ -22,6 +22,8 @@ let lastNowPlaying = "";
 let pushTimer = null;
 let serviceToastShown = false;
 let pairingCodeShown = false;
+let lastExecutedCommandId = null;
+let lastExecutedCommandNeedsReload = false;
 
 function isTizen() {
   return typeof window !== "undefined" && window.h5vcc && window.h5vcc.tizentube;
@@ -49,7 +51,11 @@ function showPairingCode() {
       if (!data || !data.code || pairingCodeShown) return;
       pairingCodeShown = true;
       try {
-        showToast("axotube", `Phone pairing code: ${data.code}`);
+        const url = Array.isArray(data.urls) && data.urls.length ? data.urls[0] : null;
+        showToast(
+          "axotube Web Config",
+          url ? `Open ${url} on your phone · code ${data.code}` : `Phone pairing code: ${data.code}`,
+        );
       } catch (err) {}
     })
     .catch(() => {});
@@ -164,33 +170,62 @@ function dispatchWhenReady(cmd) {
 }
 
 function ackCommand(id) {
-  if (!id) return Promise.resolve();
+  if (!id) return Promise.resolve(false);
   return fetchWithTimeout(`${WEB_CONFIG_URL}/api/command/ack`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: nativeJSONStringify({ id }),
-  }).catch(() => {});
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`command ACK HTTP ${res.status}`);
+      return true;
+    })
+    .catch(() => false);
+}
+
+function acknowledgeExecutedCommand(id) {
+  return ackCommand(id).then((acked) => {
+    if (!acked || lastExecutedCommandId !== id) return acked;
+    const shouldReload = lastExecutedCommandNeedsReload;
+    lastExecutedCommandId = null;
+    lastExecutedCommandNeedsReload = false;
+    if (shouldReload) {
+      try { window.location.reload(); } catch (err) {}
+    }
+    return true;
+  });
 }
 
 function consumeCommand() {
   if (!isTizen() || commandPolling) return;
   commandPolling = true;
   fetchWithTimeout(`${WEB_CONFIG_URL}/api/command`)
-    .then((res) => res.json())
+    .then((res) => {
+      if (!res.ok) throw new Error(`command poll HTTP ${res.status}`);
+      return res.json();
+    })
     .then((data) => {
-      if (!data || !data.command) return;
+      if (!data || !data.command || !data.id) return;
       const id = data.id;
-      if (data.command.action === "reload") {
-        return ackCommand(id).then(() => {
-          try { window.location.reload(); } catch (err) {}
-        });
+
+      if (data.id === lastExecutedCommandId) {
+        return acknowledgeExecutedCommand(id);
       }
+
+      if (data.command.action === "reload") {
+        lastExecutedCommandId = id;
+        lastExecutedCommandNeedsReload = true;
+        return acknowledgeExecutedCommand(id);
+      }
+
       const cmd = buildCommand(data.command);
       if (!cmd) return;
       return dispatchWhenReady(cmd).then((ok) => {
         if (!ok) return;
+        lastExecutedCommandId = id;
+        lastExecutedCommandNeedsReload = false;
         try { showToast("axotube", "Command received"); } catch (err) {}
-        return ackCommand(id);
+        return acknowledgeExecutedCommand(id);
       });
     })
     .catch(() => {})
@@ -225,6 +260,9 @@ function pushNowPlaying() {
     headers: { "Content-Type": "application/json" },
     body: serialized === "none" ? "null" : serialized,
   })
+    .then((res) => {
+      if (!res.ok) throw new Error(`now playing HTTP ${res.status}`);
+    })
     .catch(() => { lastNowPlaying = ""; })
     .then(() => { nowPlayingPushing = false; });
 }

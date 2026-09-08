@@ -1,7 +1,7 @@
 {
   "name": "axotube",
   "appName": "axotube",
-  "version": "1.20.0",
+  "version": "1.20.1",
   "description": "AxoTube is an enhanced, performance-optimized fork of TizenTube designed to focused on performance, accessibility and quality of life features.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",

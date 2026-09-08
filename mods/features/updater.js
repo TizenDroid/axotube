@@ -40,7 +40,6 @@ function compareVersions(a, b) {
     if (safeA < safeB) return -1;
   }
 
-  // A stable release is newer than a prerelease with the same numeric core.
   if (left.length === 1 && right.length > 1) return 1;
   if (left.length > 1 && right.length === 1) return -1;
   if (left.length > 1 && right.length > 1) {
@@ -74,13 +73,20 @@ function findDownloadUrl(release) {
   let asset = null;
   if (architecture.includes("arm64") || architecture.includes("aarch64")) {
     asset = assets.find((item) => /arm64[^/]*\.apk$/i.test(item?.name || ""));
-  } else if (architecture.includes("arm")) {
+    return asset ? asset.browser_download_url : null;
+  }
+  if (architecture.includes("arm")) {
     asset = assets.find(
       (item) => /arm[^/]*\.apk$/i.test(item?.name || "") && !/arm64/i.test(item?.name || ""),
     );
+    return asset ? asset.browser_download_url : null;
   }
-  if (!asset) asset = assets.find((item) => /\.apk$/i.test(item?.name || ""));
-  return typeof asset?.browser_download_url === "string" ? asset.browser_download_url : null;
+
+  // Only use a generic APK fallback when the runtime cannot report a known
+  // architecture. Never install a different architecture just because it is
+  // the first APK in a release.
+  asset = assets.find((item) => /\.apk$/i.test(item?.name || ""));
+  return asset ? asset.browser_download_url : null;
 }
 
 function checkForUpdates(showNoUpdateToast) {

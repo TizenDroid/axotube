@@ -5,90 +5,14 @@ import { configRead } from "../config.js";
 import languages from "../translations/language-names.js";
 
 const LANGUAGE_CODES = [
-  "af",
-  "sq",
-  "am",
-  "ar",
-  "hy",
-  "as",
-  "az",
-  "eu",
-  "be",
-  "bn",
-  "bs",
-  "bg",
-  "my",
-  "ca",
-  "zh-CN",
-  "zh-TW",
-  "zh-HK",
-  "hr",
-  "cs",
-  "da",
-  "nl",
-  "en",
-  "et",
-  "fil",
-  "fi",
-  "fr",
-  "gl",
-  "ka",
-  "de",
-  "el",
-  "gu",
-  "he",
-  "hi",
-  "hu",
-  "is",
-  "id",
-  "ga",
-  "it",
-  "ja",
-  "kn",
-  "kk",
-  "km",
-  "ko",
-  "ky",
-  "lo",
-  "lv",
-  "lt",
-  "mk",
-  "ms",
-  "ml",
-  "mt",
-  "mr",
-  "mn",
-  "ne",
-  "no",
-  "or",
-  "fa",
-  "pl",
-  "pt",
-  "pa",
-  "ro",
-  "ru",
-  "sr",
-  "si",
-  "sk",
-  "sl",
-  "es",
-  "sw",
-  "sv",
-  "ta",
-  "te",
-  "th",
-  "tr",
-  "uk",
-  "ur",
-  "uz",
-  "vi",
-  "cy",
-  "yi",
-  "yo",
-  "zu",
+  "af", "sq", "am", "ar", "hy", "as", "az", "eu", "be", "bn", "bs", "bg", "my", "ca",
+  "zh-CN", "zh-TW", "zh-HK", "hr", "cs", "da", "nl", "en", "et", "fil", "fi", "fr", "gl",
+  "ka", "de", "el", "gu", "he", "hi", "hu", "is", "id", "ga", "it", "ja", "kn", "kk", "km",
+  "ko", "ky", "lo", "lv", "lt", "mk", "ms", "ml", "mt", "mr", "mn", "ne", "no", "or", "fa",
+  "pl", "pt", "pa", "ro", "ru", "sr", "si", "sk", "sl", "es", "sw", "sv", "ta", "te", "th",
+  "tr", "uk", "ur", "uz", "vi", "cy", "yi", "yo", "zu",
 ];
 
-// Return an object mapping language code -> localized language name.
 export function getComprehensiveLanguageList() {
   try {
     const map = {};
@@ -99,8 +23,7 @@ export function getComprehensiveLanguageList() {
         const regionName = languages.region.long[region] || region;
         map[code] = `${languageName} (${regionName})`;
       } else {
-        const name = languages.language.standard.long[code] || code;
-        map[code] = name;
+        map[code] = languages.language.standard.long[code] || code;
       }
     });
     return map;
@@ -111,82 +34,50 @@ export function getComprehensiveLanguageList() {
   }
 }
 
-// Infer the most likely language for a given ISO 3166-1 alpha-2 country code using Intl.Locale.
-// Returns { code, name } or null if unknown.
 export function getCountryLanguage(countryCode) {
   if (!countryCode) return null;
   try {
     const region = String(countryCode).toUpperCase();
-
     const zhRegionMap = { CN: "zh-CN", TW: "zh-TW", HK: "zh-HK", SG: "zh-CN" };
     if (zhRegionMap[region]) {
       const code = zhRegionMap[region];
       const name = languages.language.standard.long[code] || code;
       return { code, name };
     }
-
     const base = new Intl.Locale("und", { region });
     const maximized = base.maximize ? base.maximize() : base;
     const lang = maximized.language || "en";
-
-    const name = languages.language.standard.long[lang] || lang;
-
-    return { code: lang, name };
+    return { code: lang, name: languages.language.standard.long[lang] || lang };
   } catch (e) {
-    console.warn(
-      "axotube Subtitle Localization: Could not infer language for country",
-      countryCode,
-      e,
-    );
+    console.warn("axotube Subtitle Localization: Could not infer language for country", countryCode, e);
     return null;
   }
 }
 
 let isPatched = false;
 
-// Function to get user's country code
 function getUserCountryCode() {
   try {
-    // Always use window.yt.config_.GL as primary source
-    if (window.yt && window.yt.config_ && window.yt.config_.GL) {
-      return window.yt.config_.GL;
-    }
-
-    console.warn(
-      "axotube Subtitle Localization: Could not determine user country code",
-    );
+    if (window.yt && window.yt.config_ && window.yt.config_.GL) return window.yt.config_.GL;
+    console.warn("axotube Subtitle Localization: Could not determine user country code");
     return null;
   } catch (error) {
-    console.error(
-      "axotube Subtitle Localization: Error getting country code:",
-      error,
-    );
+    console.error("axotube Subtitle Localization: Error getting country code:", error);
     return null;
   }
 }
 
-// Function to check if language already exists in the menu
 function languageExistsInMenu(items, languageCode, languageName) {
   return items.some((item) => {
-    if (item.compactLinkRenderer && item.compactLinkRenderer.serviceEndpoint) {
-      const commands =
-        item.compactLinkRenderer.serviceEndpoint.commandExecutorCommand
-          ?.commands;
-      if (commands && commands[0] && commands[0].selectSubtitlesTrackCommand) {
-        const translationLang =
-          commands[0].selectSubtitlesTrackCommand.translationLanguage;
-        return (
-          translationLang &&
-          (translationLang.languageCode === languageCode ||
-            translationLang.languageName === languageName)
-        );
-      }
-    }
-    return false;
+    const commands = item.compactLinkRenderer?.serviceEndpoint?.commandExecutorCommand?.commands;
+    const translationLang = commands?.[0]?.selectSubtitlesTrackCommand?.translationLanguage;
+    return !!(
+      translationLang &&
+      (translationLang.languageCode === languageCode || translationLang.languageName === languageName)
+    );
   });
 }
 
-// Function to create a language option
 function createLanguageOption(languageCode, languageName) {
   return {
     compactLinkRenderer: {
@@ -194,23 +85,9 @@ function createLanguageOption(languageCode, languageName) {
       serviceEndpoint: {
         commandExecutorCommand: {
           commands: [
-            {
-              selectSubtitlesTrackCommand: {
-                translationLanguage: {
-                  languageCode,
-                  languageName,
-                },
-              },
-            },
-            {
-              openClientOverlayAction: {
-                type: "CLIENT_OVERLAY_TYPE_CAPTIONS_LANGUAGE",
-                updateAction: true,
-              },
-            },
-            {
-              signalAction: { signal: "POPUP_BACK" },
-            },
+            { selectSubtitlesTrackCommand: { translationLanguage: { languageCode, languageName } } },
+            { openClientOverlayAction: { type: "CLIENT_OVERLAY_TYPE_CAPTIONS_LANGUAGE", updateAction: true } },
+            { signalAction: { signal: "POPUP_BACK" } },
           ],
         },
       },
@@ -219,30 +96,19 @@ function createLanguageOption(languageCode, languageName) {
   };
 }
 
-// Function to get languages already present in menu
 function getExistingLanguages(items) {
   const existingLanguages = new Set();
-
   items.forEach((item) => {
-    if (item.compactLinkRenderer && item.compactLinkRenderer.serviceEndpoint) {
-      const commands =
-        item.compactLinkRenderer.serviceEndpoint.commandExecutorCommand
-          ?.commands;
-      if (commands && commands[0] && commands[0].selectSubtitlesTrackCommand) {
-        const translationLang =
-          commands[0].selectSubtitlesTrackCommand.translationLanguage;
-        if (translationLang) {
-          existingLanguages.add(translationLang.languageCode);
-          existingLanguages.add(translationLang.languageName);
-        }
-      }
+    const commands = item.compactLinkRenderer?.serviceEndpoint?.commandExecutorCommand?.commands;
+    const translationLang = commands?.[0]?.selectSubtitlesTrackCommand?.translationLanguage;
+    if (translationLang) {
+      existingLanguages.add(translationLang.languageCode);
+      existingLanguages.add(translationLang.languageName);
     }
   });
-
   return existingLanguages;
 }
 
-// Function to create section title
 function createSectionTitle(title) {
   return {
     overlayMessageRenderer: {
@@ -253,154 +119,92 @@ function createSectionTitle(title) {
   };
 }
 
-// Main function to patch the subtitle menu
 function patchSubtitleMenu() {
-  if (isPatched) return;
+  if (isPatched) return true;
+  if (!document.querySelector(".html5-video-player") || !window._yttv) return false;
 
-  const player = document.querySelector(".html5-video-player");
-  if (!player) return setTimeout(patchSubtitleMenu, 250);
-
-  // Always patch if possible - settings will be checked dynamically
-  if (!window._yttv) return setTimeout(patchSubtitleMenu, 250);
   const yttvInstance = Object.values(window._yttv).find(
-    (obj) =>
-      obj && obj.instance && typeof obj.instance.resolveCommand === "function",
+    (obj) => obj && obj.instance && typeof obj.instance.resolveCommand === "function",
   );
-
-  if (
-    !yttvInstance ||
-    yttvInstance.instance.resolveCommand.isPatchedBySubtitleLocalization
-  ) {
-    if (!yttvInstance) {
-      console.warn(
-        "axotube Subtitle Localization: Could not find resolveCommand instance.",
-      );
-    }
-    return;
+  if (!yttvInstance) return false;
+  if (yttvInstance.instance.resolveCommand.isPatchedBySubtitleLocalization) {
+    isPatched = true;
+    return true;
   }
 
   const originalResolveCommand = yttvInstance.instance.resolveCommand;
-
   yttvInstance.instance.resolveCommand = function (cmd, _) {
-    // Identify the correct command using its uniqueId
-    if (
-      cmd?.openPopupAction?.uniqueId ===
-      "CLIENT_OVERLAY_TYPE_CAPTIONS_AUTO_TRANSLATE"
-    ) {
-      // Check current settings dynamically each time menu opens
+    if (cmd?.openPopupAction?.uniqueId === "CLIENT_OVERLAY_TYPE_CAPTIONS_AUTO_TRANSLATE") {
       const showUserLanguage = configRead("enableShowUserLanguage");
       const showOtherLanguages = configRead("enableShowOtherLanguages");
-
-      // If neither feature is enabled, don't modify the menu
       if (!showUserLanguage && !showOtherLanguages) {
         return originalResolveCommand.apply(this, arguments);
       }
 
-      const items =
-        cmd.openPopupAction.popup.overlaySectionRenderer.overlay
-          .overlayTwoPanelRenderer.actionPanel.overlayPanelRenderer.content
-          .overlayPanelItemListRenderer.items;
+      const items = cmd.openPopupAction?.popup?.overlaySectionRenderer?.overlay
+        ?.overlayTwoPanelRenderer?.actionPanel?.overlayPanelRenderer?.content
+        ?.overlayPanelItemListRenderer?.items;
+      if (!Array.isArray(items)) return originalResolveCommand.apply(this, arguments);
 
-      // Get existing languages
       const existingLanguages = getExistingLanguages(items);
-
-      // Add user's local language if enabled
       if (showUserLanguage) {
         const userCountryCode = getUserCountryCode();
         const userLanguage = getCountryLanguage(userCountryCode);
-
-        if (userLanguage) {
-          // Check if the user's language already exists
-          if (
-            !languageExistsInMenu(items, userLanguage.code, userLanguage.name)
-          ) {
-            const userLanguageOption = createLanguageOption(
-              userLanguage.code,
-              userLanguage.name,
-            );
-
-            // Find the "Recommended languages" section and insert after it
-            const recommendedIndex = items.findIndex(
-              (item) =>
-                item.overlayMessageRenderer?.subtitle?.simpleText ===
-                "Recommended languages",
-            );
-
-            if (recommendedIndex > -1) {
-              // Insert user's language as the first recommendation
-              items.splice(recommendedIndex + 1, 0, userLanguageOption);
-              // Update existing languages set
-              existingLanguages.add(userLanguage.code);
-              existingLanguages.add(userLanguage.name);
-            } else {
-              // Find "Other languages" section and insert before it
-              const otherLanguagesIndex = items.findIndex(
-                (item) =>
-                  item.overlayMessageRenderer?.subtitle?.simpleText ===
-                  "Other languages",
-              );
-
-              if (otherLanguagesIndex > -1) {
-                items.splice(otherLanguagesIndex, 0, userLanguageOption);
-              } else {
-                // As a fallback, add it at the beginning
-                items.unshift(userLanguageOption);
-              }
-              // Update existing languages set
-              existingLanguages.add(userLanguage.code);
-              existingLanguages.add(userLanguage.name);
-            }
-          }
-        } else {
-          console.warn(
-            `axotube Subtitle Localization: No language mapping found for country code: ${userCountryCode}`,
+        if (userLanguage && !languageExistsInMenu(items, userLanguage.code, userLanguage.name)) {
+          const userLanguageOption = createLanguageOption(userLanguage.code, userLanguage.name);
+          const recommendedIndex = items.findIndex(
+            (item) => item.overlayMessageRenderer?.subtitle?.simpleText === "Recommended languages",
           );
+          if (recommendedIndex > -1) {
+            items.splice(recommendedIndex + 1, 0, userLanguageOption);
+          } else {
+            const otherLanguagesIndex = items.findIndex(
+              (item) => item.overlayMessageRenderer?.subtitle?.simpleText === "Other languages",
+            );
+            if (otherLanguagesIndex > -1) items.splice(otherLanguagesIndex, 0, userLanguageOption);
+            else items.unshift(userLanguageOption);
+          }
+          existingLanguages.add(userLanguage.code);
+          existingLanguages.add(userLanguage.name);
         }
       }
 
-      // Create "Tizen Languages" section with all missing languages if enabled
       if (showOtherLanguages) {
         const missingLanguages = Object.entries(getComprehensiveLanguageList())
-          .filter(
-            ([code, name]) =>
-              !existingLanguages.has(code) && !existingLanguages.has(name),
-          )
+          .filter(([code, name]) => !existingLanguages.has(code) && !existingLanguages.has(name))
           .sort(([, a], [, b]) => a.localeCompare(b));
-
         if (missingLanguages.length > 0) {
-          // Add section title
           items.push(createSectionTitle("Other Languages"));
-
-          // Add all missing languages
-          missingLanguages.forEach(([code, name]) => {
-            items.push(createLanguageOption(code, name));
-          });
+          missingLanguages.forEach(([code, name]) => items.push(createLanguageOption(code, name)));
         }
       }
     }
-
-    // Let the original function run with our modified 'cmd' object
     return originalResolveCommand.apply(this, arguments);
   };
 
   yttvInstance.instance.resolveCommand.isPatchedBySubtitleLocalization = true;
   isPatched = true;
+  return true;
 }
 
-// Wait for the YouTube TV app to be ready
 let subtitlePollCount = 0;
+let subtitlePollTimer = null;
 const SUBTITLE_POLL_LIMIT = 30;
-const interval = setInterval(() => {
-  if (window._yttv && Object.keys(window._yttv).length > 0) {
-    patchSubtitleMenu();
-    if (isPatched || ++subtitlePollCount >= SUBTITLE_POLL_LIMIT)
-      clearInterval(interval);
-  }
-}, 1000);
+const SUBTITLE_POLL_DELAY_MS = 500;
 
-// Also try to patch when DOM is loaded
+function attemptSubtitlePatch() {
+  if (isPatched) return;
+  subtitlePollCount += 1;
+  if (patchSubtitleMenu()) return;
+  if (subtitlePollCount >= SUBTITLE_POLL_LIMIT) {
+    console.warn("axotube Subtitle Localization: resolveCommand did not become ready in time.");
+    return;
+  }
+  subtitlePollTimer = setTimeout(attemptSubtitlePatch, SUBTITLE_POLL_DELAY_MS);
+}
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", patchSubtitleMenu);
+  document.addEventListener("DOMContentLoaded", attemptSubtitlePatch);
 } else {
-  patchSubtitleMenu();
+  attemptSubtitlePatch();
 }

@@ -1,6 +1,6 @@
 {
   "name": "standalone-service",
-  "version": "1.20.0",
+  "version": "1.20.1",
   "description": "axotube standalone proxy service",
   "main": "index.js",
   "scripts": {
