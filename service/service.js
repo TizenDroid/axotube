@@ -130,12 +130,42 @@ function sanitizeConfig(value) {
   return out;
 }
 
+function migrateStoredConfig(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out = {};
+  for (const key of Object.keys(value)) {
+    let candidate = value[key];
+
+    // Older Web Config builds could persist this command as an object while
+    // the TV-side settings format has always been a serialized command.
+    if (
+      key === "launchToOnStartup" &&
+      candidate &&
+      typeof candidate === "object" &&
+      !Array.isArray(candidate)
+    ) {
+      try {
+        candidate = JSON.stringify(candidate);
+      } catch (err) {
+        continue;
+      }
+    }
+
+    // Migration is intentionally tolerant: preserve every independently valid
+    // setting and ignore only stale/unknown/invalid entries. Live API writes
+    // continue to use sanitizeConfig(), which stays strict.
+    if (!validateConfigValue(key, candidate)) continue;
+    out[key] = candidate;
+  }
+  return out;
+}
+
 function loadStore() {
   try {
     const parsed = JSON.parse(fs.readFileSync(STORE_PATH, "utf8"));
     if (parsed && typeof parsed === "object") {
       return {
-        config: sanitizeConfig(parsed.config) || {},
+        config: migrateStoredConfig(parsed.config),
         revision: typeof parsed.revision === "number" ? parsed.revision : 0,
         authToken:
           typeof parsed.authToken === "string" && parsed.authToken.length >= 32
@@ -234,7 +264,6 @@ app.post("/api/pair", (req, res) => {
     res.status(403).json({ ok: false, error: "Invalid pairing code" });
     return;
   }
-  pairingCode = newPairingCode();
   pairAttempts = 0;
   pairWindowStarted = Date.now();
   res.json({ ok: true, token: authToken });
