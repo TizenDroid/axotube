@@ -3,6 +3,7 @@ node_modules/
 *.wgt
 .sign
 package-lock.json
+!standalone/service/package-lock.json
 .history
 .npmrc
 standalone/userscript/
