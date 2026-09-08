@@ -89,7 +89,15 @@ test('preview feature-map readiness retries actual capability', () => {
   const src = read('mods/features/enableFeatures.js');
   has(src, 'ENABLE_PREVIEWS_WITH_SOUND');
   has(src, 'if (!featureMap)');
-  has(src, 'setTimeout(enableFeatures, 250)');
+  has(src, 'retryAttempts');
+  has(src, 'MAX_RETRY_ATTEMPTS');
+});
+
+test('preview readiness polling is bounded on slow Tizen devices', () => {
+  const src = read('mods/features/enableFeatures.js');
+  has(src, 'const MAX_RETRY_ATTEMPTS = 20');
+  has(src, 'if (retryAttempts >= MAX_RETRY_ATTEMPTS) return');
+  assert.ok(!src.includes('setTimeout(enableFeatures, 250)'), '250ms unbounded polling can steal main-thread time from remote input');
 });
 
 test('guide JSON patch fails open on mixed arrays', () => {
@@ -203,6 +211,12 @@ test('custom player patch initializes only after owner write succeeds', () => {
   has(src, 'function makeRef');
   has(src, 'if (!ref.write(YtlrPlayerActionsContainer))');
   has(src, 'customUIInitialized = true');
+});
+
+test('custom player deep scans retain the old bounded retry budget', () => {
+  const src = read('mods/ui/customUI.js');
+  has(src, 'const MAX_ATTEMPTS = 10');
+  has(src, 'deepFindContainer(20000, true)');
 });
 
 test('LAN API is paired while loopback and DIAL remain functional', () => {
