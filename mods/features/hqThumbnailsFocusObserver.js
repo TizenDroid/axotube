@@ -61,7 +61,6 @@ function upgradeThumbnailQuality(element) {
     return;
   }
 
-  // Deduplicates concurrent probes for the same video internally
   probeBestThumbnailQuality(videoId, function (qualityName) {
     applyFinalQuality(qualityName);
   });
@@ -135,17 +134,11 @@ function initFocusObserver() {
         }
 
         if (mutation.type === "attributes") {
-          // Cheap pre-filter before the expensive ancestor walk: only react
-          // to thumbnail-related changes (scroll style churn is ignored)
-          if (
-            mutation.attributeName === "src" ||
-            mutation.attributeName === "srcset"
-          ) {
+          if (mutation.attributeName === "src" || mutation.attributeName === "srcset") {
             if (element.tagName !== "IMG") continue;
-            var attr =
-              mutation.attributeName === "src"
-                ? element.getAttribute("src")
-                : element.getAttribute("srcset");
+            var attr = mutation.attributeName === "src"
+              ? element.getAttribute("src")
+              : element.getAttribute("srcset");
             if (!attr || attr.indexOf("i.ytimg.com/vi/") === -1) continue;
           } else if (mutation.attributeName === "style") {
             var bg = element.style && element.style.backgroundImage;
@@ -157,7 +150,6 @@ function initFocusObserver() {
           var focusedParent = closestFocused(element);
           if (focusedParent) {
             var lockedVideoId = element.getAttribute("data-hq-upgraded");
-
             var liveUrl = "";
             if (element.tagName === "IMG") {
               liveUrl = element.src;
@@ -166,11 +158,7 @@ function initFocusObserver() {
               liveUrl = liveMatch ? liveMatch[1] : "";
             }
             var liveVideoId = liveUrl ? extractVideoIdFromThumbnailUrl(liveUrl) : null;
-
-            if (lockedVideoId && lockedVideoId === liveVideoId) {
-              continue;
-            }
-
+            if (lockedVideoId && lockedVideoId === liveVideoId) continue;
             element.removeAttribute("data-hq-upgraded");
             upgradeThumbnailQuality(element);
           }
@@ -178,8 +166,6 @@ function initFocusObserver() {
         }
 
         if (mutation.type === "childList") {
-          // Resolve the focused element once per batch instead of walking
-          // ancestors for every added node
           if (!focusedEl) focusedEl = document.querySelector(".zylon-focus");
           var upgradedOnce = false;
           for (var n = 0; n < mutation.addedNodes.length; n++) {
@@ -188,9 +174,7 @@ function initFocusObserver() {
 
             if (
               focusedEl &&
-              (focusedEl === node ||
-                focusedEl.contains(node) ||
-                node.contains(focusedEl))
+              (focusedEl === node || focusedEl.contains(node) || node.contains(focusedEl))
             ) {
               if (!upgradedOnce) {
                 findTargetsAndUpgrade(focusedEl);
@@ -220,10 +204,10 @@ function initFocusObserver() {
     if (!container) return;
     observer = new MutationObserver(function (mutations) {
       pendingMutations = pendingMutations ? pendingMutations.concat(mutations) : mutations;
-      if (pendingFrame) cancelAnimationFrame(pendingFrame);
+      if (pendingFrame) return;
       pendingFrame = requestAnimationFrame(function () {
         pendingFrame = null;
-        var batch = pendingMutations;
+        var batch = pendingMutations || [];
         pendingMutations = null;
         processMutations(batch);
       });
@@ -232,23 +216,24 @@ function initFocusObserver() {
   };
 
   var stopObserver = function () {
-    if (!observer) return;
-    observer.disconnect();
-    observer = null;
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+    if (pendingFrame) {
+      cancelAnimationFrame(pendingFrame);
+      pendingFrame = null;
+    }
+    pendingMutations = null;
   };
 
   var syncWithConfig = function () {
-    if (configRead("enableHqThumbnails")) {
-      startObserver();
-    } else {
-      stopObserver();
-    }
+    if (configRead("enableHqThumbnails")) startObserver();
+    else stopObserver();
   };
 
   configChangeEmitter.addEventListener("configChange", function (event) {
-    if (event.detail && event.detail.key === "enableHqThumbnails") {
-      syncWithConfig();
-    }
+    if (event.detail && event.detail.key === "enableHqThumbnails") syncWithConfig();
   });
 
   syncWithConfig();
