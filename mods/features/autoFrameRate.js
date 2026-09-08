@@ -14,10 +14,10 @@ function getFrameRateApi() {
 
 function resetFrameRate() {
     if (!frameRateForced) return;
-    const setFrameRate = getFrameRateApi();
-    if (!setFrameRate) return;
+    const SetFrameRate = getFrameRateApi();
+    if (!SetFrameRate) return;
     try {
-        setFrameRate.call(window.h5vcc.tizentube, 0);
+        SetFrameRate.call(window.h5vcc.tizentube, 0);
         frameRateForced = false;
     } catch (e) {
         console.warn('Failed to reset auto frame rate:', e);
@@ -98,12 +98,13 @@ window.addEventListener('hashchange', () => {
 });
 
 configChangeEmitter.addEventListener('configChange', (event) => {
-    if (event.detail?.key !== "autoFrameRate") return;
-    if (event.detail.value) {
-        attachToVideoPlayer();
-    } else {
-        detachFromVideoPlayer();
-        resetFrameRate();
+    if (event.detail?.key === "autoFrameRate") {
+        if (event.detail.value) {
+            attachToVideoPlayer();
+        } else {
+            detachFromVideoPlayer();
+            resetFrameRate();
+        }
     }
 });
 
