@@ -50,18 +50,27 @@ export function patchResolveCommand() {
       }
       const ogResolve = window._yttv[key].instance.resolveCommand;
       window._yttv[key].instance.resolveCommand = function (cmd, _) {
+        if (!cmd || typeof cmd !== "object") return ogResolve.call(this, cmd, _);
+
         if (cmd.setClientSettingEndpoint) {
+          if (!Array.isArray(cmd.setClientSettingEndpoint.settingDatas)) {
+            return ogResolve.call(this, cmd, _);
+          }
           for (const settingData of cmd.setClientSettingEndpoint.settingDatas) {
-            if (!settingData.clientSettingEnum.item.includes("_")) {
+            const itemName = settingData?.clientSettingEnum?.item;
+            if (typeof itemName !== "string") continue;
+
+            if (!itemName.includes("_")) {
               const valName = Object.keys(settingData).find((settingKey) => settingKey.includes("Value"));
+              if (!valName) continue;
               const value = valName === "intValue" ? Number(settingData[valName]) : settingData[valName];
               if (valName === "arrayValue") {
-                const current = configRead(settingData.clientSettingEnum.item);
+                const current = configRead(itemName);
                 const arr = Array.isArray(current) ? current.slice() : [];
                 if (arr.includes(value)) arr.splice(arr.indexOf(value), 1);
                 else arr.push(value);
-                configWrite(settingData.clientSettingEnum.item, arr);
-              } else if (settingData.clientSettingEnum.item === "themePreset") {
+                configWrite(itemName, arr);
+              } else if (itemName === "themePreset") {
                 const preset = {
                   default: "#0f0f0f",
                   black: "#000000",
@@ -77,10 +86,11 @@ export function patchResolveCommand() {
                   configWrite("themePreset", value);
                 }
               } else {
-                configWrite(settingData.clientSettingEnum.item, value);
+                configWrite(itemName, value);
               }
-            } else if (settingData.clientSettingEnum.item === "I18N_LANGUAGE") {
+            } else if (itemName === "I18N_LANGUAGE") {
               const lang = settingData.stringValue;
+              if (typeof lang !== "string" || !lang) continue;
               const date = new Date();
               date.setFullYear(date.getFullYear() + 10);
               document.cookie = `PREF=hl=${lang}; expires=${date.toUTCString()};`;
@@ -106,6 +116,7 @@ export function patchResolveCommand() {
               cmd.openPopupAction.popup.overlaySectionRenderer.overlay
                 .overlayTwoPanelRenderer.actionPanel.overlayPanelRenderer.content
                 .overlayPanelItemListRenderer.items;
+            if (!Array.isArray(items)) return ogResolve.call(this, cmd, _);
             for (const item of items) {
               if (item?.compactLinkRenderer?.icon?.iconType === "SLOW_MOTION_VIDEO") {
                 if (item.compactLinkRenderer.subtitle) item.compactLinkRenderer.subtitle.simpleText = "with axotube";
@@ -151,8 +162,9 @@ export function patchResolveCommand() {
           if (ytlrPlayerContainer) ytlrPlayerContainer.style.removeProperty("z-index");
         }
 
-        if (cmd.commandExecutorCommand && cmd.commandExecutorCommand.commands) {
+        if (cmd.commandExecutorCommand && Array.isArray(cmd.commandExecutorCommand.commands)) {
           for (const command of cmd.commandExecutorCommand.commands) {
+            if (!command || typeof command !== "object") continue;
             if (command.customAction) {
               customAction(command.customAction.action, command.customAction.parameters);
             } else if (command.signalAction?.customAction) {
@@ -192,7 +204,7 @@ function customAction(action, parameters) {
       modernUI(true, parameters);
       break;
     case "OPTIONS_SHOW":
-      optionShow(parameters, parameters.update);
+      optionShow(parameters, parameters && parameters.update);
       break;
     case "SKIP": {
       const kE = document.createEvent("Event");
@@ -201,7 +213,8 @@ function customAction(action, parameters) {
       kE.which = 27;
       document.dispatchEvent(kE);
       const video = document.querySelector("video");
-      if (video && parameters) video.currentTime = parameters.time;
+      const skipTime = Number(parameters?.time);
+      if (video && Number.isFinite(skipTime)) video.currentTime = skipTime;
       break;
     }
     case "TT_SETTINGS_SHOW":
@@ -215,6 +228,7 @@ function customAction(action, parameters) {
       break;
     case "UPDATE_DOWNLOAD":
       if (
+        typeof parameters === "string" &&
         window.h5vcc &&
         window.h5vcc.tizentube &&
         window.h5vcc.tizentube.InstallAppFromURL
@@ -226,7 +240,7 @@ function customAction(action, parameters) {
     case "SET_PLAYER_SPEED": {
       const speed = Number(parameters);
       const video = document.querySelector("video");
-      if (video && Number.isFinite(speed)) video.playbackRate = speed;
+      if (video && Number.isFinite(speed) && speed > 0) video.playbackRate = speed;
       break;
     }
     case "ENTER_MP":
