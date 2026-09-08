@@ -214,6 +214,24 @@ test('LAN API is paired while loopback and DIAL remain functional', () => {
   ]) has(src, text);
 });
 
+test('successful pairing keeps the TV-displayed code valid for another phone', () => {
+  const src = read('service/service.js');
+  const route = between(src, 'app.post("/api/pair"', 'app.use("/api", requireApiAuth)');
+  has(route, 'res.json({ ok: true, token: authToken })');
+  assert.ok(!route.includes('pairingCode = newPairingCode()'), 'pairing must not silently rotate a code the TV only displayed once');
+});
+
+test('legacy persisted config migration keeps valid settings independently', () => {
+  const src = read('service/service.js');
+  const migration = between(src, 'function migrateStoredConfig', 'function loadStore()');
+  has(migration, 'launchToOnStartup');
+  has(migration, 'JSON.stringify');
+  has(migration, 'continue');
+  const loader = between(src, 'function loadStore()', 'const initialStore');
+  has(loader, 'migrateStoredConfig(parsed.config)');
+  assert.ok(!loader.includes('sanitizeConfig(parsed.config) || {}'), 'one invalid legacy value must not wipe all valid saved settings');
+});
+
 test('web config pairs and avoids innerHTML sinks', () => {
   const src = read('service/webConfigPage.js');
   has(src, 'axotube-pair-token');
