@@ -8,7 +8,7 @@ let customUIInitialized = false;
 let containerRef = null;
 let retryTimer = null;
 let attempts = 0;
-const MAX_ATTEMPTS = 60;
+const MAX_ATTEMPTS = 10;
 
 function safeRead(node, key) {
   try {
