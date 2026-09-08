@@ -257,5 +257,10 @@ function customAction(action, parameters) {
     case "CHECK_FOR_UPDATES":
       checkForUpdates(true);
       break;
+    case "RETURN_TO_AXOBREW":
+      try {
+        window.location.href = "/axobrew-ui/dist/index.html";
+      } catch (err) {}
+      break;
   }
 }

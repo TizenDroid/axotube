@@ -1134,6 +1134,11 @@ export default function modernUI(update, parameters) {
           ],
         }
       : null,
+    {
+      name: t("settings.options.returnToAxobrew"),
+      icon: "OPEN_IN_NEW",
+      action: "RETURN_TO_AXOBREW",
+    },
   ];
 
   const buttons = [];
@@ -1141,6 +1146,23 @@ export default function modernUI(update, parameters) {
   let index = 0;
   for (const setting of settings) {
     if (!setting) continue;
+    if (setting.action) {
+      buttons.push(
+        buttonItem(
+          { title: setting.name },
+          { icon: setting.icon ? setting.icon : "CHEVRON_DOWN" },
+          [
+            {
+              customAction: {
+                action: setting.action,
+              },
+            },
+          ],
+        ),
+      );
+      index++;
+      continue;
+    }
     const currentVal = setting.value ? configRead(setting.value) : null;
     buttons.push(
       buttonItem(

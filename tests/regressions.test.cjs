@@ -26,7 +26,7 @@ test('core feature defaults stay enabled', () => {
 
 test('AdBlock still handles core ad response shapes', () => {
   const src = read('mods/features/adblock.js');
-  for (const key of ['adPlacements', 'playerAds', 'adSlots', 'adSlotRenderer']) has(src, key);
+  for (const key of ['adPlacements', 'playerAds', 'adSlots', 'adSlotRenderer', 'promo']) has(src, key);
 });
 
 test('saved UA reload is session guarded', () => {

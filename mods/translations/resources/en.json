@@ -9,6 +9,7 @@
                 "qrCodeScanMessage": "You can visit the {{name}} page by scanning the QR code below."
             },
             "adBlock": "Ad Block",
+            "returnToAxobrew": "Return to axobrew",
             "sponsorblock": {
                 "title": "SponsorBlock Settings",
                 "options": {

@@ -118,6 +118,12 @@ ytlr-toast .thumbnail {
   border-radius: 4px !important;
 }
 
+/* Hide promo shelves (also stripped at the response level in adblock.js) */
+
+ytlr-promo-shelf-renderer {
+  display: none !important;
+}
+
 /* Reduced motion mode: disable all animations/transitions for performance */
 
 body.axotube-reduced-motion,

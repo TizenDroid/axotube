@@ -283,8 +283,20 @@ for (const key in window._yttv) {
 // Apply every tile-level transformer to a list of shelves.
 function processShelves(shelves, shouldAddPreviews = true) {
   const removeShorts = !configRead("enableShorts");
+  const removeAds = configRead("enableAdBlock");
   for (let i = shelves.length - 1; i >= 0; i--) {
     const shelve = shelves[i];
+    // Promo shelves (rendered as <ytlr-promo-shelf-renderer>) are
+    // promotional content: drop them with the adblock.
+    if (
+      removeAds &&
+      shelve &&
+      typeof shelve === "object" &&
+      Object.keys(shelve).some((k) => k.toLowerCase().indexOf("promo") !== -1)
+    ) {
+      shelves.splice(i, 1);
+      continue;
+    }
     if (!shelve.shelfRenderer) continue;
     if (!shelve.shelfRenderer.content?.horizontalListRenderer?.items) continue;
 
