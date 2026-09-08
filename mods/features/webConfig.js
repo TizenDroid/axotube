@@ -22,6 +22,7 @@ let lastNowPlaying = "";
 let pushTimer = null;
 let serviceToastShown = false;
 let pairingCodeShown = false;
+let lastExecutedCommandId = null;
 
 function isTizen() {
   return typeof window !== "undefined" && window.h5vcc && window.h5vcc.tizentube;
@@ -164,33 +165,59 @@ function dispatchWhenReady(cmd) {
 }
 
 function ackCommand(id) {
-  if (!id) return Promise.resolve();
+  if (!id) return Promise.resolve(false);
   return fetchWithTimeout(`${WEB_CONFIG_URL}/api/command/ack`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: nativeJSONStringify({ id }),
-  }).catch(() => {});
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`command ACK HTTP ${res.status}`);
+      return true;
+    })
+    .catch(() => false);
+}
+
+function acknowledgeExecutedCommand(id) {
+  return ackCommand(id).then((acked) => {
+    if (acked && lastExecutedCommandId === id) lastExecutedCommandId = null;
+    return acked;
+  });
 }
 
 function consumeCommand() {
   if (!isTizen() || commandPolling) return;
   commandPolling = true;
   fetchWithTimeout(`${WEB_CONFIG_URL}/api/command`)
-    .then((res) => res.json())
+    .then((res) => {
+      if (!res.ok) throw new Error(`command poll HTTP ${res.status}`);
+      return res.json();
+    })
     .then((data) => {
-      if (!data || !data.command) return;
+      if (!data || !data.command || !data.id) return;
       const id = data.id;
+
+      // A command can remain at the front of the FIFO if the TV executed it but
+      // the ACK request was lost. Retry only the ACK; never execute it twice.
+      if (data.id === lastExecutedCommandId) {
+        return acknowledgeExecutedCommand(id);
+      }
+
       if (data.command.action === "reload") {
-        return ackCommand(id).then(() => {
+        lastExecutedCommandId = id;
+        return acknowledgeExecutedCommand(id).then((acked) => {
+          if (!acked) return;
           try { window.location.reload(); } catch (err) {}
         });
       }
+
       const cmd = buildCommand(data.command);
       if (!cmd) return;
       return dispatchWhenReady(cmd).then((ok) => {
         if (!ok) return;
+        lastExecutedCommandId = id;
         try { showToast("axotube", "Command received"); } catch (err) {}
-        return ackCommand(id);
+        return acknowledgeExecutedCommand(id);
       });
     })
     .catch(() => {})
@@ -225,6 +252,9 @@ function pushNowPlaying() {
     headers: { "Content-Type": "application/json" },
     body: serialized === "none" ? "null" : serialized,
   })
+    .then((res) => {
+      if (!res.ok) throw new Error(`now playing HTTP ${res.status}`);
+    })
     .catch(() => { lastNowPlaying = ""; })
     .then(() => { nowPlayingPushing = false; });
 }
