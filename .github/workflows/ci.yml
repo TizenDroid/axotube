@@ -38,3 +38,4 @@ jobs:
             dist
             standalone/userscript/userScript.js
             standalone/service/dist/index.js
+            standalone/service/package-lock.json
