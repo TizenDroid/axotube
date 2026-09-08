@@ -1,5 +1,5 @@
 import { configWrite, configRead } from "./config.js";
-import { enablePip } from "./features/pictureInPicture.js";
+import { enablePip, cleanupPipStyles } from "./features/pictureInPicture.js";
 import modernUI, { optionShow } from "./ui/settings.js";
 import { speedSettings } from "./ui/speedUI.js";
 import { showToast, buttonItem } from "./ui/ytUI.js";
@@ -158,8 +158,7 @@ export function patchResolveCommand() {
           }
         } else if (cmd?.watchEndpoint?.videoId) {
           window.isPipPlaying = false;
-          const ytlrPlayerContainer = document.querySelector("ytlr-player-container");
-          if (ytlrPlayerContainer) ytlrPlayerContainer.style.removeProperty("z-index");
+          cleanupPipStyles();
         }
 
         if (cmd.commandExecutorCommand && Array.isArray(cmd.commandExecutorCommand.commands)) {
