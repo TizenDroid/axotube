@@ -136,8 +136,6 @@ function migrateStoredConfig(value) {
   for (const key of Object.keys(value)) {
     let candidate = value[key];
 
-    // Older Web Config builds could persist this command as an object while
-    // the TV-side settings format has always been a serialized command.
     if (
       key === "launchToOnStartup" &&
       candidate &&
@@ -151,9 +149,6 @@ function migrateStoredConfig(value) {
       }
     }
 
-    // Migration is intentionally tolerant: preserve every independently valid
-    // setting and ignore only stale/unknown/invalid entries. Live API writes
-    // continue to use sanitizeConfig(), which stays strict.
     if (!validateConfigValue(key, candidate)) continue;
     out[key] = candidate;
   }
@@ -230,16 +225,50 @@ function requireApiAuth(req, res, next) {
   res.status(401).json({ ok: false, error: "Pairing required" });
 }
 
-let pairWindowStarted = 0;
-let pairAttempts = 0;
-function allowPairAttempt() {
+function getLanWebConfigUrls() {
+  const urls = [];
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      const entries = interfaces[name] || [];
+      for (const entry of entries) {
+        const family = entry && entry.family;
+        if (!entry || entry.internal || (family !== "IPv4" && family !== 4)) continue;
+        if (!entry.address) continue;
+        const url = `http://${entry.address}:${PORT}`;
+        if (!urls.includes(url)) urls.push(url);
+      }
+    }
+  } catch (err) {}
+  return urls;
+}
+
+const pairAttemptsByAddress = new Map();
+function pairAttemptKey(req) {
+  return remoteAddress(req).toLowerCase() || "unknown";
+}
+
+function allowPairAttempt(req) {
   const now = Date.now();
-  if (now - pairWindowStarted > 60 * 1000) {
-    pairWindowStarted = now;
-    pairAttempts = 0;
+  const key = pairAttemptKey(req);
+  let state = pairAttemptsByAddress.get(key);
+  if (!state || now - state.startedAt > 60 * 1000) {
+    state = { startedAt: now, attempts: 0 };
   }
-  pairAttempts += 1;
-  return pairAttempts <= 10;
+  state.attempts += 1;
+  pairAttemptsByAddress.set(key, state);
+
+  if (pairAttemptsByAddress.size > 256) {
+    for (const [address, value] of pairAttemptsByAddress) {
+      if (now - value.startedAt > 60 * 1000) pairAttemptsByAddress.delete(address);
+    }
+  }
+
+  return state.attempts <= 10;
+}
+
+function resetPairAttempts(req) {
+  pairAttemptsByAddress.delete(pairAttemptKey(req));
 }
 
 app.get("/", (req, res) => {
@@ -251,11 +280,11 @@ app.get("/api/pairing-code", (req, res) => {
     res.status(403).json({ ok: false, error: "Loopback only" });
     return;
   }
-  res.json({ ok: true, code: pairingCode });
+  res.json({ ok: true, code: pairingCode, urls: getLanWebConfigUrls() });
 });
 
 app.post("/api/pair", (req, res) => {
-  if (!allowPairAttempt()) {
+  if (!allowPairAttempt(req)) {
     res.status(429).json({ ok: false, error: "Too many pairing attempts" });
     return;
   }
@@ -264,8 +293,7 @@ app.post("/api/pair", (req, res) => {
     res.status(403).json({ ok: false, error: "Invalid pairing code" });
     return;
   }
-  pairAttempts = 0;
-  pairWindowStarted = Date.now();
+  resetPairAttempts(req);
   res.json({ ok: true, token: authToken });
 });
 
