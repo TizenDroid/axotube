@@ -124,6 +124,11 @@ function execute_once_dom_loaded() {
 
     if (evt.keyCode == 404 && evt.type === "keydown") {
       try {
+        patchResolveCommand();
+      } catch (e) {
+        console.warn("Settings command patch refresh failed:", e);
+      }
+      try {
         modernUI();
       } catch (e) {
         console.error("Settings open failed:", e);
