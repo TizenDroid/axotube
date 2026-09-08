@@ -54,18 +54,20 @@ export function probeBestThumbnailQuality(videoId, onResult) {
     });
   };
 
-  const tester = new Image();
-  tester.onload = function () {
-    if (this.naturalWidth === 120 && this.naturalHeight === 90) {
-      finish("hqdefault.jpg");
-    } else {
-      finish("maxresdefault.jpg");
-    }
+  const probe = (quality, fallback) => {
+    const tester = new Image();
+    tester.onload = function () {
+      const isPlaceholder = this.naturalWidth === 120 && this.naturalHeight === 90;
+      if (isPlaceholder) fallback();
+      else finish(quality);
+    };
+    tester.onerror = fallback;
+    tester.src = `https://i.ytimg.com/vi/${videoId}/${quality}`;
   };
-  tester.onerror = function () {
-    finish("hqdefault.jpg");
-  };
-  tester.src = `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`;
+
+  probe("maxresdefault.jpg", () => {
+    probe("sddefault.jpg", () => finish("hqdefault.jpg"));
+  });
 }
 
 export function isVideoThumbnailArray(thumbnails) {
