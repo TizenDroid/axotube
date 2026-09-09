@@ -118,15 +118,20 @@ function pullAndApply() {
       if (!data || typeof data.revision !== "number") return;
       showServiceToast();
       if (data.revision === appliedRevision) return;
-      appliedRevision = data.revision;
       const remote = data.config;
       if (!remote || typeof remote !== "object" || Array.isArray(remote)) return;
+      let appliedSuccessfully = true;
       Object.keys(remote).forEach((key) => {
         if (typeof remote[key] === "undefined") return;
         try {
-          if (!valuesEqual(configRead(key), remote[key])) configWrite(key, remote[key]);
-        } catch (err) {}
+          if (!valuesEqual(configRead(key), remote[key]) && !configWrite(key, remote[key])) {
+            appliedSuccessfully = false;
+          }
+        } catch (err) {
+          appliedSuccessfully = false;
+        }
       });
+      if (appliedSuccessfully) appliedRevision = data.revision;
     })
     .catch(() => {})
     .then(() => {

@@ -238,7 +238,8 @@ configChangeEmitter.addEventListener("configChange", (e) => {
     applyReducedMotionFlags();
   }
 
-  if (key === "enableScreenDimming" && !configRead("enableScreenDimming")) {
-    clearDimmingTimer();
+  if (key === "enableScreenDimming") {
+    if (configRead("enableScreenDimming")) armDimmingTimer();
+    else clearDimmingTimer();
   }
 });
