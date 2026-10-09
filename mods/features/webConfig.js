@@ -6,7 +6,7 @@ import {
   nativeJSONStringify,
   configChangeEmitter,
 } from "../config.js";
-import resolveCommand from "../resolveCommand.js";
+import { hasNativeResolver, dispatchNativeCommandWhenReady } from "../shared/nativeCommand.js";
 import { showToast } from "../ui/ytUI.js";
 import { fetchWithTimeout } from "../shared/fetch.js";
 
@@ -17,7 +17,9 @@ let appliedRevision = -1;
 let configSyncing = false;
 let commandPolling = false;
 let nowPlayingPushing = false;
-let lastPushed = "";
+let serverConfig = null;
+const dirtyKeys = new Set();
+let applyingServerConfig = false;
 let lastNowPlaying = "";
 let pushTimer = null;
 let serviceToastShown = false;
@@ -29,16 +31,8 @@ function isTizen() {
   return typeof window !== "undefined" && window.h5vcc && window.h5vcc.tizentube;
 }
 
-function hasResolver() {
-  if (typeof window === "undefined" || !window._yttv) return false;
-  try {
-    for (const key in window._yttv) {
-      const candidate = window._yttv[key];
-      if (candidate && candidate.instance && typeof candidate.instance.resolveCommand === "function") return true;
-    }
-  } catch (err) {}
-  return false;
-}
+const hasResolver = hasNativeResolver;
+const dispatchWhenReady = dispatchNativeCommandWhenReady;
 
 function showPairingCode() {
   if (pairingCodeShown || !hasResolver()) return;
@@ -75,28 +69,53 @@ function valuesEqual(a, b) {
   try { return nativeJSONStringify(a) === nativeJSONStringify(b); } catch (err) { return false; }
 }
 
+function differsFromServer(snapshot) {
+  if (!serverConfig) return false;
+  const localKeys = Object.keys(snapshot);
+  const remoteKeys = Object.keys(serverConfig);
+  return localKeys.length !== remoteKeys.length || localKeys.some((key) =>
+    !Object.prototype.hasOwnProperty.call(serverConfig, key) ||
+    !valuesEqual(snapshot[key], serverConfig[key]));
+}
+
 function pushIfChanged() {
-  if (!isTizen() || configSyncing) return;
-  let serialized;
-  try {
-    serialized = nativeJSONStringify({ revision: appliedRevision, config: configSnapshot() });
-  } catch (err) {
+  if (!isTizen() || configSyncing || appliedRevision < 0 || !serverConfig) return;
+  const snapshot = configSnapshot();
+  if (!differsFromServer(snapshot)) {
+    dirtyKeys.clear();
     return;
   }
-  if (typeof serialized !== "string" || serialized === lastPushed) return;
 
-  lastPushed = serialized;
   configSyncing = true;
   fetchWithTimeout(`${WEB_CONFIG_URL}/api/config/push`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: serialized,
+    body: nativeJSONStringify({ revision: appliedRevision, config: snapshot }),
   })
     .then((res) => {
+      if (res.status === 409) return { conflict: true };
       if (!res.ok) throw new Error(`config push HTTP ${res.status}`);
+      return res.json();
     })
-    .catch(() => { lastPushed = ""; })
-    .then(() => { configSyncing = false; });
+    .then((data) => {
+      if (data?.conflict) return "conflict";
+      if (!data || !data.applied || !Number.isSafeInteger(data.revision)) {
+        throw new Error("Config push was not acknowledged");
+      }
+      appliedRevision = data.revision;
+      serverConfig = snapshot;
+      const current = configSnapshot();
+      for (const key of dirtyKeys) {
+        if (valuesEqual(current[key], snapshot[key])) dirtyKeys.delete(key);
+      }
+      return "accepted";
+    })
+    .catch(() => "failed")
+    .then((outcome) => {
+      configSyncing = false;
+      if (outcome === "conflict") pullAndApply();
+      else if (outcome === "accepted" && differsFromServer(configSnapshot())) schedulePush();
+    });
 }
 
 function schedulePush() {
@@ -104,7 +123,11 @@ function schedulePush() {
   clearTimeout(pushTimer);
   pushTimer = setTimeout(pushIfChanged, 250);
 }
-configChangeEmitter.addEventListener("configChange", schedulePush);
+configChangeEmitter.addEventListener("configChange", (event) => {
+  if (applyingServerConfig) return;
+  if (typeof event?.detail?.key === "string") dirtyKeys.add(event.detail.key);
+  schedulePush();
+});
 
 function pullAndApply() {
   if (!isTizen() || configSyncing) return;
@@ -115,18 +138,30 @@ function pullAndApply() {
       return res.json();
     })
     .then((data) => {
-      if (!data || typeof data.revision !== "number") return;
+      if (!data || !Number.isSafeInteger(data.revision) || data.revision < 0 ||
+          !data.config || typeof data.config !== "object" || Array.isArray(data.config)) return;
       showServiceToast();
-      if (data.revision === appliedRevision) return;
-      appliedRevision = data.revision;
       const remote = data.config;
-      if (!remote || typeof remote !== "object" || Array.isArray(remote)) return;
-      Object.keys(remote).forEach((key) => {
-        if (typeof remote[key] === "undefined") return;
-        try {
-          if (!valuesEqual(configRead(key), remote[key])) configWrite(key, remote[key]);
-        } catch (err) {}
+      // On a stale push, preserve only keys edited locally. Everything else
+      // comes from the latest server snapshot before a new full push is sent.
+      applyingServerConfig = true;
+      try {
+        Object.keys(remote).forEach((key) => {
+          if (dirtyKeys.has(key) || typeof remote[key] === "undefined") return;
+          try {
+            if (!valuesEqual(configRead(key), remote[key])) configWrite(key, remote[key]);
+          } catch (err) {}
+        });
+      } finally {
+        applyingServerConfig = false;
+      }
+      const current = configSnapshot();
+      Object.keys(current).forEach((key) => {
+        if (!Object.prototype.hasOwnProperty.call(remote, key)) dirtyKeys.add(key);
+        else if (valuesEqual(current[key], remote[key])) dirtyKeys.delete(key);
       });
+      serverConfig = remote;
+      appliedRevision = data.revision;
     })
     .catch(() => {})
     .then(() => {
@@ -145,28 +180,6 @@ function buildCommand(command) {
   if (command.action === "search" && command.query) return { searchEndpoint: { query: command.query } };
   if (command.action === "browse" && command.browseId) return { browseEndpoint: { browseId: command.browseId } };
   return null;
-}
-
-function dispatchWhenReady(cmd) {
-  return new Promise((resolve) => {
-    if (!cmd) return resolve(false);
-    let attempts = 0;
-    const attempt = () => {
-      if (hasResolver()) {
-        try {
-          resolveCommand(cmd);
-          resolve(true);
-        } catch (err) {
-          resolve(false);
-        }
-        return;
-      }
-      attempts += 1;
-      if (attempts > 50) return resolve(false);
-      setTimeout(attempt, 200);
-    };
-    attempt();
-  });
 }
 
 function ackCommand(id) {

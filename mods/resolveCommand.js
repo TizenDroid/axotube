@@ -4,20 +4,14 @@ import modernUI, { optionShow } from "./ui/settings.js";
 import { speedSettings } from "./ui/speedUI.js";
 import { showToast, buttonItem } from "./ui/ytUI.js";
 import checkForUpdates from "./features/updater.js";
+import configSchema from "../config-schema.json";
+import {
+  dispatchNativeCommand,
+  registerNativeResolverPatcher,
+} from "./shared/nativeCommand.js";
 
 export default function resolveCommand(cmd, _) {
-  if (!window._yttv) return;
-  try {
-    for (const key in window._yttv) {
-      if (
-        window._yttv[key] &&
-        window._yttv[key].instance &&
-        typeof window._yttv[key].instance.resolveCommand === "function"
-      ) {
-        return window._yttv[key].instance.resolveCommand(cmd, _);
-      }
-    }
-  } catch (err) {}
+  return dispatchNativeCommand(cmd, _);
 }
 
 export function findFunction(funcName) {
@@ -36,20 +30,13 @@ export function findFunction(funcName) {
 }
 
 export function patchResolveCommand() {
-  if (!window._yttv) return false;
-  let patched = false;
-  for (const key in window._yttv) {
-    if (
-      window._yttv[key] &&
-      window._yttv[key].instance &&
-      typeof window._yttv[key].instance.resolveCommand === "function"
-    ) {
-      if (window._yttv[key].instance.resolveCommand.__axotubePatched) {
-        patched = true;
-        continue;
-      }
-      const ogResolve = window._yttv[key].instance.resolveCommand;
-      window._yttv[key].instance.resolveCommand = function (cmd, _) {
+  return registerNativeResolverPatcher(patchNativeResolverInstance);
+}
+
+function patchNativeResolverInstance(instance) {
+  const ogResolve = instance.resolveCommand;
+  if (ogResolve.__axotubePatched) return true;
+  const patchedResolve = function (cmd, _) {
         if (!cmd || typeof cmd !== "object") return ogResolve.call(this, cmd, _);
 
         if (cmd.setClientSettingEndpoint) {
@@ -71,17 +58,10 @@ export function patchResolveCommand() {
                 else arr.push(value);
                 configWrite(itemName, arr);
               } else if (itemName === "themePreset") {
-                const preset = {
-                  default: "#0f0f0f",
-                  black: "#000000",
-                  darkGray: "#1c1a1a",
-                  charcoal: "#121212",
-                  navy: "#0d1b2a",
-                  darkRed: "#3b0505",
-                  darkGreen: "#052e1b",
-                  darkPurple: "#1a1025",
-                }[value];
-                if (preset) {
+                const preset = typeof value === "string" &&
+                  Object.prototype.hasOwnProperty.call(configSchema.themePresetColors, value)
+                  ? configSchema.themePresetColors[value] : null;
+                if (typeof preset === "string" && /^#[0-9a-f]{6}$/i.test(preset)) {
                   configWrite("routeColor", preset);
                   configWrite("themePreset", value);
                 }
@@ -189,12 +169,14 @@ export function patchResolveCommand() {
         }
 
         return ogResolve.call(this, cmd, _);
-      };
-      window._yttv[key].instance.resolveCommand.__axotubePatched = true;
-      patched = true;
-    }
+  };
+  patchedResolve.__axotubePatched = true;
+  try {
+    instance.resolveCommand = patchedResolve;
+    return instance.resolveCommand === patchedResolve;
+  } catch (e) {
+    return false;
   }
-  return patched;
 }
 
 function customAction(action, parameters) {

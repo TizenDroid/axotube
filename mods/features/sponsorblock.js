@@ -2,6 +2,7 @@ import sha256 from "../tiny-sha256.js";
 import { configRead, configChangeEmitter } from "../config.js";
 import { showToast } from "../ui/ytUI.js";
 import { t } from "i18next";
+import { getCurrentVideo, watchVideo } from "../shared/playerLifecycle.js";
 
 const FETCH_TIMEOUT = 5000;
 const SEGMENT_SKIP_COOLDOWN = 500;
@@ -68,6 +69,7 @@ class SponsorBlockHandler {
       );
       if (!resp.ok) throw new Error(`SponsorBlock HTTP ${resp.status}`);
       const results = await resp.json();
+      if (!this.active) return;
       if (!Array.isArray(results)) return;
       const result = results.find((v) => v.videoID === this.videoID);
       if (!result || !Array.isArray(result.segments) || !result.segments.length) return;
@@ -113,12 +115,44 @@ class SponsorBlockHandler {
     } catch (e) {}
   }
 
-  attachVideo() {
+  clearVideoOverlay() {
+    if (this.sliderInterval) clearInterval(this.sliderInterval);
+    this.sliderInterval = null;
+    if (this.observer) this.observer.disconnect();
+    this.observer = null;
+    if (this.segmentsoverlay) this.segmentsoverlay.remove();
+    this.segmentsoverlay = null;
+    this.slider = null;
+    if (this.repositionFrame) cancelAnimationFrame(this.repositionFrame);
+    this.repositionFrame = null;
+    if (this.mutationFrame) cancelAnimationFrame(this.mutationFrame);
+    this.mutationFrame = null;
+  }
+
+  attachVideo(nextVideo = getCurrentVideo()) {
     clearTimeout(this.attachVideoTimeout);
     this.attachVideoTimeout = null;
     if (!this.active) return;
+    if (currentSponsorVideoId() !== this.videoID) {
+      this.clearScheduledSkip();
+      return;
+    }
 
-    const nextVideo = document.querySelector("video");
+    if (nextVideo !== this.video) {
+      this.clearScheduledSkip();
+      this.nextSegment = null;
+      this.clearVideoOverlay();
+      this.detachVideo();
+      this.video = nextVideo;
+      if (nextVideo) {
+        this.attachVideoAttempts = 0;
+        nextVideo.addEventListener("play", this.scheduleSkipHandler);
+        nextVideo.addEventListener("pause", this.scheduleSkipHandler);
+        nextVideo.addEventListener("timeupdate", this.scheduleSkipHandler);
+        nextVideo.addEventListener("durationchange", this.durationChangeHandler);
+      }
+    }
+
     if (!nextVideo) {
       this.attachVideoAttempts += 1;
       if (this.attachVideoAttempts <= 600) {
@@ -127,15 +161,6 @@ class SponsorBlockHandler {
       return;
     }
 
-    if (nextVideo !== this.video) {
-      this.detachVideo();
-      this.video = nextVideo;
-      this.attachVideoAttempts = 0;
-      this.video.addEventListener("play", this.scheduleSkipHandler);
-      this.video.addEventListener("pause", this.scheduleSkipHandler);
-      this.video.addEventListener("timeupdate", this.scheduleSkipHandler);
-      this.video.addEventListener("durationchange", this.durationChangeHandler);
-    }
     this.buildOverlay();
     this.scheduleSkip();
   }
@@ -243,8 +268,12 @@ class SponsorBlockHandler {
       this.clearScheduledSkip();
       return;
     }
+    if (currentSponsorVideoId() !== this.videoID) {
+      this.clearScheduledSkip();
+      return;
+    }
 
-    const currentVideo = document.querySelector("video");
+    const currentVideo = getCurrentVideo();
     if (currentVideo && currentVideo !== this.video) {
       this.attachVideo();
       return;
@@ -291,6 +320,11 @@ class SponsorBlockHandler {
 
   performSkip(segment, end) {
     if (!this.active || !this.video) return;
+    if (getCurrentVideo() !== this.video || currentSponsorVideoId() !== this.videoID) {
+      this.clearScheduledSkip();
+      this.attachVideo();
+      return;
+    }
     if (this.video.paused) {
       this.scheduledSegment = null;
       return;
@@ -357,32 +391,23 @@ class SponsorBlockHandler {
     this.clearScheduledSkip();
     if (this.attachVideoTimeout) clearTimeout(this.attachVideoTimeout);
     this.attachVideoTimeout = null;
-    if (this.sliderInterval) clearInterval(this.sliderInterval);
-    this.sliderInterval = null;
-    if (this.observer) this.observer.disconnect();
-    this.observer = null;
-    if (this.segmentsoverlay) this.segmentsoverlay.remove();
-    this.segmentsoverlay = null;
+    this.clearVideoOverlay();
     this.detachVideo();
     this.video = null;
     this.skippedCategories.clear();
     this.nextSegment = null;
-    if (this.repositionFrame) cancelAnimationFrame(this.repositionFrame);
-    this.repositionFrame = null;
-    if (this.mutationFrame) cancelAnimationFrame(this.mutationFrame);
-    this.mutationFrame = null;
   }
 }
 
 window.sponsorblock = null;
 
-function currentVideoId() {
+function currentSponsorVideoId() {
   const match = /[?&]v=([^&]+)/.exec(location.hash);
   return match ? match[1] : null;
 }
 
 function syncSponsorBlockForCurrentRoute() {
-  const videoID = currentVideoId();
+  const videoID = currentSponsorVideoId();
   const enabled = !!configRead("enableSponsorBlock");
 
   if (!videoID || !enabled) {
@@ -407,6 +432,11 @@ function syncSponsorBlockForCurrentRoute() {
 }
 
 window.addEventListener("hashchange", syncSponsorBlockForCurrentRoute, false);
+watchVideo((video) => {
+  if (window.sponsorblock && window.sponsorblock.scheduleSkipHandler) {
+    window.sponsorblock.attachVideo(video);
+  }
+});
 configChangeEmitter.addEventListener("configChange", (event) => {
   const key = event.detail?.key || "";
   if (key === "enableSponsorBlock" || key === "sponsorBlockManualSkips" || key.indexOf("enableSponsorBlock") === 0) {

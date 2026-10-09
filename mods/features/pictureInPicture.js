@@ -1,17 +1,5 @@
 // Picture in Picture Mode for axotube
-
-function getResolveCommand() {
-  if (window._yttv_resolveCommand) return window._yttv_resolveCommand;
-  if (!window._yttv) return null;
-  try {
-    const root = Object.values(window._yttv).find(
-      (a) => a && a.instance && typeof a.instance.resolveCommand === "function",
-    );
-    return root?.instance?.resolveCommand || null;
-  } catch (e) {
-    return null;
-  }
-}
+import { hasNativeResolver, tryDispatchNativeCommand } from "../shared/nativeCommand.js";
 
 window.isPipPlaying = false;
 let PlayerService = null;
@@ -209,8 +197,7 @@ function enablePip() {
   }
 
   try {
-    const resolveCommand = getResolveCommand();
-    if (!resolveCommand) return;
+    if (!hasNativeResolver()) return;
 
     const videoElement = document.querySelector("video");
     const ytlrPlayer = document.querySelector("ytlr-player");
@@ -254,9 +241,14 @@ function enablePip() {
         rememberPipTimer(() => {
           try {
             if (PlayerService && PlayerService.loadedPlaybackConfig) {
-              const watchEndpoint = PlayerService.loadedPlaybackConfig.watchEndpoint;
-              if (watchEndpoint) watchEndpoint.startTimeSeconds = timestamp;
-              PlayerService.loadVideo(PlayerService.loadedPlaybackConfig);
+              const config = PlayerService.loadedPlaybackConfig;
+              const playbackConfig = Object.assign({}, config);
+              if (config.watchEndpoint) {
+                playbackConfig.watchEndpoint = Object.assign({}, config.watchEndpoint, {
+                  startTimeSeconds: timestamp,
+                });
+              }
+              PlayerService.loadVideo(playbackConfig);
             }
           } catch (e) {
             console.warn("PiP video load failed:", e);
@@ -268,7 +260,9 @@ function enablePip() {
 
     pipEntryObserver.observe(ytlrPlayer, { attributes: true, attributeFilter: ["class"] });
     try {
-      resolveCommand({ signalAction: { signal: "HISTORY_BACK" } });
+      if (!tryDispatchNativeCommand({ signalAction: { signal: "HISTORY_BACK" } }).dispatched) {
+        cleanupPipStyles();
+      }
     } catch (e) {
       cleanupPipStyles();
       throw e;
@@ -283,11 +277,12 @@ function pipToFullscreen() {
     if (!PlayerService || !PlayerService.loadedPlaybackConfig) return;
     const videoElement = document.querySelector("video");
     const { clickTrackingParams, commandMetadata, watchEndpoint } = PlayerService.loadedPlaybackConfig;
-    if (videoElement && watchEndpoint) watchEndpoint.startTimeSeconds = Math.floor(videoElement.currentTime);
-
-    const resolveCommand = getResolveCommand();
-    if (!resolveCommand) return;
-    resolveCommand({ clickTrackingParams, commandMetadata, watchEndpoint });
+    const updatedWatchEndpoint = videoElement && watchEndpoint
+      ? Object.assign({}, watchEndpoint, { startTimeSeconds: Math.floor(videoElement.currentTime) })
+      : watchEndpoint;
+    if (!tryDispatchNativeCommand({
+      clickTrackingParams, commandMetadata, watchEndpoint: updatedWatchEndpoint,
+    }).dispatched) return;
     window.isPipPlaying = false;
     cleanupPipStyles();
   } catch (e) {

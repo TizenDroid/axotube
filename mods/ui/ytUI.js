@@ -1,47 +1,11 @@
-// resolveCommand lives on window._yttv[key].instance; scanning all keys on
-// every call is O(n) per toast/modal. Cache the first working root and only
-// rescan when the cached one stops resolving.
-let cachedCommandRoot = null;
-
-function validRoot(root) {
-  return !!(root && root.instance && typeof root.instance.resolveCommand === "function");
-}
+import { dispatchNativeCommand, hasNativeResolver } from "../shared/nativeCommand.js";
 
 function dispatchCommand(cmd, _) {
-  if (validRoot(cachedCommandRoot)) {
-    // A resolver is allowed to return undefined. Calling it again based on the
-    // return value can execute non-idempotent commands twice.
-    return cachedCommandRoot.instance.resolveCommand(cmd, _);
-  }
-  cachedCommandRoot = null;
-  if (typeof window === "undefined" || !window._yttv) return;
-  try {
-    for (const key in window._yttv) {
-      if (validRoot(window._yttv[key])) {
-        cachedCommandRoot = window._yttv[key];
-        return cachedCommandRoot.instance.resolveCommand(cmd, _);
-      }
-    }
-  } catch (err) {
-    cachedCommandRoot = null;
-  }
+  return dispatchNativeCommand(cmd, _);
 }
 
 function canDispatch() {
-  if (validRoot(cachedCommandRoot)) return true;
-  cachedCommandRoot = null;
-  if (typeof window === "undefined" || !window._yttv) return false;
-  try {
-    for (const key in window._yttv) {
-      if (validRoot(window._yttv[key])) {
-        cachedCommandRoot = window._yttv[key];
-        return true;
-      }
-    }
-  } catch (err) {
-    cachedCommandRoot = null;
-  }
-  return false;
+  return hasNativeResolver();
 }
 
 function showToast(title, subtitle, thumbnails) {

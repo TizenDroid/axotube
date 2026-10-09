@@ -1,5 +1,6 @@
 import { configRead, configChangeEmitter } from "../config.js";
 import { showModal, buttonItem, overlayPanelItemListRenderer } from "./ytUI.js";
+import { getCurrentVideo, watchVideo } from "../shared/playerLifecycle.js";
 
 let boundVideo = null;
 let keyHandlersInitialized = false;
@@ -15,8 +16,7 @@ function applyConfiguredSpeed(video) {
   }
 }
 
-function attachVideo() {
-  const video = document.querySelector("video");
+function attachVideo(video = getCurrentVideo()) {
   if (!video || video === boundVideo) return;
 
   if (boundVideo) {
@@ -32,9 +32,9 @@ function attachVideo() {
 }
 
 function onCanPlay() {
-  const current = document.querySelector("video");
+  const current = getCurrentVideo();
   if (current !== boundVideo) attachVideo();
-  applyConfiguredSpeed(current || boundVideo);
+  applyConfiguredSpeed(boundVideo);
 }
 
 function initKeyHandlers() {
@@ -58,7 +58,7 @@ function initKeyHandlers() {
 
 function initSpeed() {
   initKeyHandlers();
-  attachVideo();
+  watchVideo(attachVideo);
 }
 
 if (document.readyState === "loading") {
@@ -66,11 +66,6 @@ if (document.readyState === "loading") {
 } else {
   initSpeed();
 }
-
-if (window.addEventListener) {
-  window.addEventListener("hashchange", () => setTimeout(attachVideo, 0));
-}
-setInterval(attachVideo, 2000);
 
 configChangeEmitter.addEventListener("configChange", (event) => {
   if (event.detail?.key === "videoSpeed") {

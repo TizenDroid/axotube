@@ -1,6 +1,6 @@
 import { configRead, configChangeEmitter } from "../config.js";
+import { getCurrentPlayer, watchPlayer, watchVideoId } from "../shared/playerLifecycle.js";
 
-const SELECTORS = { PLAYER: ".html5-video-player" };
 const EVENTS = { YT_STATE_CHANGE: "onStateChange", CONFIG_CHANGE: "configChange" };
 const CONFIG_KEYS = { QUALITY: "preferredVideoQuality" };
 const MAX_PLAYER_POLL_ATTEMPTS = 50;
@@ -11,7 +11,6 @@ const APPLY_RETRY_DELAY_MS = 500;
 class PreferredQualityHandler {
   #player = null;
   #pollTimer = null;
-  #watchTimer = null;
   #applyRetryTimer = null;
   #pollAttempts = 0;
   #applyRetryAttempts = 0;
@@ -19,17 +18,15 @@ class PreferredQualityHandler {
   #hasAppliedQuality = false;
 
   constructor() {
-    this.#pollForPlayer(true);
     this.#setupConfigListener();
-    if (window.addEventListener) {
-      window.addEventListener("hashchange", () => this.#pollForPlayer(true));
-    }
-    this.#watchTimer = setInterval(() => this.#ensureCurrentPlayer(), 2000);
-  }
-
-  #ensureCurrentPlayer() {
-    const current = document.querySelector(SELECTORS.PLAYER);
-    if (current !== this.#player) this.#attachPlayer(current);
+    watchPlayer((player) => this.#attachPlayer(player));
+    // A player node may be reused for another video without an onStateChange.
+    watchVideoId((id) => {
+      if (id === this.#lastVideoId) return;
+      this.#lastVideoId = id;
+      this.#resetApplyState();
+      this.#handleStateChange();
+    });
   }
 
   #pollForPlayer(resetBudget = false) {
@@ -37,7 +34,7 @@ class PreferredQualityHandler {
     this.#pollTimer = null;
     if (resetBudget) this.#pollAttempts = 0;
 
-    const playerElement = document.querySelector(SELECTORS.PLAYER);
+    const playerElement = getCurrentPlayer();
     if (!playerElement) {
       if (this.#pollAttempts >= MAX_PLAYER_POLL_ATTEMPTS) return;
       this.#pollAttempts += 1;
@@ -77,6 +74,9 @@ class PreferredQualityHandler {
     if (this.#player) {
       try { this.#player.removeEventListener(EVENTS.YT_STATE_CHANGE, this.#handleStateChange); } catch (e) {}
     }
+    this.#pollAttempts = 0;
+    clearTimeout(this.#pollTimer);
+    this.#pollTimer = null;
     this.#player = playerElement;
     this.#lastVideoId = null;
     this.#resetApplyState();
@@ -110,7 +110,7 @@ class PreferredQualityHandler {
       this.#applyRetryTimer = null;
       try {
         const state = this.#player?.getPlayerStateObject?.();
-        if (!state?.isPlaying) return;
+        if (!state?.isPlaying || this.#player !== getCurrentPlayer()) return;
         this.#hasAppliedQuality = this.#applyQuality();
         if (!this.#hasAppliedQuality) this.#scheduleApplyRetry();
       } catch (e) {

@@ -52,15 +52,18 @@ test('phone polling uses independent locks and explicit ACK', () => {
 
 test('cast waits for callable resolver', () => {
   const src = read('mods/features/castReceiver.js');
-  has(src, 'function canDispatch');
-  has(src, 'typeof candidate.instance.resolveCommand === "function"');
-  assert.ok(!src.includes('Object.keys(window._yttv).length > 0'));
+  has(src, 'dispatchNativeCommandWhenReady');
+  const shared = read('mods/shared/nativeCommand.js');
+  has(shared, 'typeof instance.resolveCommand === "function"');
+  has(shared, 'instance.resolveCommand(command)');
 });
 
-test('cached UI resolver cannot double-dispatch undefined result', () => {
+test('UI commands delegate to one native dispatch owner', () => {
   const fn = between(read('mods/ui/ytUI.js'), 'function dispatchCommand', 'function canDispatch');
-  assert.ok(!fn.includes('result !== undefined'));
-  has(fn, 'return cachedCommandRoot.instance.resolveCommand(cmd, _)');
+  has(fn, 'return dispatchNativeCommand(cmd, _)');
+  assert.ok(!fn.includes('cachedCommandRoot'));
+  const shared = read('mods/shared/nativeCommand.js');
+  has(shared, 'result: instance.resolveCommand(command, context)');
 });
 
 test('Reduced Motion helper is module scoped and live', () => {
@@ -103,20 +106,26 @@ test('preview readiness polling is bounded on slow Tizen devices', () => {
 test('guide JSON patch fails open on mixed arrays', () => {
   const src = read('mods/ui/customGuideAction.js');
   has(src, 'if (!section || !Array.isArray(section.items)) continue');
-  has(src, 'JSON.parse = function');
-  has(src, 'try {');
+  has(src, 'export function filterGuideItems');
+  assert.ok(!src.includes('JSON.parse ='), 'guide filter must not install a second JSON hook');
+  const pipeline = read('mods/shared/responsePipeline.js');
+  has(pipeline, 'JSON.parse = parse');
+  has(pipeline, 'filters[i](result)');
 });
 
 test('config validates values and never clears unrelated storage', () => {
   const src = read('mods/config.js');
-  has(src, 'validateConfigValue');
+  has(src, 'configPolicy.validateConfigValue');
   has(src, 'configSchema.defaults');
   has(src, 'removeItem(CONFIG_KEY)');
   assert.ok(!src.includes('localStorage.clear('));
+  const policy = read('shared/configPolicy.js');
+  has(policy, 'function validateConfigValue(key, value)');
+  has(read('service/service.js'), 'require("../shared/configPolicy.js")');
 });
 
 test('launchToOnStartup stays string-or-null across TV and web', () => {
-  const cfg = read('mods/config.js');
+  const cfg = read('shared/configPolicy.js');
   const web = read('service/webConfigPage.js');
   has(cfg, 'value === null || typeof value === "string"');
   has(web, 'key === "launchToOnStartup"');
@@ -190,13 +199,15 @@ test('SponsorBlock initializes current route and clears pause scheduling', () =>
 test('Auto quality releases fixed range and replacement player is watched', () => {
   const src = read('mods/features/preferredVideoQuality.js');
   has(src, 'setPlaybackQualityRange("auto", "auto")');
-  has(src, 'this.#ensureCurrentPlayer(), 2000');
+  has(src, 'watchPlayer((player) => this.#attachPlayer(player))');
+  has(src, 'watchVideoId((id) =>');
 });
 
 test('speed applies immediately and replacement video is watched', () => {
   const src = read('mods/ui/speedUI.js');
   has(src, 'applyConfiguredSpeed(boundVideo)');
-  has(src, 'setInterval(attachVideo, 2000)');
+  has(src, 'watchVideo(attachVideo)');
+  has(read('mods/shared/playerLifecycle.js'), 'setInterval(refreshPlayerLifecycle, DISCOVERY_INTERVAL_MS)');
 });
 
 test('PiP retries late services and cleans inline state', () => {

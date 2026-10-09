@@ -6,7 +6,7 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const uuid = require("uuid");
-const configSchema = require("../config-schema.json");
+const { validateConfigValue } = require("../shared/configPolicy.js");
 const { webConfigPage } = require("./webConfigPage.js");
 const app = express();
 
@@ -92,34 +92,6 @@ function newPairingCode() {
   return String(n).padStart(6, "0");
 }
 
-function validateConfigValue(key, value) {
-  const defaults = configSchema.defaults;
-  if (!Object.prototype.hasOwnProperty.call(defaults, key)) return false;
-  const expected = defaults[key];
-  if (expected === null) return value === null || typeof value === "string";
-  if (Array.isArray(expected)) {
-    return Array.isArray(value) && value.every((item) => typeof item === "string");
-  }
-  if (typeof expected === "number") {
-    if (typeof value !== "number" || !Number.isFinite(value)) return false;
-    const range = configSchema.ranges[key];
-    return !range || (value >= range[0] && value <= range[1]);
-  }
-  if (typeof value !== typeof expected) return false;
-  const allowed = configSchema.enums[key];
-  if (allowed && !allowed.includes(value)) return false;
-  if (key === "routeColor" && !/^#[0-9a-f]{6}$/i.test(value)) return false;
-  if (key === "routeBackgroundUrl" && value) {
-    try {
-      const parsed = new URL(value);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    } catch (err) {
-      return false;
-    }
-  }
-  return true;
-}
-
 function sanitizeConfig(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const out = {};
@@ -161,7 +133,7 @@ function loadStore() {
     if (parsed && typeof parsed === "object") {
       return {
         config: migrateStoredConfig(parsed.config),
-        revision: typeof parsed.revision === "number" ? parsed.revision : 0,
+        revision: Number.isSafeInteger(parsed.revision) && parsed.revision >= 0 ? parsed.revision : 0,
         authToken:
           typeof parsed.authToken === "string" && parsed.authToken.length >= 32
             ? parsed.authToken
@@ -178,23 +150,47 @@ let configRevision = initialStore.revision;
 let authToken = initialStore.authToken;
 let pairingCode = newPairingCode();
 
-function saveStore() {
+function saveStore(config = storedConfig, revision = configRevision) {
   try {
     const body = JSON.stringify({
-      config: storedConfig,
-      revision: configRevision,
+      config,
+      revision,
       authToken,
     });
     fs.writeFileSync(STORE_TMP_PATH, body, { encoding: "utf8", mode: 0o600 });
     fs.renameSync(STORE_TMP_PATH, STORE_PATH);
+    return true;
   } catch (err) {
     try {
       if (fs.existsSync(STORE_TMP_PATH)) fs.unlinkSync(STORE_TMP_PATH);
     } catch (e) {}
     console.warn("Failed to persist config store:", err.message);
+    return false;
   }
 }
-saveStore();
+let storePersisted = saveStore();
+
+function configEquals(a, b) {
+  const keysA = Object.keys(a).sort();
+  const keysB = Object.keys(b).sort();
+  return keysA.length === keysB.length && keysA.every((key, index) =>
+    key === keysB[index] && JSON.stringify(a[key]) === JSON.stringify(b[key]));
+}
+
+// Persist the next complete state before publishing its new revision to readers.
+// Both writers share this commit path; a failed disk write never gets an ACK.
+function commitConfig(clean) {
+  const changed = !configEquals(storedConfig, clean);
+  if (!changed && storePersisted) return { ok: true, changed: false };
+  const revision = changed ? configRevision + 1 : configRevision;
+  if (!Number.isSafeInteger(revision) || !saveStore(clean, revision)) {
+    return { ok: false };
+  }
+  storedConfig = clean;
+  configRevision = revision;
+  storePersisted = true;
+  return { ok: true, changed };
+}
 
 function remoteAddress(req) {
   return String(req.socket?.remoteAddress || req.connection?.remoteAddress || "");
@@ -304,30 +300,48 @@ app.get("/api/config", (req, res) => {
 });
 
 app.post("/api/config", (req, res) => {
-  const clean = sanitizeConfig(req.body);
+  // Revision-aware phone clients supply an envelope. Legacy clients may still
+  // send a plain config object and retain their previous last-write behavior.
+  const envelope = req.body && Object.prototype.hasOwnProperty.call(req.body, "config");
+  const clean = sanitizeConfig(envelope ? req.body.config : req.body);
   if (!clean) {
     res.status(400).json({ ok: false, error: "Invalid config payload" });
     return;
   }
-  storedConfig = clean;
-  configRevision += 1;
-  saveStore();
-  res.json({ ok: true, revision: configRevision });
+  if (envelope && (!Number.isSafeInteger(req.body.revision) || req.body.revision < 0)) {
+    res.status(400).json({ ok: false, error: "Invalid config revision" });
+    return;
+  }
+  if (envelope && req.body.revision !== configRevision) {
+    res.status(409).json({ ok: false, error: "Settings changed on TV; reload before saving", revision: configRevision });
+    return;
+  }
+  const result = commitConfig(clean);
+  if (!result.ok) {
+    res.status(503).json({ ok: false, error: "Unable to save settings" });
+    return;
+  }
+  res.json({ ok: true, applied: true, changed: result.changed, revision: configRevision });
 });
 
 app.post("/api/config/push", (req, res) => {
   const body = req.body;
-  const rev = body && typeof body.revision === "number" ? body.revision : -1;
+  const rev = body && Number.isSafeInteger(body.revision) ? body.revision : -1;
   const clean = body ? sanitizeConfig(body.config) : null;
   if (!clean) {
     res.status(400).json({ ok: false, error: "Invalid config push" });
     return;
   }
-  if (rev === configRevision) {
-    storedConfig = clean;
-    saveStore();
+  if (rev !== configRevision) {
+    res.status(409).json({ ok: false, applied: false, error: "Stale config revision", revision: configRevision });
+    return;
   }
-  res.json({ ok: true, revision: configRevision });
+  const result = commitConfig(clean);
+  if (!result.ok) {
+    res.status(503).json({ ok: false, applied: false, error: "Unable to save settings" });
+    return;
+  }
+  res.json({ ok: true, applied: true, changed: result.changed, revision: configRevision });
 });
 
 const MAX_COMMAND_QUEUE = 50;

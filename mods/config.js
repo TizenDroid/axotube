@@ -1,4 +1,5 @@
 import configSchema from "../config-schema.json";
+import configPolicy from "../shared/configPolicy.js";
 
 const CONFIG_KEY = "ytaf-configuration";
 const nativeJSONParse = JSON.parse;
@@ -11,34 +12,7 @@ defaultConfig.enableFixedUI = window.h5vcc && window.h5vcc.tizentube
   ? configSchema.defaults.enableFixedUI
   : true;
 
-export function validateConfigValue(key, value) {
-  if (!Object.prototype.hasOwnProperty.call(defaultConfig, key)) return false;
-  const expected = defaultConfig[key];
-
-  if (expected === null) return value === null || typeof value === "string";
-  if (Array.isArray(expected)) {
-    return Array.isArray(value) && value.every((item) => typeof item === "string");
-  }
-  if (typeof expected === "number") {
-    if (typeof value !== "number" || !Number.isFinite(value)) return false;
-    const range = configSchema.ranges[key];
-    return !range || (value >= range[0] && value <= range[1]);
-  }
-  if (typeof value !== typeof expected) return false;
-
-  const allowed = configSchema.enums[key];
-  if (allowed && !allowed.includes(value)) return false;
-  if (key === "routeColor" && !/^#[0-9a-f]{6}$/i.test(value)) return false;
-  if (key === "routeBackgroundUrl" && value) {
-    try {
-      const parsed = new URL(value);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    } catch (e) {
-      return false;
-    }
-  }
-  return true;
-}
+export const validateConfigValue = configPolicy.validateConfigValue;
 
 let localConfig;
 

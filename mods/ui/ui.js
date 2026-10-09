@@ -8,6 +8,7 @@ import { pipToFullscreen } from "../features/pictureInPicture.js";
 import getCommandExecutor from "./customCommandExecution.js";
 import { t } from "i18next";
 import AXOTUBE_VERSION from "../version.js";
+import { watchNativeResolverPatches } from "../shared/nativeCommand.js";
 
 let initialized = false;
 let keyTimeout = null;
@@ -191,17 +192,14 @@ function execute_once_dom_loaded() {
   ensureResolveCommandPatched();
 }
 
-let resolveCommandPatchAttempts = 0;
 function ensureResolveCommandPatched() {
   try {
-    if (patchResolveCommand()) return;
-  } catch (e) {}
-  resolveCommandPatchAttempts += 1;
-  if (resolveCommandPatchAttempts >= 100) {
-    console.warn("axotube: gave up waiting for window._yttv instance.resolveCommand to appear");
-    return;
+    patchResolveCommand();
+    // Keep newly-created YouTube resolvers patched after route/host replacement.
+    watchNativeResolverPatches();
+  } catch (e) {
+    console.warn("axotube: unable to install native command patch:", e);
   }
-  setTimeout(ensureResolveCommandPatched, 100);
 }
 
 function checkInitialization() {

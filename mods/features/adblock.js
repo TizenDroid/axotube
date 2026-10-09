@@ -1,9 +1,8 @@
 /**
  * adblock.js – response filter & patch orchestrator.
  *
- * This module owns the global JSON.parse/JSON.stringify taps. YouTube TV hands
- * every server response to JSON.parse, so this is the single choke point where
- * each feature's response-level transform is applied. Per-feature helpers live
+ * The shared response pipeline owns JSON.parse, and this module owns the
+ * JSON.stringify playback-context fix. Per-feature helpers live
  * in their own modules and are imported here:
  *
  *   - Ad / paid-promo / endscreen / you-there / codec filter  (inline below)
@@ -28,6 +27,8 @@ import { hqify } from "./hqThumbnails.js";
 import { addLongPress } from "./longPressMenu.js";
 import { addPreviews } from "./videoPreviews.js";
 import { hideVideo } from "./hideWatchedVideos.js";
+import { filterGuideItems } from "../ui/customGuideAction.js";
+import { installResponsePipeline } from "../shared/responsePipeline.js";
 
 function isAxotubeSponsorTimelyAction(action) {
   const buttons = action?.timelyActionRenderer?.actionButtons;
@@ -51,10 +52,14 @@ function mergeSponsorTimelyActions(renderer, axotubeActions) {
  * This is a minimal reimplementation of the following uBlock Origin rule:
  * https://github.com/uBlockOrigin/uAssets/blob/3497eebd440f4871830b9b45af0afc406c6eb593/filters/filters.txt#L116
  */
-const origParse = JSON.parse;
-JSON.parse = function () {
-  const r = origParse.apply(this, arguments);
-  try {
+function filterYoutubeResponse(r) {
+    // Most JSON.parse calls are unrelated to YouTube response renderers.
+    if (
+      !r.adPlacements && !r.playerAds && !r.adSlots &&
+      !r.paidContentOverlay && !r.streamingData && !r.contents &&
+      !r.endscreen && !r.messages && !r.entries && !r.title &&
+      !r.continuationContents && !r.playerOverlays && !r.transportControls
+    ) return;
     const adBlockEnabled = configRead("enableAdBlock");
     const signinReminderEnabled = configRead("enableSigninReminder");
 
@@ -299,12 +304,9 @@ JSON.parse = function () {
         }
       }
     }
-  } catch (e) {
-    console.error("An error occured while processing the JSON:", e);
-  }
+}
 
-  return r;
-};
+installResponsePipeline([filterYoutubeResponse, filterGuideItems]);
 
 // Fix playback issues without leaving caller-owned request objects mutated.
 const origStringify = JSON.stringify;
@@ -318,25 +320,15 @@ JSON.stringify = function (value, replacer, space) {
     const previousValue = playbackContext.isInlinePlaybackNoAd;
     try {
       playbackContext.isInlinePlaybackNoAd = true;
-      return origStringify.call(this, value, replacer, space);
+      return origStringify.apply(this, arguments);
     } finally {
       if (hadOwnValue) playbackContext.isInlinePlaybackNoAd = previousValue;
       else delete playbackContext.isInlinePlaybackNoAd;
     }
   }
-  return origStringify.call(this, value, replacer, space);
+  return origStringify.apply(this, arguments);
 };
 window.JSON.stringify = JSON.stringify;
-window.JSON.parse = JSON.parse;
-for (const key in window._yttv) {
-  if (
-    window._yttv[key] &&
-    window._yttv[key].JSON &&
-    window._yttv[key].JSON.parse
-  ) {
-    window._yttv[key].JSON.parse = JSON.parse;
-  }
-}
 
 function processShelves(shelves, shouldAddPreviews = true) {
   const removeShorts = !configRead("enableShorts");

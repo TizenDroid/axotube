@@ -2,7 +2,7 @@
 // loads this module's appPath with the cast payload appended as URL query
 // params. This module maps those params to a resolveCommand payload and waits
 // for a real YouTube resolver before dispatching it.
-import resolveCommand from "../resolveCommand.js";
+import { dispatchNativeCommandWhenReady } from "../shared/nativeCommand.js";
 
 function parseQuery(queryString) {
   if (!queryString || queryString.length <= 1) return {};
@@ -37,44 +37,7 @@ function buildCommand(params) {
   return null;
 }
 
-function canDispatch() {
-  if (typeof window === "undefined" || !window._yttv) return false;
-  try {
-    for (const key in window._yttv) {
-      const candidate = window._yttv[key];
-      if (candidate && candidate.instance && typeof candidate.instance.resolveCommand === "function") {
-        return true;
-      }
-    }
-  } catch (err) {}
-  return false;
-}
-
-function dispatchWhenReady(cmd) {
-  if (!cmd) return;
-  const dispatch = () => {
-    try {
-      resolveCommand(cmd);
-    } catch (err) {}
-  };
-
-  if (canDispatch()) {
-    dispatch();
-    return;
-  }
-
-  let attempts = 0;
-  const interval = setInterval(() => {
-    attempts += 1;
-    const ready = canDispatch();
-    if (ready || attempts > 50) {
-      clearInterval(interval);
-      if (ready) dispatch();
-    }
-  }, 200);
-}
-
 try {
   const params = parseQuery(location.search);
-  dispatchWhenReady(buildCommand(params));
+  dispatchNativeCommandWhenReady(buildCommand(params));
 } catch (err) {}

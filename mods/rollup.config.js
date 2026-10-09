@@ -32,8 +32,8 @@ export default {
     }),
 
     commonjs({
-      // Include node_modules AND our own mods folder
-      include: [/node_modules/, /mods/],
+      // Include node_modules, browser mods, and the cross-runtime config policy.
+      include: [/node_modules/, /mods/, /shared\/configPolicy\.js$/],
       transformMixedEsModules: true,
     }),
 

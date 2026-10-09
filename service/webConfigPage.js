@@ -85,6 +85,7 @@ module.exports.webConfigPage = `<!DOCTYPE html>
   var ARRAY_KEYS = { sponsorBlockManualSkips:true, hideWatchedVideosPages:true, disabledSidebarContents:true };
   var state = {};
   var revision = 0;
+  var saving = false;
   var token = localStorage.getItem("axotube-pair-token") || "";
   var main = document.getElementById("main");
   var filter = document.getElementById("filter");
@@ -238,7 +239,9 @@ module.exports.webConfigPage = `<!DOCTYPE html>
   }
 
   function save(reload) {
-    request("/api/config","POST",state).then(function(data){ revision=data.revision; setStatus(true,"connected · revision " + revision); if (!reload) { flash("Saved"); return; } return request("/api/command","POST",{action:"reload"}).then(function(){ flash("Saved · TV reloading"); }); }).catch(function(err){ flash("Save failed: " + (err.message || "unknown")); });
+    if (saving) return;
+    saving = true;
+    request("/api/config","POST",{revision:revision,config:state}).then(function(data){ revision=data.revision; setStatus(true,"connected · revision " + revision); if (!reload) { flash("Saved"); return; } return request("/api/command","POST",{action:"reload"}).then(function(){ flash("Saved · TV reloading"); }); }).catch(function(err){ if (err.status === 409) setStatus(false,"Settings changed on TV · reload before saving"); flash("Save failed: " + (err.message || "unknown")); }).then(function(){ saving = false; });
   }
 
   document.getElementById("pairBtn").addEventListener("click", pair);
