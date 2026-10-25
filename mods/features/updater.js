@@ -25,10 +25,12 @@ function normalizeVersion(version) {
 }
 
 function compareVersions(a, b) {
-  const left = normalizeVersion(a).split("-");
-  const right = normalizeVersion(b).split("-");
-  const leftCore = left[0].split(".");
-  const rightCore = right[0].split(".");
+  const leftVersion = normalizeVersion(a);
+  const rightVersion = normalizeVersion(b);
+  const leftDash = leftVersion.indexOf("-");
+  const rightDash = rightVersion.indexOf("-");
+  const leftCore = (leftDash === -1 ? leftVersion : leftVersion.slice(0, leftDash)).split(".");
+  const rightCore = (rightDash === -1 ? rightVersion : rightVersion.slice(0, rightDash)).split(".");
   const count = Math.max(leftCore.length, rightCore.length);
 
   for (let i = 0; i < count; i += 1) {
@@ -40,11 +42,31 @@ function compareVersions(a, b) {
     if (safeA < safeB) return -1;
   }
 
-  if (left.length === 1 && right.length > 1) return 1;
-  if (left.length > 1 && right.length === 1) return -1;
-  if (left.length > 1 && right.length > 1) {
-    if (left[1] > right[1]) return 1;
-    if (left[1] < right[1]) return -1;
+  const leftPre = leftDash === -1 ? null : leftVersion.slice(leftDash + 1).split(".");
+  const rightPre = rightDash === -1 ? null : rightVersion.slice(rightDash + 1).split(".");
+  if (!leftPre && rightPre) return 1;
+  if (leftPre && !rightPre) return -1;
+  if (!leftPre && !rightPre) return 0;
+
+  const preCount = Math.max(leftPre.length, rightPre.length);
+  for (let i = 0; i < preCount; i += 1) {
+    const leftId = leftPre[i];
+    const rightId = rightPre[i];
+    if (leftId === undefined) return -1;
+    if (rightId === undefined) return 1;
+    if (leftId === rightId) continue;
+
+    const leftNumeric = /^\d+$/.test(leftId);
+    const rightNumeric = /^\d+$/.test(rightId);
+    if (leftNumeric && rightNumeric) {
+      const leftNumber = Number(leftId);
+      const rightNumber = Number(rightId);
+      if (leftNumber > rightNumber) return 1;
+      if (leftNumber < rightNumber) return -1;
+      continue;
+    }
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftId > rightId ? 1 : -1;
   }
   return 0;
 }

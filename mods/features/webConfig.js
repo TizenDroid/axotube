@@ -145,12 +145,17 @@ function pullAndApply() {
       // On a stale push, preserve only keys edited locally. Everything else
       // comes from the latest server snapshot before a new full push is sent.
       applyingServerConfig = true;
+      let appliedSuccessfully = true;
       try {
         Object.keys(remote).forEach((key) => {
           if (dirtyKeys.has(key) || typeof remote[key] === "undefined") return;
           try {
-            if (!valuesEqual(configRead(key), remote[key])) configWrite(key, remote[key]);
-          } catch (err) {}
+            if (!valuesEqual(configRead(key), remote[key]) && !configWrite(key, remote[key])) {
+              appliedSuccessfully = false;
+            }
+          } catch (err) {
+            appliedSuccessfully = false;
+          }
         });
       } finally {
         applyingServerConfig = false;
@@ -161,7 +166,7 @@ function pullAndApply() {
         else if (valuesEqual(current[key], remote[key])) dirtyKeys.delete(key);
       });
       serverConfig = remote;
-      appliedRevision = data.revision;
+      if (appliedSuccessfully) appliedRevision = data.revision;
     })
     .catch(() => {})
     .then(() => {

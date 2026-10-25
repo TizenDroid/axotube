@@ -177,3 +177,47 @@ test('CI builds fresh distributables and publishes them for release sync', () =>
   has(src, 'actions/upload-artifact@v4');
   has(src, 'axotube-built-artifacts');
 });
+
+test('enabling screen dimming through config arms the inactivity timer immediately', () => {
+  const src = read('mods/ui/ui.js');
+  const listener = between(src, 'configChangeEmitter.addEventListener("configChange"', '});');
+  has(listener, 'key === "enableScreenDimming"');
+  has(listener, 'armDimmingTimer()');
+  has(listener, 'clearDimmingTimer()');
+});
+
+test('remote config revision is marked applied only after values are processed', () => {
+  const src = read('mods/features/webConfig.js');
+  const pull = between(src, 'function pullAndApply()', 'function buildCommand');
+  const applyPos = pull.indexOf('Object.keys(remote).forEach');
+  const revisionPos = pull.lastIndexOf('appliedRevision = data.revision');
+  assert.notEqual(applyPos, -1, 'remote config application loop missing');
+  assert.notEqual(revisionPos, -1, 'applied revision assignment missing');
+  assert.ok(revisionPos > applyPos, 'revision must be committed after remote config values are processed');
+});
+
+test('focused HQ thumbnail probing tries sddefault before falling back to hqdefault', () => {
+  const src = read('mods/shared/hqThumbnails.js');
+  const probe = between(src, 'export function probeBestThumbnailQuality', 'export function isVideoThumbnailArray');
+  has(probe, 'sddefault.jpg');
+  const sdPos = probe.indexOf('sddefault.jpg');
+  const hqPos = probe.lastIndexOf('hqdefault.jpg');
+  assert.ok(sdPos !== -1 && hqPos !== -1 && sdPos < hqPos, 'sddefault should be tested before hqdefault fallback');
+});
+
+test('updater compares numeric SemVer prerelease identifiers correctly', () => {
+  const src = read('mods/features/updater.js');
+  const code = between(src, 'function normalizeVersion', 'function getLatestRelease');
+  const compareVersions = Function(`${code}; return compareVersions;`)();
+  assert.equal(compareVersions('1.20.0-rc.2', '1.20.0-rc.10'), -1);
+  assert.equal(compareVersions('1.20.0-rc.10', '1.20.0-rc.2'), 1);
+  assert.equal(compareVersions('1.20.0-beta', '1.20.0'), -1);
+  assert.equal(compareVersions('v1.20.1', '1.20.1'), 0);
+});
+
+test('stutter-fix speed is selected when 1.0001x is the configured speed', () => {
+  const src = read('mods/ui/speedUI.js');
+  const speed = between(src, 'function speedSettings()', 'export { speedSettings }');
+  has(speed, 'currentSpeed === 1.0001');
+  has(speed, 'selectedIndex = buttons.length');
+});
