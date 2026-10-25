@@ -51,6 +51,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "Generated artifacts already synchronized."
           else
-            git commit -m "build: sync 1.20.1 distributables"
+            git commit -m "build: sync 1.21.1 distributables"
             git push origin HEAD:fix/deep-dive-regressions
           fi

@@ -15,9 +15,9 @@ function between(src, start, end) {
   return src.slice(a, b);
 }
 
-test('1.20.1 metadata stays synchronized', () => {
+test('1.21.1 metadata stays synchronized', () => {
   const root = JSON.parse(read('package.json')).version;
-  assert.equal(root, '1.20.1');
+  assert.equal(root, '1.21.1');
   assert.equal(JSON.parse(read('standalone/service/package.json')).version, root);
   has(read('standalone/config.xml'), `version="${root}"`);
 });
