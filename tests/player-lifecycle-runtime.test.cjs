@@ -241,6 +241,7 @@ test('SponsorBlock detaches media listeners and never skips a different route', 
   r.context.sha256 = () => 'abcdef12';
   r.context.t = (s) => s;
   r.context.showToast = () => {};
+  r.context.fetchWithTimeout = (url, opts) => r.context.fetch(url, opts);
   r.context.fetch = async () => ({
     ok: true,
     json: async () => [{ videoID: 'one', segments: [{ category: 'sponsor', UUID: 'seg-1', segment: [5, 9] }] }],

@@ -15,9 +15,9 @@ function between(src, start, end) {
   return src.slice(a, b);
 }
 
-test('1.21.1 metadata stays synchronized', () => {
+test('1.22.0 metadata stays synchronized', () => {
   const root = JSON.parse(read('package.json')).version;
-  assert.equal(root, '1.21.1');
+  assert.equal(root, '1.22.0');
   assert.equal(JSON.parse(read('standalone/service/package.json')).version, root);
   has(read('standalone/config.xml'), `version="${root}"`);
 });
@@ -75,13 +75,13 @@ test('subtitle readiness uses one bounded retry loop', () => {
 test('response HQ thumbnail cache is bounded', () => {
   const src = read('mods/features/hqThumbnails.js');
   has(src, 'MAX_HQ_CACHE_ENTRIES');
-  has(src, 'hqThumbnailsCacheOrder');
+  has(src, 'createBoundedCache(MAX_HQ_CACHE_ENTRIES)');
 });
 
 test('DeArrow fans out pending requests and retries after transient failures', () => {
   const src = read('mods/features/deArrow.js');
   has(src, 'waiters');
-  has(src, 'delete deArrowCache[videoId]');
+  has(src, 'deArrowCache.delete(videoId)');
 });
 
 test('HQ observer batches without RAF starvation and clears queued work on stop', () => {
@@ -157,8 +157,9 @@ test('TV exposes a usable Web Config address with the pairing code', () => {
   has(service, 'getLanWebConfigUrls');
   has(service, 'urls: getLanWebConfigUrls()');
   const client = read('mods/features/webConfig.js');
-  has(client, 'axotube Web Config');
-  has(client, 'Open ${url} on your phone');
+  has(client, 't("toasts.pairingWithUrl"');
+  const en = read('mods/translations/resources/en.json');
+  has(en, 'Open {{url}} on your phone');
 });
 
 test('speed increment keeps decimal Web Config control but caps modal work', () => {
@@ -212,7 +213,7 @@ test('updater compares numeric SemVer prerelease identifiers correctly', () => {
   assert.equal(compareVersions('1.20.0-rc.2', '1.20.0-rc.10'), -1);
   assert.equal(compareVersions('1.20.0-rc.10', '1.20.0-rc.2'), 1);
   assert.equal(compareVersions('1.20.0-beta', '1.20.0'), -1);
-  assert.equal(compareVersions('v1.20.1', '1.20.1'), 0);
+  assert.equal(compareVersions('v1.20.2', '1.20.2'), 0);
 });
 
 test('stutter-fix speed is selected when 1.0001x is the configured speed', () => {

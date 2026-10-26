@@ -1,4 +1,5 @@
 // Web config sync + phone control bridge.
+import { t } from "i18next";
 import {
   configRead,
   configWrite,
@@ -47,8 +48,10 @@ function showPairingCode() {
       try {
         const url = Array.isArray(data.urls) && data.urls.length ? data.urls[0] : null;
         showToast(
-          "axotube Web Config",
-          url ? `Open ${url} on your phone · code ${data.code}` : `Phone pairing code: ${data.code}`,
+          t("app.name"),
+          url
+            ? t("toasts.pairingWithUrl", { url, code: data.code })
+            : t("toasts.pairingCodeOnly", { code: data.code }),
         );
       } catch (err) {}
     })
@@ -58,7 +61,7 @@ function showPairingCode() {
 function showServiceToast() {
   if (serviceToastShown || !isTizen() || !hasResolver()) return;
   try {
-    showToast("axotube", "Service connected");
+    showToast(t("app.name"), t("toasts.serviceConnected"));
     serviceToastShown = true;
     setTimeout(showPairingCode, 1200);
   } catch (err) {}
@@ -141,6 +144,7 @@ function pullAndApply() {
       if (!data || !Number.isSafeInteger(data.revision) || data.revision < 0 ||
           !data.config || typeof data.config !== "object" || Array.isArray(data.config)) return;
       showServiceToast();
+      pollFailures = 0;
       const remote = data.config;
       // On a stale push, preserve only keys edited locally. Everything else
       // comes from the latest server snapshot before a new full push is sent.
@@ -168,7 +172,10 @@ function pullAndApply() {
       serverConfig = remote;
       if (appliedSuccessfully) appliedRevision = data.revision;
     })
-    .catch(() => {})
+    .catch(() => {
+      // Service unreachable: the poll loop backs off instead of hammering it.
+      pollFailures += 1;
+    })
     .then(() => {
       configSyncing = false;
       pushIfChanged();
@@ -242,7 +249,7 @@ function consumeCommand() {
         if (!ok) return;
         lastExecutedCommandId = id;
         lastExecutedCommandNeedsReload = false;
-        try { showToast("axotube", "Command received"); } catch (err) {}
+        try { showToast(t("app.name"), t("toasts.commandReceived")); } catch (err) {}
         return acknowledgeExecutedCommand(id);
       });
     })
@@ -285,13 +292,22 @@ function pushNowPlaying() {
     .then(() => { nowPlayingPushing = false; });
 }
 
-setTimeout(() => {
+// Poll every POLL_INTERVAL_MS while the service answers. Each failed pull
+// doubles the wait (capped), so a missing service or phone costs little.
+const MAX_POLL_INTERVAL_MS = 30000;
+let pollFailures = 0;
+
+function nextPollDelayMs() {
+  if (pollFailures === 0) return POLL_INTERVAL_MS;
+  const backoff = POLL_INTERVAL_MS * Math.pow(2, Math.min(pollFailures, 3));
+  return Math.min(backoff, MAX_POLL_INTERVAL_MS);
+}
+
+function pollOnce() {
   pullAndApply();
   consumeCommand();
   pushNowPlaying();
-  setInterval(() => {
-    pullAndApply();
-    consumeCommand();
-    pushNowPlaying();
-  }, POLL_INTERVAL_MS);
-}, 3000);
+  setTimeout(pollOnce, nextPollDelayMs());
+}
+
+setTimeout(pollOnce, 3000);

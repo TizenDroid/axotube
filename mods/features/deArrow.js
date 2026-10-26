@@ -1,27 +1,10 @@
 // DeArrow – community-approved video titles & thumbnails.
-import { configRead, nativeJSONParse, nativeJSONStringify } from "../config.js";
+import { configRead } from "../config.js";
 import { fetchWithTimeout } from "../shared/fetch.js";
+import { createBoundedCache } from "../shared/boundedCache.js";
 
 export const MAX_DEARROW_CACHE_ENTRIES = 256;
-const deArrowCache = {};
-const deArrowCacheOrder = [];
-
-function removeCache(videoId) {
-  delete deArrowCache[videoId];
-  const index = deArrowCacheOrder.indexOf(videoId);
-  if (index !== -1) deArrowCacheOrder.splice(index, 1);
-}
-
-function putCache(videoId, entry) {
-  if (!Object.prototype.hasOwnProperty.call(deArrowCache, videoId)) {
-    deArrowCacheOrder.push(videoId);
-  }
-  deArrowCache[videoId] = entry;
-  while (deArrowCacheOrder.length > MAX_DEARROW_CACHE_ENTRIES) {
-    const oldest = deArrowCacheOrder.shift();
-    delete deArrowCache[oldest];
-  }
-}
+const deArrowCache = createBoundedCache(MAX_DEARROW_CACHE_ENTRIES);
 
 function applyDeArrow(item, videoId, data, titlesEnabled, thumbnailsEnabled) {
   try {
@@ -74,7 +57,7 @@ export function deArrowify(items) {
     if (!videoId) continue;
 
     const waiter = { item, titlesEnabled, thumbnailsEnabled };
-    const cached = deArrowCache[videoId];
+    const cached = deArrowCache.get(videoId);
     if (cached) {
       if (cached.data) {
         applyDeArrow(item, videoId, cached.data, titlesEnabled, thumbnailsEnabled);
@@ -85,7 +68,7 @@ export function deArrowify(items) {
     }
 
     const entry = { data: null, waiters: [waiter] };
-    putCache(videoId, entry);
+    deArrowCache.set(videoId, entry);
 
     fetchWithTimeout(`https://sponsor.ajay.app/api/branding?videoID=${videoId}`)
       .then((res) => {
@@ -107,20 +90,15 @@ export function deArrowify(items) {
         }
       })
       .catch(() => {
-        if (deArrowCache[videoId] === entry) removeCache(videoId);
+        if (deArrowCache.get(videoId) === entry) deArrowCache.delete(videoId);
       });
   }
 }
 
 export function resetDeArrowCache(videoID) {
   if (videoID) {
-    removeCache(videoID);
+    deArrowCache.delete(videoID);
     return;
   }
-  for (const key in deArrowCache) delete deArrowCache[key];
-  deArrowCacheOrder.length = 0;
-}
-
-export function deArrowDeepClone(value) {
-  return nativeJSONParse(nativeJSONStringify(value));
+  deArrowCache.clear();
 }

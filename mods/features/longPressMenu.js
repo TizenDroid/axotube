@@ -1,6 +1,6 @@
 // Long-press video menu.
-import { configRead, nativeJSONParse, nativeJSONStringify } from "../config.js";
-import { longPressData, MenuServiceItemRenderer } from "../ui/ytUI.js";
+import { configRead, cloneJSON } from "../config.js";
+import { longPressData, queueMenuItem } from "../ui/ytUI.js";
 
 function makeQueuePayload(item) {
   const src = item.tileRenderer;
@@ -9,12 +9,9 @@ function makeQueuePayload(item) {
   if (src.style !== undefined) tile.style = src.style;
   if (src.contentId !== undefined) tile.contentId = src.contentId;
   if (src.trackingParams !== undefined) tile.trackingParams = src.trackingParams;
-  if (src.metadata !== undefined)
-    tile.metadata = nativeJSONParse(nativeJSONStringify(src.metadata));
-  if (src.header !== undefined)
-    tile.header = nativeJSONParse(nativeJSONStringify(src.header));
-  if (src.onSelectCommand !== undefined)
-    tile.onSelectCommand = nativeJSONParse(nativeJSONStringify(src.onSelectCommand));
+  if (src.metadata !== undefined) tile.metadata = cloneJSON(src.metadata);
+  if (src.header !== undefined) tile.header = cloneJSON(src.header);
+  if (src.onSelectCommand !== undefined) tile.onSelectCommand = cloneJSON(src.onSelectCommand);
   return { tileRenderer: tile };
 }
 
@@ -35,30 +32,25 @@ export function addLongPress(items) {
     const existingItems = item.tileRenderer.onLongPressCommand?.showMenuCommand?.menu?.menuRenderer?.items;
     if (Array.isArray(existingItems)) {
       if (!hasQueueItem(existingItems)) {
-        const copiedItem = makeQueuePayload(item);
-        existingItems.push(MenuServiceItemRenderer('Add to Queue', {
-          clickTrackingParams: null,
-          playlistEditEndpoint: {
-            customAction: {
-              action: 'ADD_TO_QUEUE',
-              parameters: copiedItem
-            }
-          }
-        }));
+        existingItems.push(queueMenuItem(makeQueuePayload(item)));
       }
       continue;
     }
 
-    if (!item.tileRenderer?.metadata?.tileMetadataRenderer) continue;
-    if (!item.tileRenderer?.header?.tileHeaderRenderer?.thumbnail?.thumbnails) continue;
-    const copiedItem = makeQueuePayload(item);
-    const subtitleNode = copiedItem.tileRenderer.metadata.tileMetadataRenderer.lines?.[0]?.lineRenderer?.items?.[0]?.lineItemRenderer?.text;
+    // Decide from the source tile first: deep-cloning is the expensive part, and
+    // most tiles that reach here are rejected by one of these checks.
+    const tileMetadata = item.tileRenderer.metadata?.tileMetadataRenderer;
+    if (!tileMetadata) continue;
+    if (!item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails) continue;
+    const subtitleNode = tileMetadata.lines?.[0]?.lineRenderer?.items?.[0]?.lineItemRenderer?.text;
     if (!subtitleNode) continue;
     const subtitle = subtitleNode.runs?.[0]?.text || subtitleNode.simpleText || '';
+
+    const copiedItem = makeQueuePayload(item);
     const data = longPressData({
       videoId: copiedItem.tileRenderer.contentId,
       thumbnails: copiedItem.tileRenderer.header.tileHeaderRenderer.thumbnail.thumbnails,
-      title: copiedItem.tileRenderer.metadata.tileMetadataRenderer.title?.simpleText || '',
+      title: tileMetadata.title?.simpleText || '',
       subtitle,
       watchEndpointData: copiedItem.tileRenderer.onSelectCommand.watchEndpoint,
       item: copiedItem

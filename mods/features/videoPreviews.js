@@ -1,5 +1,5 @@
 // Video previews (inline playback on focus).
-import { configRead, nativeJSONParse, nativeJSONStringify } from "../config.js";
+import { configRead, cloneJSON } from "../config.js";
 
 export function addPreviews(items) {
   if (!configRead("enablePreviews")) return;
@@ -10,13 +10,13 @@ export function addPreviews(items) {
     if (item.tileRenderer?.onFocusCommand?.playbackEndpoint) continue;
     if (item.tileRenderer?.onFocusCommand?.commandExecutorCommand) continue;
 
-    const copiedEndpoint = nativeJSONParse(nativeJSONStringify({ watchEndpoint }));
+    const copiedEndpoint = cloneJSON({ watchEndpoint });
     item.tileRenderer.onFocusCommand = {
       startInlinePlaybackCommand: {
         blockAdoption: true,
         caption: false,
         delayMs: 3000,
-        durationMs: 40000,
+        durationMs: configRead("previewLengthSeconds") * 1000,
         muted: false,
         restartPlaybackBeforeSeconds: 10,
         resumeVideo: true,

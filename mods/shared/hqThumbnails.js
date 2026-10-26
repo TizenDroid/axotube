@@ -1,5 +1,6 @@
 // Shared thumbnail-quality helpers.
 import { configRead } from "../config.js";
+import { createBoundedCache } from "./boundedCache.js";
 
 export const THUMBNAIL_URLS = [
   "maxresdefault.jpg",
@@ -9,21 +10,20 @@ export const THUMBNAIL_URLS = [
   "default.jpg",
 ];
 
-export const MAX_HQ_CACHE_ENTRIES = 256;
-export const hqQualityCache = {};
-export const hqPendingTesters = {};
-const hqCacheOrder = [];
+// True pixel sizes of each YouTube thumbnail file. Advertising every entry as
+// 1280x720 made the largest look like the right choice for every tile size.
+export const THUMBNAIL_SIZES = {
+  "maxresdefault.jpg": { width: 1280, height: 720 },
+  "sddefault.jpg": { width: 640, height: 480 },
+  "hqdefault.jpg": { width: 480, height: 360 },
+  "mqdefault.jpg": { width: 320, height: 180 },
+  "default.jpg": { width: 120, height: 90 },
+};
 
-function rememberQuality(videoId, quality) {
-  if (!Object.prototype.hasOwnProperty.call(hqQualityCache, videoId)) {
-    hqCacheOrder.push(videoId);
-  }
-  hqQualityCache[videoId] = quality;
-  while (hqCacheOrder.length > MAX_HQ_CACHE_ENTRIES) {
-    const oldest = hqCacheOrder.shift();
-    delete hqQualityCache[oldest];
-  }
-}
+export const MAX_HQ_CACHE_ENTRIES = 256;
+export const hqQualityCache = createBoundedCache(MAX_HQ_CACHE_ENTRIES);
+// videoId -> callbacks waiting on an in-flight quality probe.
+export const hqPendingTesters = new Map();
 
 export function extractVideoIdFromThumbnailUrl(url) {
   if (!url || !url.includes("i.ytimg.com/vi/")) return null;
@@ -33,22 +33,22 @@ export function extractVideoIdFromThumbnailUrl(url) {
 
 export function probeBestThumbnailQuality(videoId, onResult) {
   if (!videoId || typeof onResult !== "function") return;
-  const cached = hqQualityCache[videoId];
+  const cached = hqQualityCache.get(videoId);
   if (cached) {
     onResult(cached);
     return;
   }
 
-  if (hqPendingTesters[videoId]) {
-    hqPendingTesters[videoId].push(onResult);
+  if (hqPendingTesters.has(videoId)) {
+    hqPendingTesters.get(videoId).push(onResult);
     return;
   }
 
-  hqPendingTesters[videoId] = [onResult];
+  hqPendingTesters.set(videoId, [onResult]);
   const finish = (quality) => {
-    const waiters = hqPendingTesters[videoId] || [];
-    delete hqPendingTesters[videoId];
-    rememberQuality(videoId, quality);
+    const waiters = hqPendingTesters.get(videoId) || [];
+    hqPendingTesters.delete(videoId);
+    hqQualityCache.set(videoId, quality);
     waiters.forEach((cb) => {
       try { cb(quality); } catch (e) {}
     });

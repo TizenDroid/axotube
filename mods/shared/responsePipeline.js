@@ -66,9 +66,9 @@ export function installResponsePipeline(filters) {
     function pollNativeParsers() {
       nativeParserFound = bindNativeParsers() || nativeParserFound;
       checks++;
-      setTimeout(pollNativeParsers, !nativeParserFound && checks < 20 ? 250 : 2000);
+      setTimeout(pollNativeParsers, !nativeParserFound && checks < 20 ? 250 : 5000);
     }
-    setTimeout(pollNativeParsers, nativeParserFound ? 2000 : 250);
+    setTimeout(pollNativeParsers, nativeParserFound ? 5000 : 250);
   }
   return parse;
 }

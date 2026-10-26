@@ -1,37 +1,16 @@
-import { configRead } from "../config.js";
-import {
-  showModal,
-  buttonItem,
-  overlayPanelItemListRenderer,
-  scrollPaneRenderer,
-  overlayMessageRenderer,
-  QrCodeRenderer,
-} from "./ytUI.js";
-import qrcode from "qrcode-npm";
 import { t } from "i18next";
-import { getComprehensiveLanguageList } from "../features/moreSubtitles.js";
+import { openSettingsOverlay } from "./settingsOverlay.js";
 
-const qrcodes = {};
-
-function generateQRCode(link) {
-  if (qrcodes[link]) return qrcodes[link];
-  try {
-    const qr = qrcode.qrcode(6, "H");
-    qr.addData(link);
-    qr.make();
-    const qrDataImgTag = qr.createImgTag(8, 8);
-    const qrDataUrl = qrDataImgTag.match(/src="([^"]+)"/)?.[1];
-    if (qrDataUrl) {
-      qrcodes[link] = qrDataUrl;
-      return qrDataUrl;
-    }
-  } catch (e) {
-    console.error("QR code generation failed:", e);
-  }
-  return null;
-}
-
-export default function modernUI(update, parameters) {
+// The settings tree is plain data: labels, config keys and nesting. It is
+// rendered by settingsOverlay.js. Node kinds:
+//   value: "<key>"           toggle bound to a boolean config key
+//   key + value              radio choice for a string config key
+//   arrayToEdit: "<key>"     multi-select over an array config key
+//   stepper: <step>          numeric stepper bound to value (range from schema)
+//   options: [...]           submenu
+//   options: { title, subtitle, content }  information panel (text, { qrLink })
+//   action: "<ACTION>"       runs a custom action
+export function buildSettingsTree() {
   const settings = [
     {
       name: t("settings.supportTT.title"),
@@ -40,14 +19,14 @@ export default function modernUI(update, parameters) {
       options: {
         title: t("settings.supportTT.title"),
         subtitle: t("settings.supportTT.subtitle"),
-        content: scrollPaneRenderer([
-          overlayMessageRenderer(t("settings.supportTT.content.1")),
-          overlayMessageRenderer(t("settings.supportTT.content.2")),
-          overlayMessageRenderer(t("settings.supportTT.content.3")),
-          overlayMessageRenderer(t("settings.supportTT.content.4")),
-          overlayMessageRenderer(t("settings.supportTT.content.5")),
-          overlayMessageRenderer(t("settings.supportTT.content.6")),
-        ]),
+        content: [
+          t("settings.supportTT.content.1"),
+          t("settings.supportTT.content.2"),
+          t("settings.supportTT.content.3"),
+          t("settings.supportTT.content.4"),
+          t("settings.supportTT.content.5"),
+          t("settings.supportTT.content.6"),
+        ],
       },
     },
     {
@@ -72,17 +51,12 @@ export default function modernUI(update, parameters) {
           options: {
             title: option.name,
             subtitle: option.link,
-            content: overlayPanelItemListRenderer([
-              overlayMessageRenderer(
-                t("settings.options.socialMedia.qrCodeScanMessage", {
-                  name: option.name,
-                }),
-              ),
-              {
-                qrCodePlaceholder: true,
-                link: option.link,
-              },
-            ]),
+            content: [
+              t("settings.options.socialMedia.qrCodeScanMessage", {
+                name: option.name,
+              }),
+              { qrLink: option.link },
+            ],
           },
         };
       }),
@@ -337,6 +311,12 @@ export default function modernUI(update, parameters) {
           name: t("settings.options.misc.options.videoPreviews"),
           icon: "PREVIEW",
           value: "enablePreviews",
+        },
+        {
+          name: t("settings.options.misc.options.previewLength"),
+          icon: "PREVIEW",
+          value: "previewLengthSeconds",
+          stepper: 5,
         },
         {
           name: t("settings.options.misc.options.ttWelcomeMsg"),
@@ -1113,17 +1093,11 @@ export default function modernUI(update, parameters) {
                 : "unknown",
           }),
           options: [
-            buttonItem(
-              { title: t("settings.options.updater.options.checkForUpdates") },
-              { icon: "SYSTEM_UPDATE" },
-              [
-                {
-                  customAction: {
-                    action: "CHECK_FOR_UPDATES",
-                  },
-                },
-              ],
-            ),
+            {
+              name: t("settings.options.updater.options.checkForUpdates"),
+              icon: "SYSTEM_UPDATE",
+              action: "CHECK_FOR_UPDATES",
+            },
             {
               name: t(
                 "settings.options.updater.options.checkForUpdatesOnStartup",
@@ -1141,277 +1115,13 @@ export default function modernUI(update, parameters) {
     },
   ];
 
-  const buttons = [];
-
-  let index = 0;
-  for (const setting of settings) {
-    if (!setting) continue;
-    if (setting.action) {
-      buttons.push(
-        buttonItem(
-          { title: setting.name },
-          { icon: setting.icon ? setting.icon : "CHEVRON_DOWN" },
-          [
-            {
-              customAction: {
-                action: setting.action,
-              },
-            },
-          ],
-        ),
-      );
-      index++;
-      continue;
-    }
-    const currentVal = setting.value ? configRead(setting.value) : null;
-    buttons.push(
-      buttonItem(
-        { title: setting.name, subtitle: setting.subtitle },
-        {
-          icon: setting.icon ? setting.icon : "CHEVRON_DOWN",
-          secondaryIcon:
-            currentVal === null
-              ? "CHEVRON_RIGHT"
-              : currentVal
-                ? "CHECK_BOX"
-                : "CHECK_BOX_OUTLINE_BLANK",
-        },
-        currentVal !== null
-          ? [
-              {
-                setClientSettingEndpoint: {
-                  settingDatas: [
-                    {
-                      clientSettingEnum: {
-                        item: setting.value,
-                      },
-                      boolValue: !configRead(setting.value),
-                    },
-                  ],
-                },
-              },
-              {
-                customAction: {
-                  action: "SETTINGS_UPDATE",
-                  parameters: [index],
-                },
-              },
-            ]
-          : [
-              {
-                customAction: {
-                  action: "OPTIONS_SHOW",
-                  parameters: {
-                    options: setting.options,
-                    selectedIndex: 0,
-                    update: setting.options?.title ? "customUI" : false,
-                    menuId: setting.menuId,
-                    arrayToEdit: setting.arrayToEdit,
-                    menuHeader: setting.menuHeader,
-                  },
-                },
-              },
-            ],
-      ),
-    );
-    index++;
-  }
-
-  showModal(
-    {
-      title: t("settings.ttSettings.title"),
-      subtitle: t("settings.ttSettings.madeByText"),
-    },
-    overlayPanelItemListRenderer(
-      buttons,
-      parameters && parameters.length > 0 ? parameters[0] : 0,
-    ),
-    "tt-settings",
-    update,
-  );
+  return settings;
 }
 
-export function optionShow(parameters, update) {
-  if (update === "customUI") {
-    const option = parameters.options;
-    showModal(
-      {
-        title: option.title,
-        subtitle: option.subtitle,
-      },
-      option.content,
-      "tt-settings-support",
-      false,
-    );
-    return;
-  }
-  const buttons = [];
-
-  const isArrayBasedOptions = parameters.arrayToEdit !== undefined;
-
-  if (isArrayBasedOptions) {
-    const value = configRead(parameters.arrayToEdit);
-    for (const option of parameters.options) {
-      buttons.push(
-        buttonItem(
-          { title: option.name, subtitle: option.subtitle },
-          {
-            icon: option.icon ? option.icon : "CHEVRON_DOWN",
-            secondaryIcon: value.includes(option.value)
-              ? "CHECK_BOX"
-              : "CHECK_BOX_OUTLINE_BLANK",
-          },
-          [
-            {
-              setClientSettingEndpoint: {
-                settingDatas: [
-                  {
-                    clientSettingEnum: {
-                      item: parameters.arrayToEdit,
-                    },
-                    arrayValue: option.value,
-                  },
-                ],
-              },
-            },
-            {
-              customAction: {
-                action: "OPTIONS_SHOW",
-                parameters: {
-                  options: parameters.options,
-                  selectedIndex: parameters.options.indexOf(option),
-                  update: true,
-                  menuId: parameters.menuId,
-                  arrayToEdit: parameters.arrayToEdit,
-                  menuHeader: parameters.menuHeader,
-                },
-              },
-            },
-          ],
-        ),
-      );
-    }
-  } else {
-    let index = 0;
-    for (const option of parameters.options) {
-      if (!option) continue;
-      if (option.compactLinkRenderer) {
-        buttons.push(option);
-        index++;
-        continue;
-      }
-
-      if (option.qrCodePlaceholder) {
-        const qrUrl = generateQRCode(option.link);
-        if (qrUrl) {
-          buttons.push(QrCodeRenderer(qrUrl));
-        }
-        index++;
-        continue;
-      }
-
-      const isRadioChoice = option.key !== null && option.key !== undefined;
-      const configKey = isRadioChoice ? option.key : option.value;
-      const currentVal =
-        configKey === null || configKey === undefined
-          ? null
-          : configRead(configKey);
-      buttons.push(
-        buttonItem(
-          { title: option.name, subtitle: option.subtitle },
-          {
-            icon: option.icon ? option.icon : "CHEVRON_DOWN",
-            secondaryIcon: isRadioChoice
-              ? currentVal === option.value
-                ? "RADIO_BUTTON_CHECKED"
-                : "RADIO_BUTTON_UNCHECKED"
-              : option.value === null
-                ? "CHEVRON_RIGHT"
-                : currentVal
-                  ? "CHECK_BOX"
-                  : "CHECK_BOX_OUTLINE_BLANK",
-          },
-          option.value === null
-            ? [
-                {
-                  customAction: {
-                    action: "OPTIONS_SHOW",
-                    parameters: {
-                      options: option.options,
-                      selectedIndex: 0,
-                      update: option.options?.title ? "customUI" : false,
-                      menuId: option.menuId,
-                      arrayToEdit: option.arrayToEdit,
-                      menuHeader: option.menuHeader,
-                    },
-                  },
-                },
-              ]
-            : isRadioChoice
-              ? [
-                  {
-                    setClientSettingEndpoint: {
-                      settingDatas: [
-                        {
-                          clientSettingEnum: {
-                            item: option.key,
-                          },
-                          stringValue: option.value,
-                        },
-                      ],
-                    },
-                  },
-                  {
-                    customAction: {
-                      action: "OPTIONS_SHOW",
-                      parameters: {
-                        options: parameters.options,
-                        selectedIndex: index,
-                        update: parameters.options?.title ? "customUI" : true,
-                        menuId: parameters.menuId,
-                        arrayToEdit: parameters.arrayToEdit,
-                        menuHeader: parameters.menuHeader,
-                      },
-                    },
-                  },
-                ]
-              : [
-                  {
-                    setClientSettingEndpoint: {
-                      settingDatas: [
-                        {
-                          clientSettingEnum: {
-                            item: option.value,
-                          },
-                          boolValue: !currentVal,
-                        },
-                      ],
-                    },
-                  },
-                  {
-                    customAction: {
-                      action: "OPTIONS_SHOW",
-                      parameters: {
-                        options: parameters.options,
-                        selectedIndex: index,
-                        update: parameters.options?.title ? "customUI" : true,
-                        menuId: parameters.menuId,
-                        arrayToEdit: parameters.arrayToEdit,
-                        menuHeader: parameters.menuHeader,
-                      },
-                    },
-                  },
-                ],
-        ),
-      );
-      index++;
-    }
-  }
-
-  showModal(
-    parameters.menuHeader ? parameters.menuHeader : "axotube Settings",
-    overlayPanelItemListRenderer(buttons, parameters.selectedIndex),
-    parameters.menuId || "tt-settings-options",
-    update,
-  );
+export default function modernUI() {
+  openSettingsOverlay({
+    title: t("settings.ttSettings.title"),
+    subtitle: t("settings.ttSettings.madeByText"),
+    items: buildSettingsTree(),
+  });
 }

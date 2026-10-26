@@ -3,9 +3,19 @@ import { configRead, configChangeEmitter } from "../config.js";
 import { showToast } from "../ui/ytUI.js";
 import { t } from "i18next";
 import { getCurrentVideo, watchVideo } from "../shared/playerLifecycle.js";
-
-const FETCH_TIMEOUT = 5000;
-const SEGMENT_SKIP_COOLDOWN = 500;
+import { fetchWithTimeout } from "../shared/fetch.js";
+// Segments are judged against media time, never wall-clock timers, so playback
+// speed, buffering stalls and AFR pauses cannot shift where a skip lands.
+// A segment starting within this window of the playhead is skipped now, which
+// compensates for coarse timeupdate cadence on the TV.
+const SKIP_LOOKAHEAD_S = 0.5;
+const END_EPSILON_S = 0.05;
+// Our own seeks can land a little off target after keyframe snapping.
+const OWN_SEEK_TOLERANCE_S = 1.5;
+const REVERT_TOAST_WINDOW_MS = 1000;
+// Re-check interval used only while a segment is still ahead. It backs up
+// timeupdate, so a slow update cadence cannot make a skip land late.
+const BACKSTOP_INTERVAL_MS = 250;
 
 const barTypes = {
   sponsor: { color: "#00d400", opacity: "0.7", name: t("sponsorblock.segments.sponsor") || "sponsored segment" },
@@ -25,22 +35,29 @@ class SponsorBlockHandler {
   video = null;
   active = true;
   attachVideoTimeout = null;
-  nextSkipTimeout = null;
   sliderInterval = null;
+  backstopTimer = null;
   attachVideoAttempts = 0;
-  lastSkippedSegmentUUID = null;
-  lastSkipTime = 0;
   observer = null;
   scheduleSkipHandler = null;
   durationChangeHandler = null;
+  seekedHandler = null;
   segments = null;
   skippableCategories = [];
   manualSkippableCategories = [];
-  skippedCategories = new Map();
-  nextSegment = null;
-  scheduledSegment = null;
+  // UUID -> { start, end } for segments already skipped in this playback pass.
+  // A segment stays here until the viewer seeks back before its end, so a
+  // skip can never re-trigger on its own landing position.
+  handled = new Map();
+  ownSeekTarget = null;
+  notSkippingToasted = new Set();
+  lastSkipAt = 0;
+  lastSkipUUID = null;
+  lastSkipTarget = null;
   repositionFrame = null;
   mutationFrame = null;
+  segmentsoverlay = null;
+  slider = null;
 
   constructor(videoID) {
     this.videoID = videoID;
@@ -59,13 +76,11 @@ class SponsorBlockHandler {
       "preview", "filler", "music_offtopic", "poi_highlight",
     ];
 
-    let timeoutId = null;
     try {
-      const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-      const resp = await fetch(
+      // fetchWithTimeout enforces the deadline with Promise.race, which also
+      // works on TV builds whose fetch ignores AbortController.
+      const resp = await fetchWithTimeout(
         `${sponsorblockAPI}/skipSegments/${videoHash}?categories=${encodeURIComponent(JSON.stringify(categories))}`,
-        { signal: controller.signal },
       );
       if (!resp.ok) throw new Error(`SponsorBlock HTTP ${resp.status}`);
       const results = await resp.json();
@@ -83,12 +98,11 @@ class SponsorBlockHandler {
 
       this.refreshConfig();
       this.scheduleSkipHandler = () => this.scheduleSkip();
+      this.seekedHandler = () => this.onSeeked();
       this.durationChangeHandler = () => this.buildOverlay();
       this.attachVideo();
     } catch (err) {
-      if (err?.name !== "AbortError") console.error("SponsorBlock init error:", err);
-    } finally {
-      if (timeoutId) clearTimeout(timeoutId);
+      console.error("SponsorBlock init error:", err);
     }
   }
 
@@ -105,12 +119,19 @@ class SponsorBlockHandler {
     return categories;
   }
 
+  isAutoSkippable(category) {
+    return this.skippableCategories.includes(category) &&
+      !this.manualSkippableCategories.includes(category);
+  }
+
   detachVideo() {
+    this.stopBackstop();
     if (!this.video) return;
     try {
       this.video.removeEventListener("play", this.scheduleSkipHandler);
       this.video.removeEventListener("pause", this.scheduleSkipHandler);
       this.video.removeEventListener("timeupdate", this.scheduleSkipHandler);
+      this.video.removeEventListener("seeked", this.seekedHandler);
       this.video.removeEventListener("durationchange", this.durationChangeHandler);
     } catch (e) {}
   }
@@ -133,22 +154,21 @@ class SponsorBlockHandler {
     clearTimeout(this.attachVideoTimeout);
     this.attachVideoTimeout = null;
     if (!this.active) return;
-    if (currentSponsorVideoId() !== this.videoID) {
-      this.clearScheduledSkip();
-      return;
-    }
+    if (currentSponsorVideoId() !== this.videoID) return;
 
     if (nextVideo !== this.video) {
-      this.clearScheduledSkip();
-      this.nextSegment = null;
       this.clearVideoOverlay();
       this.detachVideo();
       this.video = nextVideo;
+      this.handled.clear();
+      this.notSkippingToasted.clear();
+      this.ownSeekTarget = null;
       if (nextVideo) {
         this.attachVideoAttempts = 0;
         nextVideo.addEventListener("play", this.scheduleSkipHandler);
         nextVideo.addEventListener("pause", this.scheduleSkipHandler);
         nextVideo.addEventListener("timeupdate", this.scheduleSkipHandler);
+        nextVideo.addEventListener("seeked", this.seekedHandler);
         nextVideo.addEventListener("durationchange", this.durationChangeHandler);
       }
     }
@@ -257,145 +277,131 @@ class SponsorBlockHandler {
     }, 500);
   }
 
-  clearScheduledSkip() {
-    if (this.nextSkipTimeout) clearTimeout(this.nextSkipTimeout);
-    this.nextSkipTimeout = null;
-    this.scheduledSegment = null;
-  }
-
+  // Called on play, pause, timeupdate and attach. Finds the first unhandled
+  // segment the playhead has reached (or is about to reach) and skips it.
+  // No timers: every decision is made from current media time.
   scheduleSkip() {
-    if (!this.active || !configRead("enableSponsorBlock") || !this.segments) {
-      this.clearScheduledSkip();
-      return;
-    }
-    if (currentSponsorVideoId() !== this.videoID) {
-      this.clearScheduledSkip();
-      return;
-    }
+    if (!this.active || !configRead("enableSponsorBlock") || !this.segments) return;
+    if (currentSponsorVideoId() !== this.videoID) return;
 
     const currentVideo = getCurrentVideo();
     if (currentVideo && currentVideo !== this.video) {
       this.attachVideo();
       return;
     }
-    if (!this.video) return;
+    if (!this.video || this.video.paused) {
+      this.stopBackstop();
+      return;
+    }
 
     this.refreshConfig();
-    if (this.video.paused) {
-      this.clearScheduledSkip();
+    const now = this.video.currentTime;
+    for (const seg of this.segments) {
+      const [start, end] = seg.segment;
+      if (end <= now + END_EPSILON_S) continue;
+      if (start > now + SKIP_LOOKAHEAD_S) continue;
+      if (!this.isAutoSkippable(seg.category)) continue;
+      if (this.handled.has(seg.UUID)) {
+        this.maybeToastRevert(seg, now);
+        continue;
+      }
+      this.performSkip(seg, end);
       return;
     }
 
-    const currentTime = this.video.currentTime;
-    const stillRelevant = this.nextSegment && this.nextSegment.segment[1] > currentTime + 0.05;
-    if (!stillRelevant) {
-      const nextSegments = this.segments
-        .filter((seg) => seg.segment[1] > currentTime + 0.05)
-        .sort((a, b) => {
-          const aDelay = Math.max(0, a.segment[0] - currentTime);
-          const bDelay = Math.max(0, b.segment[0] - currentTime);
-          return aDelay - bDelay || a.segment[0] - b.segment[0];
-        });
-      this.nextSegment = nextSegments[0] || null;
+    const pending = this.segments.some(
+      (seg) =>
+        seg.segment[1] > now + END_EPSILON_S &&
+        this.isAutoSkippable(seg.category) &&
+        !this.handled.has(seg.UUID),
+    );
+    if (!pending) this.stopBackstop();
+    else if (this.backstopTimer === null) {
+      this.backstopTimer = setInterval(this.scheduleSkipHandler, BACKSTOP_INTERVAL_MS);
     }
-
-    if (!this.nextSegment) {
-      this.clearScheduledSkip();
-      return;
-    }
-    this.armSkip(this.nextSegment, currentTime);
   }
 
-  armSkip(segment, currentTime) {
-    if (segment === this.scheduledSegment && this.nextSkipTimeout) return;
-    this.clearScheduledSkip();
+  stopBackstop() {
+    if (this.backstopTimer === null) return;
+    clearInterval(this.backstopTimer);
+    this.backstopTimer = null;
+  }
+
+  // Shows the "not skipping" notice once when playback re-enters a segment
+  // we just skipped (something reverted our seek).
+  maybeToastRevert(segment, now) {
     const [start, end] = segment.segment;
-    const delayMs = Math.max(0, (start - currentTime) * 1000);
-    this.scheduledSegment = segment;
-    this.nextSkipTimeout = setTimeout(() => {
-      this.nextSkipTimeout = null;
-      this.performSkip(segment, end);
-    }, delayMs);
+    if (segment.UUID !== this.lastSkipUUID) return;
+    if (Date.now() - this.lastSkipAt >= REVERT_TOAST_WINDOW_MS) return;
+    if (now < start || now >= end) return;
+    // Our own landing position is not a revert (tail segments land at end - 1).
+    if (this.ownSeekTarget === null && Math.abs(now - this.lastSkipTarget) <= OWN_SEEK_TOLERANCE_S) return;
+    if (this.notSkippingToasted.has(segment.UUID)) return;
+    this.notSkippingToasted.add(segment.UUID);
+    if (configRead("enableSponsorBlockToasts")) {
+      const skipName = barTypes[segment.category]?.name || segment.category;
+      showToast(t("app.name"), t("sponsorblock.toasts.notSkipping", { segment: skipName, count: 2 }));
+    }
   }
 
   performSkip(segment, end) {
     if (!this.active || !this.video) return;
     if (getCurrentVideo() !== this.video || currentSponsorVideoId() !== this.videoID) {
-      this.clearScheduledSkip();
       this.attachVideo();
       return;
     }
-    if (this.video.paused) {
-      this.scheduledSegment = null;
-      return;
-    }
+    if (this.video.paused) return;
 
     this.refreshConfig();
-    const now = Date.now();
-    if (segment.UUID === this.lastSkippedSegmentUUID && now - this.lastSkipTime < SEGMENT_SKIP_COOLDOWN) {
-      this.scheduledSegment = null;
-      this.scheduleSkip();
-      return;
-    }
-    if (!this.skippableCategories.includes(segment.category)) {
-      this.scheduledSegment = null;
-      this.nextSegment = null;
-      this.scheduleSkip();
-      return;
-    }
+    if (!this.isAutoSkippable(segment.category) || this.handled.has(segment.UUID)) return;
+
+    const [start] = segment.segment;
+    // Mark handled before seeking so no re-entrant check can skip it again.
+    this.handled.set(segment.UUID, { start, end });
 
     const skipName = barTypes[segment.category]?.name || segment.category;
-    if (!this.manualSkippableCategories.includes(segment.category)) {
-      const wasSkippedBefore = this.skippedCategories.get(segment.UUID);
-      if (wasSkippedBefore) {
-        wasSkippedBefore.count++;
-        wasSkippedBefore.lastSkipped = Date.now();
-        this.skippedCategories.set(segment.UUID, wasSkippedBefore);
-        if (wasSkippedBefore.lastSkipped - wasSkippedBefore.firstSkipped < 1000) {
-          if (!wasSkippedBefore.hasShownToast) {
-            if (configRead("enableSponsorBlockToasts")) {
-              showToast("SponsorBlock", t("sponsorblock.toasts.notSkipping", { segment: skipName, count: wasSkippedBefore.count }));
-            }
-            wasSkippedBefore.hasShownToast = true;
-            this.skippedCategories.set(segment.UUID, wasSkippedBefore);
-          }
-          this.scheduledSegment = null;
-          this.nextSegment = null;
-          return;
-        }
-      } else {
-        this.skippedCategories.set(segment.UUID, {
-          count: 1,
-          firstSkipped: Date.now(),
-          lastSkipped: Date.now(),
-          hasShownToast: false,
-        });
-      }
-
-      if (configRead("enableSponsorBlockToasts")) {
-        showToast("SponsorBlock", t("sponsorblock.toasts.skipping", { segment: skipName }));
-      }
-      const skipTarget = this.video.duration - end < 1 ? Math.max(end - 1, 0) : end;
-      this.video.currentTime = skipTarget;
-      this.lastSkippedSegmentUUID = segment.UUID;
-      this.lastSkipTime = Date.now();
+    if (configRead("enableSponsorBlockToasts")) {
+      showToast(t("app.name"), t("sponsorblock.toasts.skipping", { segment: skipName }));
     }
+    const skipTarget = this.video.duration - end < 1 ? Math.max(end - 1, 0) : end;
+    this.ownSeekTarget = skipTarget;
+    this.lastSkipTarget = skipTarget;
+    this.lastSkipUUID = segment.UUID;
+    this.lastSkipAt = Date.now();
+    this.video.currentTime = skipTarget;
+    this.scheduleSkip();
+  }
 
-    this.nextSegment = null;
-    this.scheduledSegment = null;
+  // A seek the viewer makes (not our own skip) re-arms every handled segment
+  // whose end lies ahead of the new position, so rewinding into a sponsor
+  // skips it again.
+  onSeeked() {
+    if (!this.video) return;
+    const now = this.video.currentTime;
+    if (this.ownSeekTarget !== null) {
+      const ours = Math.abs(now - this.ownSeekTarget) <= OWN_SEEK_TOLERANCE_S;
+      this.ownSeekTarget = null;
+      if (ours) return;
+    }
+    for (const [uuid, range] of this.handled) {
+      if (now < range.end - END_EPSILON_S) {
+        this.handled.delete(uuid);
+        this.notSkippingToasted.delete(uuid);
+      }
+    }
     this.scheduleSkip();
   }
 
   destroy() {
     this.active = false;
-    this.clearScheduledSkip();
+    this.stopBackstop();
     if (this.attachVideoTimeout) clearTimeout(this.attachVideoTimeout);
     this.attachVideoTimeout = null;
     this.clearVideoOverlay();
     this.detachVideo();
     this.video = null;
-    this.skippedCategories.clear();
-    this.nextSegment = null;
+    this.handled.clear();
+    this.notSkippingToasted.clear();
   }
 }
 

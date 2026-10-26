@@ -1,9 +1,14 @@
 // Custom UI for video player
+import { t } from "i18next";
 import { extractAssignedFunctions } from "../utils/ASTParser.js";
 import { configRead, configChangeEmitter } from "../config.js";
 import { ButtonRenderer } from "./ytUI.js";
 
 const FEATURED_ACTION = "TRANSPORT_CONTROLS_BUTTON_TYPE_FEATURED_ACTION";
+const CONTAINER_MARKER = "YtlrPlayerActionsContainer";
+// fn -> bit flags (1: has FEATURED_ACTION, 2: has CONTAINER_MARKER). A function's
+// source never changes, so each one is stringified once across scans and retries.
+const fnFlagCache = new WeakMap();
 let customUIInitialized = false;
 let containerRef = null;
 let retryTimer = null;
@@ -44,19 +49,24 @@ function makeRef(host, key, fn, isMap) {
 }
 
 function deepFindContainer(maxNodes, strict) {
-  const marker = "YtlrPlayerActionsContainer";
+  const marker = CONTAINER_MARKER;
   let visited = 0;
   const seen = new WeakSet();
 
   function matches(fn) {
     if (visited > maxNodes || typeof fn !== "function") return false;
     visited += 1;
-    try {
-      const src = fn.toString();
-      return src.includes(FEATURED_ACTION) && (!strict || src.includes(marker));
-    } catch (e) {
-      return false;
+    let flags = fnFlagCache.get(fn);
+    if (flags === undefined) {
+      flags = 0;
+      try {
+        const src = fn.toString();
+        if (src.includes(FEATURED_ACTION)) flags |= 1;
+        if (src.includes(marker)) flags |= 2;
+      } catch (e) {}
+      fnFlagCache.set(fn, flags);
     }
+    return (flags & 1) !== 0 && (!strict || (flags & 2) !== 0);
   }
 
   function walk(node, depth, owner, ownerKey, ownerIsMap) {
@@ -132,10 +142,19 @@ function applyPatches() {
 
   try {
     const origMethod = ref.fn;
+    // The original's source never changes, so its class check and assignment
+    // analysis run once (on first construction), not for every instance.
+    let origSource = null;
+    let origIsClass = false;
+    let assignedFunctions = null;
 
     function YtlrPlayerActionsContainer() {
       const args = Array.prototype.slice.call(arguments);
-      const isClass = /^class\s/.test(origMethod.toString());
+      if (origSource === null) {
+        origSource = origMethod.toString();
+        origIsClass = /^class\s/.test(origSource);
+      }
+      const isClass = origIsClass;
 
       function constructAsNew(ctor, argsList) {
         if (typeof Reflect !== "undefined" && typeof Reflect.construct === "function") {
@@ -157,13 +176,13 @@ function applyPatches() {
       }
 
       try {
-        const functions = extractAssignedFunctions(origMethod.toString());
+        const functions = assignedFunctions || (assignedFunctions = extractAssignedFunctions(origSource));
         const pipCommand = {
           type: "TRANSPORT_CONTROLS_BUTTON_TYPE_PIP",
           button: {
             buttonRenderer: ButtonRenderer(
               false,
-              configRead("enableSwapMPWithPIP") ? "Picture in Picture" : "Mini Player",
+              configRead("enableSwapMPWithPIP") ? t("player.pictureInPicture") : t("player.miniPlayer"),
               "CLEAR_COOKIES",
               {
                 customAction: {
@@ -219,7 +238,7 @@ function applyPatches() {
                 res.push({
                   type: "TRANSPORT_CONTROLS_BUTTON_TYPE_SPEED",
                   button: {
-                    buttonRenderer: ButtonRenderer(false, "Speed Controls", "SLOW_MOTION_VIDEO", {
+                    buttonRenderer: ButtonRenderer(false, t("player.speedControls"), "SLOW_MOTION_VIDEO", {
                       customAction: { action: "TT_SPEED_SETTINGS_SHOW" },
                     }),
                   },
@@ -247,12 +266,12 @@ function applyPatches() {
 
         if (configRead("enablePreviousNextButtons") && previousButtonName && nextButtonName) {
           inst[previousButtonName] = function () {
-            return ButtonRenderer(false, "Previous", "SKIP_PREVIOUS", {
+            return ButtonRenderer(false, t("player.previous"), "SKIP_PREVIOUS", {
               signalAction: { signal: "PLAYER_PLAY_PREVIOUS" },
             });
           };
           inst[nextButtonName] = function () {
-            return ButtonRenderer(false, "Next", "SKIP_NEXT", {
+            return ButtonRenderer(false, t("player.next"), "SKIP_NEXT", {
               signalAction: { signal: "PLAYER_PLAY_NEXT" },
             });
           };

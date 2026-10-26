@@ -59,7 +59,8 @@
                     "videoPreviews": "Enable Video Previews",
                     "ttWelcomeMsg": "Show TT Welcome Message",
                     "guestSignInReminder": "Show Guest Sign In Reminder",
-                    "reloadHomeOnStartup": "Reload Home on Startup"
+                    "reloadHomeOnStartup": "Reload Home on Startup",
+                    "previewLength": "Preview length"
                 }
             },
             "theme": {
@@ -205,7 +206,10 @@
                 "5": "- Buy Me A Coffee: https://www.buymeacoffee.com/reisxd (preferably)",
                 "6": "- GitHub Sponsors: https://github.com/sponsors/reisxd"
             }
-        }
+        },
+        "seconds": "{{count}} s",
+        "hintBack": "◀ Back",
+        "hintClose": "◀ Close"
     },
     "welcomeMsg": {
         "title": "Welcome to AxoTube",
@@ -229,5 +233,44 @@
             "skip": "Skip {{segment}}",
             "skipToHighlight": "Skip to highlight"
         }
+    },
+    "app": {
+        "name": "axotube"
+    },
+    "menu": {
+        "play": "Play",
+        "saveWatchLater": "Save to Watch Later",
+        "saveToPlaylist": "Save to Playlist",
+        "addToQueue": "Add to Queue"
+    },
+    "player": {
+        "miniPlayer": "Mini Player",
+        "pictureInPicture": "Picture in Picture",
+        "speedControls": "Speed Controls",
+        "previous": "Previous",
+        "next": "Next",
+        "withAxotube": "with axotube"
+    },
+    "toasts": {
+        "queueAdded": "Video added to queue.",
+        "queueAddFailed": "Nothing to add to the queue.",
+        "queueCleared": "Video queue cleared.",
+        "updateDownloading": "Downloading update, please wait...",
+        "upToDate": "You are on the latest version ({{version}}).",
+        "updateNoApk": "Version {{version}} is available, but no compatible APK was found in the release.",
+        "updateCheckFailed": "Could not check for updates.",
+        "serviceConnected": "Service connected",
+        "commandReceived": "Command received",
+        "pairingWithUrl": "Open {{url}} on your phone · code {{code}}",
+        "pairingCodeOnly": "Phone pairing code: {{code}}"
+    },
+    "updater": {
+        "modalTitle": "Update Available",
+        "modalBody": "A new version of axotube is available: {{latest}}\nCurrent version: {{current}}\nRelease date: {{date}}\nRelease notes:",
+        "unknownDate": "Unknown",
+        "updateNow": "Update Now",
+        "updateNowSubtitle": "Click to download the latest version.",
+        "remindLater": "Remind Me Later",
+        "remindLaterSubtitle": "Check for updates later."
     }
 }

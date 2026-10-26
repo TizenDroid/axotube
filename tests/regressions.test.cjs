@@ -43,7 +43,7 @@ test('phone polling uses independent locks and explicit ACK', () => {
   const consume = between(src, 'function consumeCommand()', 'function pushNowPlaying()');
   has(consume, 'commandPolling');
   assert.ok(!consume.includes('configSyncing'));
-  const playing = between(src, 'function pushNowPlaying()', 'setTimeout(() =>');
+  const playing = between(src, 'function pushNowPlaying()', 'const MAX_POLL_INTERVAL_MS');
   has(playing, 'nowPlayingPushing');
   assert.ok(!playing.includes('configSyncing'));
   has(src, '/api/command/ack');
@@ -134,7 +134,8 @@ test('launchToOnStartup stays string-or-null across TV and web', () => {
 
 test('HQ probes fan out and cache is bounded', () => {
   const src = read('mods/shared/hqThumbnails.js');
-  has(src, 'hqPendingTesters[videoId].push(onResult)');
+  has(src, 'hqPendingTesters.get(videoId).push(onResult)');
+  has(src, 'createBoundedCache(MAX_HQ_CACHE_ENTRIES)');
   has(src, 'MAX_HQ_CACHE_ENTRIES = 256');
 });
 
@@ -192,8 +193,9 @@ test('SponsorBlock initializes current route and clears pause scheduling', () =>
   has(src, 'syncSponsorBlockForCurrentRoute()');
   has(src, 'DOMContentLoaded", syncSponsorBlockForCurrentRoute');
   has(src, 'if (this.video.paused)');
-  has(src, 'this.clearScheduledSkip()');
-  has(src, 'seg.segment[1] > currentTime + 0.05');
+  has(src, 'this.handled.set(segment.UUID');
+  has(src, 'end <= now + END_EPSILON_S');
+  assert.doesNotMatch(src, /setTimeout\(\(\) => \{\s*this\.performSkip/, 'skips must not be wall-clock timers');
 });
 
 test('Auto quality releases fixed range and replacement player is watched', () => {

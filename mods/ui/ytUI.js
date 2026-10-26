@@ -1,4 +1,18 @@
+import { t } from "i18next";
 import { dispatchNativeCommand, hasNativeResolver } from "../shared/nativeCommand.js";
+
+// The one "Add to Queue" menu entry, shared by every long-press menu builder.
+export function queueMenuItem(videoPayload) {
+  return MenuServiceItemRenderer(t("menu.addToQueue"), {
+    clickTrackingParams: null,
+    playlistEditEndpoint: {
+      customAction: {
+        action: "ADD_TO_QUEUE",
+        parameters: videoPayload,
+      },
+    },
+  });
+}
 
 function dispatchCommand(cmd, _) {
   return dispatchNativeCommand(cmd, _);
@@ -219,11 +233,11 @@ function longPressData(data) {
       menu: {
         menuRenderer: {
           items: [
-            MenuNavigationItemRenderer("Play", {
+            MenuNavigationItemRenderer(t("menu.play"), {
               clickTrackingParams: null,
               watchEndpoint: data.watchEndpointData,
             }),
-            MenuServiceItemRenderer("Save to Watch Later", {
+            MenuServiceItemRenderer(t("menu.saveWatchLater"), {
               clickTrackingParams: null,
               playlistEditEndpoint: {
                 playlistId: "WL",
@@ -235,21 +249,13 @@ function longPressData(data) {
                 ],
               },
             }),
-            MenuNavigationItemRenderer("Save to Playlist", {
+            MenuNavigationItemRenderer(t("menu.saveToPlaylist"), {
               clickTrackingParams: null,
               addToPlaylistEndpoint: {
                 videoId: data.videoId,
               },
             }),
-            MenuServiceItemRenderer("Add to Queue", {
-              clickTrackingParams: null,
-              playlistEditEndpoint: {
-                customAction: {
-                  action: "ADD_TO_QUEUE",
-                  parameters: data.item,
-                },
-              },
-            }),
+            queueMenuItem(data.item),
           ],
           trackingParams: null,
           accessibility: {

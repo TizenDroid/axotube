@@ -36,7 +36,7 @@ function upgradeThumbnailQuality(element) {
     /\/(maxresdefault|sddefault|hqdefault|mqdefault|default)\.jpg/
   );
   var currentQuality = qualityMatch ? qualityMatch[1] : "default";
-  var cachedQuality = hqQualityCache[videoId];
+  var cachedQuality = hqQualityCache.get(videoId);
 
   if (cachedQuality && currentQuality + ".jpg" === cachedQuality) {
     element.setAttribute("data-hq-upgraded", videoId);

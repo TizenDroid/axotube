@@ -1,4 +1,5 @@
-// axotube Cobalt Update Checker
+// axotube update checker
+import { t } from "i18next";
 import {
   buttonItem,
   showModal,
@@ -127,42 +128,40 @@ function checkForUpdates(showNoUpdateToast) {
       if (!latestVersion) throw new Error("Release is missing a version tag");
 
       if (compareVersions(latestVersion, currentAppVersion) <= 0) {
-        console.info("You are using the latest version of axotube Cobalt.");
+        console.info("axotube is up to date:", currentAppVersion);
         if (showNoUpdateToast) {
-          showToast(
-            "axotube is up to date",
-            `You are using version ${currentAppVersion} of axotube Cobalt.`,
-            null,
-          );
+          showToast(t("app.name"), t("toasts.upToDate", { version: currentAppVersion }), null);
         }
         return;
       }
 
       const downloadUrl = findDownloadUrl(release);
       if (!downloadUrl) {
-        showToast(
-          "axotube update available",
-          `Version ${latestVersion} is available, but no compatible APK was found in the release.`,
-          null,
-        );
+        showToast(t("app.name"), t("toasts.updateNoApk", { version: latestVersion }), null);
         return;
       }
 
       const releaseDate = release?.published_at
         ? new Date(release.published_at).toLocaleString()
-        : "Unknown";
+        : t("updater.unknownDate");
       const releaseNotes = typeof release?.body === "string" ? release.body : "";
 
       showModal(
         {
-          title: "Update Available",
-          subtitle: `A new version of axotube Cobalt is available: ${latestVersion}\nCurrent version: ${currentAppVersion}\nRelease Date: ${releaseDate}\nRelease Notes:\n${releaseNotes}`,
+          title: t("updater.modalTitle"),
+          // Release notes are appended untranslated: they are remote text and
+          // must never pass through the translator's interpolation.
+          subtitle: t("updater.modalBody", {
+            latest: latestVersion,
+            current: currentAppVersion,
+            date: releaseDate,
+          }) + "\n" + releaseNotes,
         },
         overlayPanelItemListRenderer([
           buttonItem(
             {
-              title: "Update Now",
-              subtitle: "Click to download the latest version.",
+              title: t("updater.updateNow"),
+              subtitle: t("updater.updateNowSubtitle"),
             },
             { icon: "DOWN_ARROW" },
             [
@@ -172,8 +171,8 @@ function checkForUpdates(showNoUpdateToast) {
           ),
           buttonItem(
             {
-              title: "Remind Me Later",
-              subtitle: "Check for updates later.",
+              title: t("updater.remindLater"),
+              subtitle: t("updater.remindLaterSubtitle"),
             },
             { icon: "SEARCH_HISTORY" },
             [
@@ -194,7 +193,7 @@ function checkForUpdates(showNoUpdateToast) {
     .catch((error) => {
       console.error("Error fetching the latest release:", error);
       if (showNoUpdateToast) {
-        showToast("axotube update check failed", "Could not check for updates.", null);
+        showToast(t("app.name"), t("toasts.updateCheckFailed"), null);
       }
     });
 }

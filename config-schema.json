@@ -39,6 +39,7 @@
     "enableMPButton": true,
     "enableSwapMPWithPIP": false,
     "enablePreviews": true,
+    "previewLengthSeconds": 40,
     "enableHideWatchedVideos": false,
     "hideWatchedVideosThreshold": 80,
     "hideWatchedVideosPages": [],
@@ -68,6 +69,7 @@
     "dimmingOpacity": [0, 1],
     "speedSettingsIncrement": [0.01, 1],
     "autoFrameRatePauseVideoFor": [0, 10000],
+    "previewLengthSeconds": [5, 120],
     "dontCheckUpdateUntil": [0, 9007199254740991]
   },
   "enums": {

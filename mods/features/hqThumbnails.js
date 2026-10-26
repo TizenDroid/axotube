@@ -8,31 +8,22 @@
 import { configRead } from "../config.js";
 import {
   THUMBNAIL_URLS,
+  THUMBNAIL_SIZES,
   MAX_HQ_CACHE_ENTRIES,
   isVideoThumbnailArray,
 } from "../shared/hqThumbnails.js";
+import { createBoundedCache } from "../shared/boundedCache.js";
 
-const hqThumbnailsCache = {};
-const hqThumbnailsCacheOrder = [];
-
-function rememberHqThumbnails(videoID, thumbnails) {
-  if (!Object.prototype.hasOwnProperty.call(hqThumbnailsCache, videoID)) {
-    hqThumbnailsCacheOrder.push(videoID);
-  }
-  hqThumbnailsCache[videoID] = thumbnails;
-  while (hqThumbnailsCacheOrder.length > MAX_HQ_CACHE_ENTRIES) {
-    const oldest = hqThumbnailsCacheOrder.shift();
-    delete hqThumbnailsCache[oldest];
-  }
-}
+const hqThumbnailsCache = createBoundedCache(MAX_HQ_CACHE_ENTRIES);
 
 export function buildHqThumbnails(videoID) {
   const thumbnails = [];
   for (const filename of THUMBNAIL_URLS) {
+    const size = THUMBNAIL_SIZES[filename];
     thumbnails.push({
       url: `https://i.ytimg.com/vi/${videoID}/${filename}`,
-      width: 1280,
-      height: 720,
+      width: size.width,
+      height: size.height,
     });
   }
   return thumbnails;
@@ -60,12 +51,11 @@ export function hqify(items) {
 
       const primaryThumbnails =
         item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails;
-      if (primaryThumbnails === hqThumbnailsCache[videoID]) continue;
+      if (primaryThumbnails === hqThumbnailsCache.get(videoID)) continue;
 
-      let thumbnails = hqThumbnailsCache[videoID];
+      let thumbnails = hqThumbnailsCache.get(videoID);
       if (!thumbnails) {
-        thumbnails = buildHqThumbnails(videoID);
-        rememberHqThumbnails(videoID, thumbnails);
+        thumbnails = hqThumbnailsCache.set(videoID, buildHqThumbnails(videoID));
       }
 
       if (item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails) {

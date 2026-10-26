@@ -171,5 +171,7 @@ export function refreshNativeResolverPatches() {
 /** Observe native replacement roots without running discovery on every frame. */
 export function watchNativeResolverPatches() {
   if (patchWatchTimer !== null) return;
-  patchWatchTimer = setInterval(refreshNativeResolverPatches, 2000);
+  // Replacement resolvers appear on navigation, not every frame; 5 s is ample
+  // and each tick walks the whole native registry.
+  patchWatchTimer = setInterval(refreshNativeResolverPatches, 5000);
 }

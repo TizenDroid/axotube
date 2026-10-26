@@ -154,7 +154,7 @@ test('late and replaced _yttv JSON namespaces receive the same parse hook', () =
   const before = rt.nativeParse;
   rt.ctx.window._yttv = { early: { JSON: { parse: before } }, ignored: { stuff: 1 } };
   rt.timers[0].cb();
-  assert.equal(rt.timers[1].interval, 2000, 'full scans slow after the first native parser');
+  assert.equal(rt.timers[1].interval, 5000, 'full scans slow after the first native parser');
   assert.equal(rt.ctx.window._yttv.early.JSON.parse, wrapped);
   const first = rt.ctx.window._yttv.early.JSON.parse('{"adSlots":[{}]}');
   assert.equal(first.adSlots.length, 0);
@@ -171,7 +171,7 @@ test('late and replaced _yttv JSON namespaces receive the same parse hook', () =
 test('missing native JSON modules do not cause unbounded rapid scans', () => {
   const rt = runtime();
   for (let i = 0; i < 20; i++) rt.timers[i].cb();
-  assert.equal(rt.timers[20].interval, 2000);
+  assert.equal(rt.timers[20].interval, 5000);
 });
 
 test('JSON.stringify injects playback flag only during native serialization', () => {

@@ -1,10 +1,11 @@
+import { t } from "i18next";
 import { configWrite, configRead } from "./config.js";
 import { enablePip, cleanupPipStyles } from "./features/pictureInPicture.js";
-import modernUI, { optionShow } from "./ui/settings.js";
+import modernUI from "./ui/settings.js";
+import { writeClientSetting } from "./shared/clientSettings.js";
 import { speedSettings } from "./ui/speedUI.js";
 import { showToast, buttonItem } from "./ui/ytUI.js";
 import checkForUpdates from "./features/updater.js";
-import configSchema from "../config-schema.json";
 import {
   dispatchNativeCommand,
   registerNativeResolverPatcher,
@@ -51,23 +52,7 @@ function patchNativeResolverInstance(instance) {
               const valName = Object.keys(settingData).find((settingKey) => settingKey.includes("Value"));
               if (!valName) continue;
               const value = valName === "intValue" ? Number(settingData[valName]) : settingData[valName];
-              if (valName === "arrayValue") {
-                const current = configRead(itemName);
-                const arr = Array.isArray(current) ? current.slice() : [];
-                if (arr.includes(value)) arr.splice(arr.indexOf(value), 1);
-                else arr.push(value);
-                configWrite(itemName, arr);
-              } else if (itemName === "themePreset") {
-                const preset = typeof value === "string" &&
-                  Object.prototype.hasOwnProperty.call(configSchema.themePresetColors, value)
-                  ? configSchema.themePresetColors[value] : null;
-                if (typeof preset === "string" && /^#[0-9a-f]{6}$/i.test(preset)) {
-                  configWrite("routeColor", preset);
-                  configWrite("themePreset", value);
-                }
-              } else {
-                configWrite(itemName, value);
-              }
+              writeClientSetting(itemName, valName, value);
             } else if (itemName === "I18N_LANGUAGE") {
               const lang = settingData.stringValue;
               if (typeof lang !== "string" || !lang) continue;
@@ -99,7 +84,7 @@ function patchNativeResolverInstance(instance) {
             if (!Array.isArray(items)) return ogResolve.call(this, cmd, _);
             for (const item of items) {
               if (item?.compactLinkRenderer?.icon?.iconType === "SLOW_MOTION_VIDEO") {
-                if (item.compactLinkRenderer.subtitle) item.compactLinkRenderer.subtitle.simpleText = "with axotube";
+                if (item.compactLinkRenderer.subtitle) item.compactLinkRenderer.subtitle.simpleText = t("player.withAxotube");
                 item.compactLinkRenderer.serviceEndpoint = {
                   clickTrackingParams: "null",
                   signalAction: {
@@ -112,7 +97,7 @@ function patchNativeResolverInstance(instance) {
             items.splice(
               2,
               0,
-              buttonItem({ title: "Mini Player" }, { icon: "CLEAR_COOKIES" }, [
+              buttonItem({ title: t("player.miniPlayer") }, { icon: "CLEAR_COOKIES" }, [
                 { customAction: { action: "ENTER_MP" } },
               ]),
             );
@@ -127,7 +112,7 @@ function patchNativeResolverInstance(instance) {
               items.splice(
                 3,
                 0,
-                buttonItem({ title: "Picture in Picture" }, { icon: "PIP" }, [
+                buttonItem({ title: t("player.pictureInPicture") }, { icon: "PIP" }, [
                   { customAction: { action: "ENTER_PIP" } },
                   { signalAction: { signal: "POPUP_BACK" } },
                 ]),
@@ -181,12 +166,6 @@ function patchNativeResolverInstance(instance) {
 
 function customAction(action, parameters) {
   switch (action) {
-    case "SETTINGS_UPDATE":
-      modernUI(true, parameters);
-      break;
-    case "OPTIONS_SHOW":
-      optionShow(parameters, parameters && parameters.update);
-      break;
     case "SKIP": {
       const kE = document.createEvent("Event");
       kE.initEvent("keydown", true, true);
@@ -215,7 +194,7 @@ function customAction(action, parameters) {
         window.h5vcc.tizentube.InstallAppFromURL
       ) {
         window.h5vcc.tizentube.InstallAppFromURL(parameters);
-        showToast("axotube Update", "Downloading update, please wait...");
+        showToast(t("app.name"), t("toasts.updateDownloading"));
       }
       break;
     case "SET_PLAYER_SPEED": {
@@ -237,17 +216,22 @@ function customAction(action, parameters) {
       }
       break;
     case "SHOW_TOAST":
-      showToast("axotube", parameters);
+      showToast(t("app.name"), parameters);
       break;
     case "ADD_TO_QUEUE":
-      if (parameters) window.queuedVideos.videos.push(parameters);
-      showToast("axotube", "Video added to queue.");
+      // Confirm only what happened: an empty payload adds nothing.
+      if (parameters) {
+        window.queuedVideos.videos.push(parameters);
+        showToast(t("app.name"), t("toasts.queueAdded"));
+      } else {
+        showToast(t("app.name"), t("toasts.queueAddFailed"));
+      }
       break;
     case "CLEAR_QUEUE":
       window.queuedVideos.videos = [];
       window.queuedVideos.currentIndex = -1;
       window.queuedVideos.lastVideoId = null;
-      showToast("axotube", "Video queue cleared.");
+      showToast(t("app.name"), t("toasts.queueCleared"));
       break;
     case "CHECK_FOR_UPDATES":
       checkForUpdates(true);

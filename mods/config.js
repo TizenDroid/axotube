@@ -4,7 +4,10 @@ import configPolicy from "../shared/configPolicy.js";
 const CONFIG_KEY = "ytaf-configuration";
 const nativeJSONParse = JSON.parse;
 const nativeJSONStringify = JSON.stringify;
+// Deep copy through the native JSON functions captured at load, so copies are
+// never run through the response filters installed on JSON.parse later.
 const clone = (value) => nativeJSONParse(nativeJSONStringify(value));
+export const cloneJSON = clone;
 
 const defaultConfig = clone(configSchema.defaults);
 // Outside the real Tizen host keep the existing browser/dev default.
@@ -58,12 +61,15 @@ function tryPersistConfig() {
   }
 }
 
+// Values are validated on load (initConfig) and on write (configWrite), so a
+// read is a plain lookup. configRead runs per tile and per response filter, and
+// re-validating on every call was pure overhead.
 export function configRead(key) {
   if (!Object.prototype.hasOwnProperty.call(defaultConfig, key)) {
     console.warn("Unknown config key", key);
     return undefined;
   }
-  if (!validateConfigValue(key, localConfig[key])) localConfig[key] = clone(defaultConfig[key]);
+  if (localConfig[key] === undefined) localConfig[key] = clone(defaultConfig[key]);
   return localConfig[key];
 }
 

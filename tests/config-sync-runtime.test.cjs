@@ -122,6 +122,8 @@ function openTvClient(origin, initialConfig) {
   const timeouts = new Map();
   function testSetTimeout(fn, delay) {
     const id = ++timerId;
+    // The poll loop reschedules itself with setTimeout; track it as the poll tick.
+    if (fn.name === "pollOnce") interval = fn;
     if (delay === 3000) boot = fn;
     else if (delay === 250) pushTimer = fn;
     else if (delay !== 1200) timeouts.set(id, fn);
