@@ -1,10 +1,10 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
-const ROOT = path.resolve(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const ROOT = path.resolve(__dirname, "..");
+const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 const has = (src, text) => assert.ok(src.includes(text), `missing: ${text}`);
 
 function between(src, start, end) {
@@ -15,210 +15,224 @@ function between(src, start, end) {
   return src.slice(a, b);
 }
 
-test('1.22.0 metadata stays synchronized', () => {
-  const root = JSON.parse(read('package.json')).version;
-  assert.equal(root, '1.22.0');
-  assert.equal(JSON.parse(read('standalone/service/package.json')).version, root);
-  has(read('standalone/config.xml'), `version="${root}"`);
+test("1.22.2 metadata stays synchronized", () => {
+  const root = JSON.parse(read("package.json")).version;
+  assert.equal(root, "1.22.2");
+  assert.equal(JSON.parse(read("standalone/service/package.json")).version, root);
+  has(read("standalone/config.xml"), `version="${root}"`);
 });
 
-test('remote input does not write screen opacity when dimming is already inactive', () => {
-  const src = read('mods/ui/ui.js');
-  has(src, 'let screenIsDimmed = false');
-  const handler = between(src, 'const eventHandler = (evt) => {', 'return true;');
-  assert.ok(!handler.includes('else clearDimmingTimer()'));
+test("remote input does not write screen opacity when dimming is already inactive", () => {
+  const src = read("mods/ui/ui.js");
+  has(src, "let screenIsDimmed = false");
+  const handler = between(src, "const eventHandler = (evt) => {", "return true;");
+  assert.ok(!handler.includes("else clearDimmingTimer()"));
 });
 
-test('SponsorBlock manual actions preserve native timely actions', () => {
-  const src = read('mods/features/adblock.js');
-  has(src, 'function isAxotubeSponsorTimelyAction');
-  has(src, 'filter((action) => !isAxotubeSponsorTimelyAction(action))');
-  assert.ok(!src.includes('timelyActionRenderers = []'));
+test("SponsorBlock manual actions preserve native timely actions", () => {
+  const src = read("mods/features/adblock.js");
+  has(src, "function isAxotubeSponsorTimelyAction");
+  has(src, "filter((action) => !isAxotubeSponsorTimelyAction(action))");
+  assert.ok(!src.includes("timelyActionRenderers = []"));
 });
 
-test('phone command ACK retry never executes the same command twice', () => {
-  const src = read('mods/features/webConfig.js');
-  has(src, 'lastExecutedCommandId');
-  has(src, 'data.id === lastExecutedCommandId');
-  const ack = between(src, 'function ackCommand(id)', 'function consumeCommand()');
-  has(ack, 'if (!res.ok)');
+test("phone command ACK retry never executes the same command twice", () => {
+  const src = read("mods/features/webConfig.js");
+  has(src, "lastExecutedCommandId");
+  has(src, "data.id === lastExecutedCommandId");
+  const ack = between(src, "function ackCommand(id)", "function consumeCommand()");
+  has(ack, "if (!res.ok)");
 });
 
-test('shared fetch deadline does not depend on AbortController support', () => {
-  const src = read('mods/shared/fetch.js');
-  has(src, 'Promise.race');
-  has(src, 'new Promise((_, reject)');
+test("shared fetch deadline does not depend on AbortController support", () => {
+  const src = read("mods/shared/fetch.js");
+  has(src, "Promise.race");
+  has(src, "new Promise((_, reject)");
 });
 
-test('AFR resets when disabled and stays idle while disabled', () => {
-  const src = read('mods/features/autoFrameRate.js');
-  has(src, 'configChangeEmitter');
-  has(src, 'function resetFrameRate');
+test("AFR resets when disabled and stays idle while disabled", () => {
+  const src = read("mods/features/autoFrameRate.js");
+  has(src, "configChangeEmitter");
+  has(src, "function resetFrameRate");
   has(src, 'key === "autoFrameRate"');
-  const attach = between(src, 'function attachToVideoPlayer()', 'window.addEventListener');
+  const attach = between(src, "function attachToVideoPlayer()", "window.addEventListener");
   has(attach, 'if (!configRead("autoFrameRate"))');
 });
 
-test('preferred quality only marks success after quality is actually available', () => {
-  const src = read('mods/features/preferredVideoQuality.js');
-  has(src, 'this.#hasAppliedQuality = this.#applyQuality()');
-  has(src, 'MAX_APPLY_RETRIES');
+test("preferred quality only marks success after quality is actually available", () => {
+  const src = read("mods/features/preferredVideoQuality.js");
+  has(src, "this.#hasAppliedQuality = this.#applyQuality()");
+  has(src, "MAX_APPLY_RETRIES");
 });
 
-test('subtitle readiness uses one bounded retry loop', () => {
-  const src = read('mods/features/moreSubtitles.js');
-  has(src, 'SUBTITLE_POLL_LIMIT');
-  assert.ok(!src.includes('return setTimeout(patchSubtitleMenu'));
-  assert.ok(!src.includes('const interval = setInterval'));
+test("subtitle readiness uses one bounded retry loop", () => {
+  const src = read("mods/features/moreSubtitles.js");
+  has(src, "SUBTITLE_POLL_LIMIT");
+  assert.ok(!src.includes("return setTimeout(patchSubtitleMenu"));
+  assert.ok(!src.includes("const interval = setInterval"));
 });
 
-test('response HQ thumbnail cache is bounded', () => {
-  const src = read('mods/features/hqThumbnails.js');
-  has(src, 'MAX_HQ_CACHE_ENTRIES');
-  has(src, 'createBoundedCache(MAX_HQ_CACHE_ENTRIES)');
+test("response HQ thumbnail cache is bounded", () => {
+  const src = read("mods/features/hqThumbnails.js");
+  has(src, "MAX_HQ_CACHE_ENTRIES");
+  has(src, "createBoundedCache(MAX_HQ_CACHE_ENTRIES)");
 });
 
-test('DeArrow fans out pending requests and retries after transient failures', () => {
-  const src = read('mods/features/deArrow.js');
-  has(src, 'waiters');
-  has(src, 'deArrowCache.delete(videoId)');
+test("DeArrow fans out pending requests and retries after transient failures", () => {
+  const src = read("mods/features/deArrow.js");
+  has(src, "waiters");
+  has(src, "deArrowCache.delete(videoId)");
 });
 
-test('HQ observer batches without RAF starvation and clears queued work on stop', () => {
-  const src = read('mods/features/hqThumbnailsFocusObserver.js');
-  const observerBlock = between(src, 'observer = new MutationObserver', 'observer.observe(container');
-  assert.ok(!observerBlock.includes('cancelAnimationFrame(pendingFrame)'));
-  const stop = between(src, 'var stopObserver = function () {', 'var syncWithConfig');
-  has(stop, 'pendingMutations = null');
+test("HQ observer batches without RAF starvation and clears queued work on stop", () => {
+  const src = read("mods/features/hqThumbnailsFocusObserver.js");
+  const observerBlock = between(
+    src,
+    "observer = new MutationObserver",
+    "observer.observe(container",
+  );
+  assert.ok(!observerBlock.includes("cancelAnimationFrame(pendingFrame)"));
+  const stop = between(src, "let stopObserver = function () {", "let syncWithConfig");
+  has(stop, "pendingMutations = null");
 });
 
-test('PiP DOM observer and transition timers stop when PiP exits', () => {
-  const src = read('mods/features/pictureInPicture.js');
-  has(src, 'function startPipUiObserver');
-  has(src, 'function stopPipUiObserver');
-  has(src, 'stopPipUiObserver()');
-  has(src, 'clearPipTransitionTimers');
-  has(read('mods/resolveCommand.js'), 'cleanupPipStyles()');
+test("PiP DOM observer and transition timers stop when PiP exits", () => {
+  const src = read("mods/features/pictureInPicture.js");
+  has(src, "function startPipUiObserver");
+  has(src, "function stopPipUiObserver");
+  has(src, "stopPipUiObserver()");
+  has(src, "clearPipTransitionTimers");
+  has(read("mods/resolveCommand.js"), "cleanupPipStyles()");
 });
 
-test('standalone proxy has an upstream request deadline', () => {
-  const src = read('standalone/service/index.js');
-  has(src, 'UPSTREAM_TIMEOUT_MS');
-  has(src, 'timeout: UPSTREAM_TIMEOUT_MS');
+test("standalone proxy has an upstream request deadline", () => {
+  const src = read("standalone/service/index.js");
+  has(src, "UPSTREAM_TIMEOUT_MS");
+  has(src, "timeout: UPSTREAM_TIMEOUT_MS");
 });
 
-test('standalone health check has a per-request deadline', () => {
-  const src = read('standalone/index.html');
-  has(src, 'function fetchWithDeadline');
-  has(src, 'HEALTH_REQUEST_TIMEOUT_MS');
+test("standalone health check has a per-request deadline", () => {
+  const src = read("standalone/index.html");
+  has(src, "function fetchWithDeadline");
+  has(src, "HEALTH_REQUEST_TIMEOUT_MS");
   has(src, 'reject(new Error("Request timed out"))');
 });
 
-test('known updater architecture never falls back to a different APK architecture', () => {
-  const src = read('mods/features/updater.js');
-  const fn = between(src, 'function findDownloadUrl', 'function checkForUpdates');
-  has(fn, 'return asset ? asset.browser_download_url : null');
+test("known updater architecture never falls back to a different APK architecture", () => {
+  const src = read("mods/features/updater.js");
+  const fn = between(src, "function findDownloadUrl", "function checkForUpdates");
+  has(fn, "return asset ? asset.browser_download_url : null");
   has(fn, 'architecture.includes("arm64")');
   has(fn, 'architecture.includes("arm")');
 });
 
-test('AdBlock stringify hook restores caller objects after serialization', () => {
-  const src = read('mods/features/adblock.js');
-  const stringify = between(src, 'JSON.stringify = function', 'window.JSON.stringify');
-  has(stringify, 'finally');
-  has(stringify, 'delete playbackContext.isInlinePlaybackNoAd');
+test("AdBlock stringify hook restores caller objects after serialization", () => {
+  const src = read("mods/features/adblock.js");
+  const stringify = between(src, "JSON.stringify = function", "window.JSON.stringify");
+  has(stringify, "finally");
+  has(stringify, "delete playbackContext.isInlinePlaybackNoAd");
 });
 
-test('old-Tizen correction layer fixes only behavior-probed broken shims', () => {
-  const entry = read('mods/userScript.js');
+test("old-Tizen correction layer fixes only behavior-probed broken shims", () => {
+  const entry = read("mods/userScript.js");
   has(entry, 'import "./polyfillCorrections.js"');
-  const src = read('mods/polyfillCorrections.js');
-  has(src, 'replaceAllBroken');
-  has(src, 'new RegExp');
-  has(src, 'var obj = {}');
-  has(src, 'Object.defineProperty');
+  const src = read("mods/polyfillCorrections.js");
+  has(src, "replaceAllBroken");
+  has(src, "new RegExp");
+  has(src, "var obj = {}");
+  has(src, "Object.defineProperty");
 });
 
-test('settings command patch fails open for unknown native command shapes', () => {
-  const src = read('mods/resolveCommand.js');
-  has(src, 'Array.isArray(cmd.setClientSettingEndpoint.settingDatas)');
+test("settings command patch fails open for unknown native command shapes", () => {
+  const src = read("mods/resolveCommand.js");
+  has(src, "Array.isArray(cmd.setClientSettingEndpoint.settingDatas)");
   has(src, 'typeof itemName !== "string"');
 });
 
-test('pairing failures are rate-limited per client instead of globally', () => {
-  const src = read('service/service.js');
-  has(src, 'pairAttemptsByAddress');
-  has(src, 'allowPairAttempt(req)');
-  has(src, 'resetPairAttempts(req)');
+test("pairing failures are rate-limited per client instead of globally", () => {
+  const src = read("service/service.js");
+  has(src, "pairAttemptsByAddress");
+  has(src, "allowPairAttempt(req)");
+  has(src, "resetPairAttempts(req)");
 });
 
-test('TV exposes a usable Web Config address with the pairing code', () => {
-  const service = read('service/service.js');
-  has(service, 'getLanWebConfigUrls');
-  has(service, 'urls: getLanWebConfigUrls()');
-  const client = read('mods/features/webConfig.js');
+test("TV exposes a usable Web Config address with the pairing code", () => {
+  const service = read("service/service.js");
+  has(service, "getLanWebConfigUrls");
+  has(service, "urls: getLanWebConfigUrls()");
+  const client = read("mods/features/webConfig.js");
   has(client, 't("toasts.pairingWithUrl"');
-  const en = read('mods/translations/resources/en.json');
-  has(en, 'Open {{url}} on your phone');
+  const en = read("mods/translations/resources/en.json");
+  has(en, "Open {{url}} on your phone");
 });
 
-test('speed increment keeps decimal Web Config control but caps modal work', () => {
-  const web = read('service/webConfigPage.js');
+test("speed increment keeps decimal Web Config control but caps modal work", () => {
+  const web = read("service/webConfigPage.js");
   has(web, 'key==="speedSettingsIncrement"?0.01:1');
-  const speed = read('mods/ui/speedUI.js');
-  has(speed, 'MAX_SPEED_OPTIONS = 100');
-  has(speed, 'MAX_SPEED / MAX_SPEED_OPTIONS');
-  has(speed, 'buttons.length < MAX_SPEED_OPTIONS');
+  const speed = read("mods/ui/speedUI.js");
+  has(speed, "MAX_SPEED_OPTIONS = 100");
+  has(speed, "MAX_SPEED / MAX_SPEED_OPTIONS");
+  has(speed, "buttons.length < MAX_SPEED_OPTIONS");
 });
 
-test('CI builds fresh distributables and publishes them for release sync', () => {
-  const src = read('.github/workflows/ci.yml');
-  has(src, 'Build mods and service');
-  has(src, 'Build standalone bundle from fresh artifacts');
-  has(src, 'actions/upload-artifact@v4');
-  has(src, 'axotube-built-artifacts');
+test("CI builds fresh distributables and publishes them for release sync", () => {
+  const src = read(".github/workflows/ci.yml");
+  has(src, "Build mods and service");
+  has(src, "Build standalone bundle from fresh artifacts");
+  has(src, "actions/upload-artifact@v4");
+  has(src, "axotube-built-artifacts");
 });
 
-test('enabling screen dimming through config arms the inactivity timer immediately', () => {
-  const src = read('mods/ui/ui.js');
-  const listener = between(src, 'configChangeEmitter.addEventListener("configChange"', '});');
+test("enabling screen dimming through config arms the inactivity timer immediately", () => {
+  const src = read("mods/ui/ui.js");
+  const listener = between(src, 'configChangeEmitter.addEventListener("configChange"', "});");
   has(listener, 'key === "enableScreenDimming"');
-  has(listener, 'armDimmingTimer()');
-  has(listener, 'clearDimmingTimer()');
+  has(listener, "armDimmingTimer()");
+  has(listener, "clearDimmingTimer()");
 });
 
-test('remote config revision is marked applied only after values are processed', () => {
-  const src = read('mods/features/webConfig.js');
-  const pull = between(src, 'function pullAndApply()', 'function buildCommand');
-  const applyPos = pull.indexOf('Object.keys(remote).forEach');
-  const revisionPos = pull.lastIndexOf('appliedRevision = data.revision');
-  assert.notEqual(applyPos, -1, 'remote config application loop missing');
-  assert.notEqual(revisionPos, -1, 'applied revision assignment missing');
-  assert.ok(revisionPos > applyPos, 'revision must be committed after remote config values are processed');
+test("remote config revision is marked applied only after values are processed", () => {
+  const src = read("mods/features/webConfig.js");
+  const pull = between(src, "function pullAndApply()", "function buildCommand");
+  const applyPos = pull.indexOf("Object.keys(remote).forEach");
+  const revisionPos = pull.lastIndexOf("appliedRevision = data.revision");
+  assert.notEqual(applyPos, -1, "remote config application loop missing");
+  assert.notEqual(revisionPos, -1, "applied revision assignment missing");
+  assert.ok(
+    revisionPos > applyPos,
+    "revision must be committed after remote config values are processed",
+  );
 });
 
-test('focused HQ thumbnail probing tries sddefault before falling back to hqdefault', () => {
-  const src = read('mods/shared/hqThumbnails.js');
-  const probe = between(src, 'export function probeBestThumbnailQuality', 'export function isVideoThumbnailArray');
-  has(probe, 'sddefault.jpg');
-  const sdPos = probe.indexOf('sddefault.jpg');
-  const hqPos = probe.lastIndexOf('hqdefault.jpg');
-  assert.ok(sdPos !== -1 && hqPos !== -1 && sdPos < hqPos, 'sddefault should be tested before hqdefault fallback');
+test("focused HQ thumbnail probing tries sddefault before falling back to hqdefault", () => {
+  const src = read("mods/shared/hqThumbnails.js");
+  const probe = between(
+    src,
+    "export function probeBestThumbnailQuality",
+    "export function isVideoThumbnailArray",
+  );
+  has(probe, "sddefault.jpg");
+  const sdPos = probe.indexOf("sddefault.jpg");
+  const hqPos = probe.lastIndexOf("hqdefault.jpg");
+  assert.ok(
+    sdPos !== -1 && hqPos !== -1 && sdPos < hqPos,
+    "sddefault should be tested before hqdefault fallback",
+  );
 });
 
-test('updater compares numeric SemVer prerelease identifiers correctly', () => {
-  const src = read('mods/features/updater.js');
-  const code = between(src, 'function normalizeVersion', 'function getLatestRelease');
+test("updater compares numeric SemVer prerelease identifiers correctly", () => {
+  const src = read("mods/features/updater.js");
+  const code = between(src, "function normalizeVersion", "function getLatestRelease");
   const compareVersions = Function(`${code}; return compareVersions;`)();
-  assert.equal(compareVersions('1.20.0-rc.2', '1.20.0-rc.10'), -1);
-  assert.equal(compareVersions('1.20.0-rc.10', '1.20.0-rc.2'), 1);
-  assert.equal(compareVersions('1.20.0-beta', '1.20.0'), -1);
-  assert.equal(compareVersions('v1.20.2', '1.20.2'), 0);
+  assert.equal(compareVersions("1.20.0-rc.2", "1.20.0-rc.10"), -1);
+  assert.equal(compareVersions("1.20.0-rc.10", "1.20.0-rc.2"), 1);
+  assert.equal(compareVersions("1.20.0-beta", "1.20.0"), -1);
+  assert.equal(compareVersions("v1.21.0", "1.21.0"), 0);
 });
 
-test('stutter-fix speed is selected when 1.0001x is the configured speed', () => {
-  const src = read('mods/ui/speedUI.js');
-  const speed = between(src, 'function speedSettings()', 'export { speedSettings }');
-  has(speed, 'currentSpeed === 1.0001');
-  has(speed, 'selectedIndex = buttons.length');
+test("stutter-fix speed is selected when 1.0001x is the configured speed", () => {
+  const src = read("mods/ui/speedUI.js");
+  const speed = between(src, "function speedSettings()", "export { speedSettings }");
+  has(speed, "currentSpeed === 1.0001");
+  has(speed, "selectedIndex = buttons.length");
 });

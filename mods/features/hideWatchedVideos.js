@@ -38,10 +38,9 @@ export function hideVideo(items) {
 
   return items.filter((item) => {
     if (!item.tileRenderer) return true;
-    const progressBar =
-      item.tileRenderer.header?.tileHeaderRenderer?.thumbnailOverlays?.find(
-        (overlay) => overlay.thumbnailOverlayResumePlaybackRenderer,
-      )?.thumbnailOverlayResumePlaybackRenderer;
+    const progressBar = item.tileRenderer.header?.tileHeaderRenderer?.thumbnailOverlays?.find(
+      (overlay) => overlay.thumbnailOverlayResumePlaybackRenderer,
+    )?.thumbnailOverlayResumePlaybackRenderer;
     if (!progressBar) return true;
     const percentWatched = progressBar.percentDurationWatched || 0;
     return percentWatched <= threshold;

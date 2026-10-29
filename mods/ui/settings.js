@@ -1,8 +1,19 @@
 import { t } from "i18next";
-import { openSettingsOverlay } from "./settingsOverlay.js";
+import configSchema from "../../config-schema.json";
+import { configRead } from "../config.js";
+import { writeClientSetting } from "../shared/clientSettings.js";
+import { generateQRCode } from "./qrCode.js";
+import {
+  showModal,
+  buttonItem,
+  overlayPanelItemListRenderer,
+  overlayMessageRenderer,
+  QrCodeRenderer,
+} from "./ytUI.js";
 
 // The settings tree is plain data: labels, config keys and nesting. It is
-// rendered by settingsOverlay.js. Node kinds:
+// rendered as YouTube's own modal panels (the same look as the rest of the
+// client). Node kinds:
 //   value: "<key>"           toggle bound to a boolean config key
 //   key + value              radio choice for a string config key
 //   arrayToEdit: "<key>"     multi-select over an array config key
@@ -70,7 +81,7 @@ export function buildSettingsTree() {
       name: t("settings.options.sponsorblock.title"),
       icon: "MONEY_HAND",
       value: null,
-      menuId: "tt-sponsorblock-settings",
+      menuId: "axo-sponsorblock-settings",
       menuHeader: {
         title: t("settings.options.sponsorblock.title"),
         subtitle: "https://sponsor.ajay.app/",
@@ -86,12 +97,10 @@ export function buildSettingsTree() {
           icon: "DOLLAR_SIGN",
           value: null,
           arrayToEdit: "sponsorBlockManualSkips",
-          menuId: "tt-sponsorblock-manual-segment-skip",
+          menuId: "axo-sponsorblock-manual-segment-skip",
           options: [
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.sponsor",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.sponsor"),
               icon: "MONEY_HEART",
               value: "sponsor",
             },
@@ -106,37 +115,27 @@ export function buildSettingsTree() {
               value: "outro",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.interaction",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.interaction"),
               icon: "TOUCH_APP",
               value: "interaction",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.selfpromo",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.selfpromo"),
               icon: "PROMOTION",
               value: "selfpromo",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.preview",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.preview"),
               icon: "PREVIEW",
               value: "preview",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.filler",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.filler"),
               icon: "PADDING",
               value: "filler",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.music_offtopic",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.music_offtopic"),
               icon: "MUSIC_NOTE",
               value: "music_offtopic",
             },
@@ -146,12 +145,10 @@ export function buildSettingsTree() {
           name: t("settings.options.sponsorblock.options.segments"),
           icon: "SETTINGS",
           value: null,
-          menuId: "tt-sponsorblock-segments",
+          menuId: "axo-sponsorblock-segments",
           options: [
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.sponsor",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.sponsor"),
               icon: "MONEY_HEART",
               value: "enableSponsorBlockSponsor",
             },
@@ -166,44 +163,32 @@ export function buildSettingsTree() {
               value: "enableSponsorBlockOutro",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.interaction",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.interaction"),
               icon: "TOUCH_APP",
               value: "enableSponsorBlockInteraction",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.selfpromo",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.selfpromo"),
               icon: "PROMOTION",
               value: "enableSponsorBlockSelfPromo",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.preview",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.preview"),
               icon: "PREVIEW",
               value: "enableSponsorBlockPreview",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.filler",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.filler"),
               icon: "PADDING",
               value: "enableSponsorBlockFiller",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.music_offtopic",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.music_offtopic"),
               icon: "MUSIC_NOTE",
               value: "enableSponsorBlockMusicOfftopic",
             },
             {
-              name: t(
-                "settings.options.sponsorblock.options.categories.highlights",
-              ),
+              name: t("settings.options.sponsorblock.options.categories.highlights"),
               icon: "LOCATION_POINT",
               value: "enableSponsorBlockHighlight",
             },
@@ -259,25 +244,19 @@ export function buildSettingsTree() {
         {
           name: t("settings.options.misc.options.whosWatching.title"),
           icon: "ACCOUNT_CIRCLE",
-          menuId: "tt-whos-watching-menu-settings",
+          menuId: "axo-whos-watching-menu-settings",
           value: null,
           options: [
             {
-              name: t(
-                "settings.options.misc.options.whosWatching.options.enableWW",
-              ),
+              name: t("settings.options.misc.options.whosWatching.options.enableWW"),
               value: "enableWhoIsWatchingMenu",
             },
             {
-              name: t(
-                "settings.options.misc.options.whosWatching.options.permaEnableWW",
-              ),
+              name: t("settings.options.misc.options.whosWatching.options.permaEnableWW"),
               value: "permanentlyEnableWhoIsWatchingMenu",
             },
             {
-              name: t(
-                "settings.options.misc.options.whosWatching.options.enableWWOnExit",
-              ),
+              name: t("settings.options.misc.options.whosWatching.options.enableWWOnExit"),
               value: "enableWhosWatchingMenuOnAppExit",
             },
           ],
@@ -319,6 +298,23 @@ export function buildSettingsTree() {
           stepper: 5,
         },
         {
+          name: t("settings.options.misc.options.remainingTime"),
+          value: "enableRemainingTime",
+        },
+        {
+          name: t("settings.options.misc.options.pauseOnBlur"),
+          value: "enablePauseOnBlur",
+        },
+        {
+          name: t("settings.options.misc.options.lowMemoryMode"),
+          value: "enableLowMemoryMode",
+        },
+        {
+          name: t("settings.options.misc.options.onePressMode"),
+          icon: "TOUCH_APP",
+          value: "enableOnePressMode",
+        },
+        {
           name: t("settings.options.misc.options.ttWelcomeMsg"),
           value: "showWelcomeToast",
         },
@@ -336,7 +332,7 @@ export function buildSettingsTree() {
       name: t("settings.options.theme.title"),
       icon: "STYLE",
       value: null,
-      menuId: "tt-theme-settings",
+      menuId: "axo-theme-settings",
       menuHeader: {
         title: t("settings.options.theme.title"),
         subtitle: t("settings.options.theme.menuSubtitle"),
@@ -346,7 +342,7 @@ export function buildSettingsTree() {
           name: t("settings.options.theme.options.presets.title"),
           icon: "STYLE",
           value: null,
-          menuId: "tt-theme-presets",
+          menuId: "axo-theme-presets",
           menuHeader: {
             title: t("settings.options.theme.options.presets.title"),
             subtitle: t("settings.options.theme.options.presets.menuSubtitle"),
@@ -406,7 +402,7 @@ export function buildSettingsTree() {
           name: t("settings.options.theme.options.routeColor.title"),
           icon: "COLOR_LENS",
           value: null,
-          menuId: "tt-theme-route-color",
+          menuId: "axo-theme-route-color",
           options: [
             {
               name: t("settings.options.theme.options.colors.default"),
@@ -462,7 +458,7 @@ export function buildSettingsTree() {
           name: t("settings.options.theme.options.textTheme.title"),
           icon: "COLOR_LENS",
           value: null,
-          menuId: "tt-theme-text-color",
+          menuId: "axo-theme-text-color",
           options: [
             {
               name: t("settings.options.theme.options.colors.default"),
@@ -501,17 +497,13 @@ export function buildSettingsTree() {
               value: "green",
             },
             {
-              name: t(
-                "settings.options.theme.options.textTheme.options.purple",
-              ),
+              name: t("settings.options.theme.options.textTheme.options.purple"),
               icon: "COLOR_LENS",
               key: "textTheme",
               value: "purple",
             },
             {
-              name: t(
-                "settings.options.theme.options.textTheme.options.yellow",
-              ),
+              name: t("settings.options.theme.options.textTheme.options.yellow"),
               icon: "COLOR_LENS",
               key: "textTheme",
               value: "yellow",
@@ -548,82 +540,78 @@ export function buildSettingsTree() {
           name: t("settings.options.videoPlayer.options.patching.title"),
           icon: "SETTINGS",
           value: null,
-          menuId: "tt-video-player-ui-patching",
+          menuId: "axo-video-player-ui-patching",
           options: [
             {
-              name: t(
-                "settings.options.videoPlayer.options.patching.options.enableVPUIPatching",
-              ),
+              name: t("settings.options.videoPlayer.options.patching.options.enableVPUIPatching"),
               icon: "SETTINGS",
               value: "enablePatchingVideoPlayer",
             },
             {
-              name: t(
-                "settings.options.videoPlayer.options.patching.options.previousNextBtns",
-              ),
+              name: t("settings.options.videoPlayer.options.patching.options.previousNextBtns"),
               icon: "SKIP_NEXT",
               value: "enablePreviousNextButtons",
             },
             {
-              name: t(
-                "settings.options.videoPlayer.options.patching.options.showSuperThxBtn",
-              ),
+              name: t("settings.options.videoPlayer.options.patching.options.showSuperThxBtn"),
               icon: "MONEY_HEART",
               value: "enableSuperThanksButton",
             },
             {
-              name: t(
-                "settings.options.videoPlayer.options.patching.options.showSpeedCtrlBtn",
-              ),
+              name: t("settings.options.videoPlayer.options.patching.options.showSpeedCtrlBtn"),
               icon: "SLOW_MOTION_VIDEO",
               value: "enableSpeedControlsButton",
             },
             {
-              name: t(
-                "settings.options.videoPlayer.options.patching.options.addMPBtn",
-              ),
+              name: t("settings.options.videoPlayer.options.patching.options.addMPBtn"),
               icon: "CLEAR_COOKIES",
               value: "enableMPButton",
             },
             {
-              name: t(
-                "settings.options.videoPlayer.options.patching.options.swapMPWithPIP",
-              ),
+              name: t("settings.options.videoPlayer.options.patching.options.swapMPWithPIP"),
               icon: "PICTURE_IN_PICTURE",
               value: "enableSwapMPWithPIP",
             },
           ],
         },
         {
-          name: t(
-            "settings.options.videoPlayer.options.preferredVideoQuality.title",
-          ),
+          name: t("settings.options.videoPlayer.options.preferredVideoQuality.title"),
           icon: "VIDEO_QUALITY",
           value: null,
-          menuId: "tt-preferred-video-quality",
+          menuId: "axo-preferred-video-quality",
           menuHeader: {
-            title: t(
-              "settings.options.videoPlayer.options.preferredVideoQuality.title",
-            ),
-            subtitle: t(
-              "settings.options.videoPlayer.options.preferredVideoQuality.subtitle",
-            ),
+            title: t("settings.options.videoPlayer.options.preferredVideoQuality.title"),
+            subtitle: t("settings.options.videoPlayer.options.preferredVideoQuality.subtitle"),
           },
-          options: [
-            "Auto",
-            "2160p",
-            "1440p",
-            "1080p",
-            "720p",
-            "480p",
-            "360p",
-            "240p",
-            "144p",
-          ].map((quality) => {
+          options: ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"].map(
+            (quality) => {
+              return {
+                name: quality,
+                key: "preferredVideoQuality",
+                value: quality.toLowerCase(),
+              };
+            },
+          ),
+        },
+        {
+          name: t("settings.options.videoPlayer.options.experimentalResolution.title"),
+          icon: "VIDEO_QUALITY",
+          value: "enableExperimentalResolution",
+        },
+        {
+          name: t("settings.options.videoPlayer.options.experimentalMaxResolution.title"),
+          icon: "VIDEO_QUALITY",
+          value: null,
+          menuId: "axo-experimental-max-resolution",
+          menuHeader: {
+            title: t("settings.options.videoPlayer.options.experimentalMaxResolution.title"),
+            subtitle: t("settings.options.videoPlayer.options.experimentalMaxResolution.subtitle"),
+          },
+          options: ["1440p", "2160p"].map((quality) => {
             return {
               name: quality,
-              key: "preferredVideoQuality",
-              value: quality.toLowerCase(),
+              key: "experimentalMaxResolution",
+              value: quality,
             };
           }),
         },
@@ -631,84 +619,60 @@ export function buildSettingsTree() {
           name: t("settings.options.videoPlayer.options.speedSettings.title"),
           icon: "SLOW_MOTION_VIDEO",
           value: null,
-          menuId: "tt-speed-settings-increments",
+          menuId: "axo-speed-settings-increments",
           menuHeader: {
-            title: t(
-              "settings.options.videoPlayer.options.speedSettings.title",
-            ),
-            subtitle: t(
-              "settings.options.videoPlayer.options.speedSettings.subtitle",
-            ),
+            title: t("settings.options.videoPlayer.options.speedSettings.title"),
+            subtitle: t("settings.options.videoPlayer.options.speedSettings.subtitle"),
           },
-          options: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5].map(
-            (increment) => {
-              return {
-                name: `${increment}x`,
-                key: "speedSettingsIncrement",
-                value: increment,
-              };
-            },
-          ),
+          options: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5].map((increment) => {
+            return {
+              name: `${increment}x`,
+              key: "speedSettingsIncrement",
+              value: increment,
+            };
+          }),
         },
         {
-          name: t(
-            "settings.options.videoPlayer.options.preferredVideoCodec.title",
-          ),
+          name: t("settings.options.videoPlayer.options.preferredVideoCodec.title"),
           icon: "VIDEO_QUALITY",
           value: null,
-          menuId: "tt-preferred-video-codec",
+          menuId: "axo-preferred-video-codec",
           menuHeader: {
-            title: t(
-              "settings.options.videoPlayer.options.preferredVideoCodec.title",
-            ),
-            subtitle: t(
-              "settings.options.videoPlayer.options.preferredVideoCodec.subtitle",
-            ),
+            title: t("settings.options.videoPlayer.options.preferredVideoCodec.title"),
+            subtitle: t("settings.options.videoPlayer.options.preferredVideoCodec.subtitle"),
           },
           options: ["any", "vp9", "av01", "avc1"].map((codec) => {
             return {
               name: codec === "any" ? "Any" : codec.toUpperCase(),
-              key: "preferredVideoCodec",
+              key: "videoPreferredCodec",
               value: codec,
             };
           }),
         },
-        window.h5vcc &&
-        window.h5vcc.tizentube &&
-        window.h5vcc.tizentube.SetFrameRate
+        window.h5vcc && window.h5vcc.tizentube && window.h5vcc.tizentube.SetFrameRate
           ? {
               name: t("settings.options.videoPlayer.options.afr"),
               icon: "SLOW_MOTION_VIDEO",
               value: "autoFrameRate",
             }
           : null,
-        window.h5vcc &&
-        window.h5vcc.tizentube &&
-        window.h5vcc.tizentube.SetFrameRate
+        window.h5vcc && window.h5vcc.tizentube && window.h5vcc.tizentube.SetFrameRate
           ? {
-              name: t(
-                "settings.options.videoPlayer.options.afrPauseDuration.title",
-              ),
+              name: t("settings.options.videoPlayer.options.afrPauseDuration.title"),
               icon: "TIMER",
               value: null,
-              menuId: "tt-auto-frame-rate-pause-duration",
+              menuId: "axo-auto-frame-rate-pause-duration",
               menuHeader: {
-                title: t(
-                  "settings.options.videoPlayer.options.afrPauseDuration.title",
-                ),
-                subtitle: t(
-                  "settings.options.videoPlayer.options.afrPauseDuration.subtitle",
-                ),
+                title: t("settings.options.videoPlayer.options.afrPauseDuration.title"),
+                subtitle: t("settings.options.videoPlayer.options.afrPauseDuration.subtitle"),
               },
-              options: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(
-                (seconds) => {
-                  return {
-                    name: `${seconds} seconds`,
-                    key: "autoFrameRatePauseVideoFor",
-                    value: seconds * 1000,
-                  };
-                },
-              ),
+              options: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((seconds) => {
+                return {
+                  name: `${seconds} seconds`,
+                  key: "autoFrameRatePauseVideoFor",
+                  value: seconds * 1000,
+                };
+              }),
             }
           : null,
       ],
@@ -723,12 +687,10 @@ export function buildSettingsTree() {
       },
       options: [
         {
-          name: t(
-            "settings.options.uiSettings.options.hideWatchedVideos.title",
-          ),
+          name: t("settings.options.uiSettings.options.hideWatchedVideos.title"),
           icon: "VISIBILITY_OFF",
           value: null,
-          menuId: "tt-hide-watched-videos-settings",
+          menuId: "axo-hide-watched-videos-settings",
           options: [
             {
               name: t(
@@ -742,7 +704,7 @@ export function buildSettingsTree() {
                 "settings.options.uiSettings.options.hideWatchedVideos.options.watchedVideosThreshold.title",
               ),
               value: null,
-              menuId: "tt-hide-watched-videos-threshold",
+              menuId: "axo-hide-watched-videos-threshold",
               menuHeader: {
                 title: t(
                   "settings.options.uiSettings.options.hideWatchedVideos.options.watchedVideosThreshold.title",
@@ -751,15 +713,13 @@ export function buildSettingsTree() {
                   "settings.options.uiSettings.options.hideWatchedVideos.options.watchedVideosThreshold.subtitle",
                 ),
               },
-              options: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(
-                (percent) => {
-                  return {
-                    name: `${percent}%`,
-                    key: "hideWatchedVideosThreshold",
-                    value: percent,
-                  };
-                },
-              ),
+              options: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((percent) => {
+                return {
+                  name: `${percent}%`,
+                  key: "hideWatchedVideosThreshold",
+                  value: percent,
+                };
+              }),
             },
             {
               name: t(
@@ -767,7 +727,7 @@ export function buildSettingsTree() {
               ),
               value: null,
               arrayToEdit: "hideWatchedVideosPages",
-              menuId: "tt-hide-watched-videos-pages",
+              menuId: "axo-hide-watched-videos-pages",
               options: [
                 {
                   name: "Search Results",
@@ -805,7 +765,7 @@ export function buildSettingsTree() {
           name: t("settings.options.uiSettings.options.screenDimming.title"),
           icon: "EYE_OFF",
           value: null,
-          menuId: "tt-screen-dimming-settings",
+          menuId: "axo-screen-dimming-settings",
           options: [
             {
               name: t(
@@ -820,7 +780,7 @@ export function buildSettingsTree() {
               ),
               icon: "TIMER",
               value: null,
-              menuId: "tt-dimming-timeout",
+              menuId: "axo-dimming-timeout",
               menuHeader: {
                 title: t(
                   "settings.options.uiSettings.options.screenDimming.options.dimmingTimeout.title",
@@ -847,7 +807,7 @@ export function buildSettingsTree() {
               ),
               icon: "LENS_BLUE",
               value: null,
-              menuId: "tt-dimming-opacity",
+              menuId: "axo-dimming-opacity",
               menuHeader: {
                 title: t(
                   "settings.options.uiSettings.options.screenDimming.options.dimmingOpacity.title",
@@ -856,33 +816,25 @@ export function buildSettingsTree() {
                   "settings.options.uiSettings.options.screenDimming.options.dimmingOpacity.subtitle",
                 ),
               },
-              options: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0].map(
-                (opacity) => {
-                  return {
-                    name: `${Math.round(opacity * 100)}%`,
-                    key: "dimmingOpacity",
-                    value: opacity,
-                  };
-                },
-              ),
+              options: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0].map((opacity) => {
+                return {
+                  name: `${Math.round(opacity * 100)}%`,
+                  key: "dimmingOpacity",
+                  value: opacity,
+                };
+              }),
             },
           ],
         },
         {
-          name: t(
-            "settings.options.uiSettings.options.disableSidebarContents.title",
-          ),
+          name: t("settings.options.uiSettings.options.disableSidebarContents.title"),
           icon: "MENU",
           value: null,
           arrayToEdit: "disabledSidebarContents",
-          menuId: "tt-sidebar-contents",
+          menuId: "axo-sidebar-contents",
           menuHeader: {
-            title: t(
-              "settings.options.uiSettings.options.disableSidebarContents.title",
-            ),
-            subtitle: t(
-              "settings.options.uiSettings.options.disableSidebarContents.subtitle",
-            ),
+            title: t("settings.options.uiSettings.options.disableSidebarContents.title"),
+            subtitle: t("settings.options.uiSettings.options.disableSidebarContents.subtitle"),
           },
           options: [
             {
@@ -948,19 +900,13 @@ export function buildSettingsTree() {
           ],
         },
         {
-          name: t(
-            "settings.options.uiSettings.options.launchToOnStartup.title",
-          ),
+          name: t("settings.options.uiSettings.options.launchToOnStartup.title"),
           icon: "TV",
           value: null,
-          menuId: "tt-launch-to-on-startup",
+          menuId: "axo-launch-to-on-startup",
           menuHeader: {
-            title: t(
-              "settings.options.uiSettings.options.launchToOnStartup.title",
-            ),
-            subtitle: t(
-              "settings.options.uiSettings.options.launchToOnStartup.subtitle",
-            ),
+            title: t("settings.options.uiSettings.options.launchToOnStartup.title"),
+            subtitle: t("settings.options.uiSettings.options.launchToOnStartup.subtitle"),
           },
           options: [
             {
@@ -1062,16 +1008,12 @@ export function buildSettingsTree() {
           ],
         },
         {
-          name: t(
-            "settings.options.uiSettings.options.sortSubscriptionsByAlphabet",
-          ),
+          name: t("settings.options.uiSettings.options.sortSubscriptionsByAlphabet"),
           icon: "SORT",
           value: "sortSubscriptionsByAlphabet",
         },
         {
-          name: t(
-            "settings.options.uiSettings.options.disableChannelsOnSidebar",
-          ),
+          name: t("settings.options.uiSettings.options.disableChannelsOnSidebar"),
           icon: "CANCEL",
           value: "disableChannelsOnSidebar",
         },
@@ -1099,9 +1041,7 @@ export function buildSettingsTree() {
               action: "CHECK_FOR_UPDATES",
             },
             {
-              name: t(
-                "settings.options.updater.options.checkForUpdatesOnStartup",
-              ),
+              name: t("settings.options.updater.options.checkForUpdatesOnStartup"),
               icon: "SYSTEM_UPDATE",
               value: "enableUpdater",
             },
@@ -1118,10 +1058,257 @@ export function buildSettingsTree() {
   return settings;
 }
 
+// ── Native rendering ─────────────────────────────────────────────────────────
+// Panels are built lazily. Opening the menu registers the tree's nodes by id
+// ("root.2.0" etc.); each click then rebuilds only the panel it touches and
+// updates that modal in place (update: true with the same unique id), which is
+// how YouTube's own menus refresh. Submenus push a new modal, so Back works.
+
+const ROOT_ID = "root";
+const MODAL_PREFIX = "axo-settings";
+let nodes = new Map();
+let tree = null;
+
+function registerNodes(list, parentId) {
+  for (let i = 0; i < list.length; i++) {
+    const node = list[i];
+    if (!node) continue;
+    const id = `${parentId}.${i}`;
+    nodes.set(id, node);
+    if (Array.isArray(node.options)) registerNodes(node.options, id);
+  }
+}
+
+function uniqueIdFor(panelId) {
+  return `${MODAL_PREFIX}:${panelId}`;
+}
+
+function settingCommand(action, parameters) {
+  return [{ customAction: { action, parameters } }];
+}
+
+function secondsLabel(count) {
+  return t("settings.seconds", { count });
+}
+
+function rowFor(node, id, arrayKey, panelId) {
+  if (node.action) {
+    return buttonItem({ title: node.name }, { icon: node.icon }, [
+      { customAction: { action: node.action } },
+    ]);
+  }
+
+  if (arrayKey !== undefined) {
+    const on = (configRead(arrayKey) || []).indexOf(node.value) !== -1;
+    return buttonItem(
+      { title: node.name },
+      {
+        icon: node.icon,
+        secondaryIcon: on ? "CHECK_BOX" : "CHECK_BOX_OUTLINE_BLANK",
+      },
+      settingCommand("SETTINGS_SET", {
+        key: arrayKey,
+        valName: "arrayValue",
+        value: node.value,
+        panel: panelId,
+        index: idIndex(id),
+      }),
+    );
+  }
+
+  if (node.key !== undefined) {
+    const on = configRead(node.key) === node.value;
+    return buttonItem(
+      { title: node.name },
+      {
+        icon: node.icon,
+        secondaryIcon: on ? "RADIO_BUTTON_CHECKED" : "RADIO_BUTTON_UNCHECKED",
+      },
+      settingCommand("SETTINGS_SET", {
+        key: node.key,
+        valName: "stringValue",
+        value: node.value,
+        panel: panelId,
+        index: idIndex(id),
+      }),
+    );
+  }
+
+  if (node.stepper !== undefined) {
+    return buttonItem(
+      { title: node.name, subtitle: secondsLabel(configRead(node.value)) },
+      {
+        icon: node.icon,
+      },
+      settingCommand("SETTINGS_OPEN", { id }),
+    );
+  }
+
+  if (node.arrayToEdit !== undefined || (node.options && typeof node.options === "object")) {
+    return buttonItem(
+      { title: node.name },
+      { icon: node.icon },
+      settingCommand("SETTINGS_OPEN", { id }),
+    );
+  }
+
+  if (typeof node.value === "string") {
+    return buttonItem(
+      { title: node.name },
+      {
+        icon: node.icon,
+        secondaryIcon: configRead(node.value) ? "CHECK_BOX" : "CHECK_BOX_OUTLINE_BLANK",
+      },
+      settingCommand("SETTINGS_TOGGLE", { key: node.value, panel: panelId, index: idIndex(id) }),
+    );
+  }
+
+  return null;
+}
+
+// Index of the row inside its panel, used to keep focus where the viewer was.
+function idIndex(id) {
+  const dot = id.lastIndexOf(".");
+  return Number(id.slice(dot + 1));
+}
+
+function rowsFor(list, parentId, arrayKey) {
+  const rows = [];
+  for (let i = 0; i < list.length; i++) {
+    const node = list[i];
+    if (!node) continue;
+    const id = `${parentId}.${i}`;
+    const row = rowFor(node, id, arrayKey, parentId);
+    if (row) rows.push(row);
+  }
+  return rows;
+}
+
+function infoRows(content) {
+  const rows = [];
+  for (const line of content) {
+    if (typeof line === "string") {
+      rows.push(overlayMessageRenderer(line));
+    } else if (line && line.qrLink) {
+      const qr = generateQRCode(line.qrLink);
+      if (qr) rows.push(QrCodeRenderer(qr));
+    }
+  }
+  return rows;
+}
+
+// Header and rows for one panel. Unknown ids fall back to the root panel.
+function panelFor(id) {
+  if (id === ROOT_ID || !nodes.has(id)) {
+    return {
+      header: {
+        title: t("settings.ttSettings.title"),
+        subtitle: t("settings.ttSettings.madeByText"),
+      },
+      rows: rowsFor(tree, ROOT_ID),
+    };
+  }
+
+  const node = nodes.get(id);
+
+  if (node.stepper !== undefined) {
+    const value = configRead(node.value);
+    const step = node.stepper;
+    return {
+      header: { title: node.name },
+      rows: [
+        buttonItem(
+          { title: `−${secondsLabel(step)}` },
+          null,
+          settingCommand("SETTINGS_STEP", {
+            key: node.value,
+            step: -step,
+            panel: id,
+          }),
+        ),
+        overlayMessageRenderer(secondsLabel(value)),
+        buttonItem(
+          { title: `+${secondsLabel(step)}` },
+          null,
+          settingCommand("SETTINGS_STEP", {
+            key: node.value,
+            step,
+            panel: id,
+          }),
+        ),
+      ],
+    };
+  }
+
+  if (node.arrayToEdit !== undefined) {
+    return {
+      header: node.menuHeader || { title: node.name },
+      rows: rowsFor(node.options, id, node.arrayToEdit),
+    };
+  }
+
+  if (node.options && typeof node.options === "object" && !Array.isArray(node.options)) {
+    return {
+      header: { title: node.options.title, subtitle: node.options.subtitle },
+      rows: infoRows(node.options.content || []),
+    };
+  }
+
+  return {
+    header: node.menuHeader || { title: node.name },
+    rows: rowsFor(node.options || [], id),
+  };
+}
+
+function showPanel(id, update, selectedIndex) {
+  const panel = panelFor(id);
+  showModal(
+    panel.header,
+    overlayPanelItemListRenderer(panel.rows, selectedIndex || 0),
+    id === ROOT_ID ? MODAL_PREFIX : uniqueIdFor(id),
+    update,
+  );
+}
+
+// Writes a setting, then refreshes the panel that held the control.
+function applyAndRefresh(write, panelId, index) {
+  write();
+  if (panelId) showPanel(panelId, true, index);
+}
+
+// Handles the SETTINGS_* custom actions dispatched by the rows above.
+export function handleSettingsAction(action, parameters) {
+  const p = parameters || {};
+  switch (action) {
+    case "SETTINGS_OPEN":
+      showPanel(p.id, false);
+      return;
+    case "SETTINGS_TOGGLE":
+      applyAndRefresh(
+        () => writeClientSetting(p.key, "boolValue", !configRead(p.key)),
+        p.panel,
+        p.index,
+      );
+      return;
+    case "SETTINGS_SET":
+      applyAndRefresh(() => writeClientSetting(p.key, p.valName, p.value), p.panel, p.index);
+      return;
+    case "SETTINGS_STEP": {
+      const range = configSchema.ranges && configSchema.ranges[p.key];
+      const current = Number(configRead(p.key)) || 0;
+      let next = current + p.step;
+      if (range) next = Math.min(range[1], Math.max(range[0], next));
+      applyAndRefresh(() => writeClientSetting(p.key, "intValue", next), p.panel, 1);
+      return;
+    }
+    default:
+      return;
+  }
+}
+
 export default function modernUI() {
-  openSettingsOverlay({
-    title: t("settings.ttSettings.title"),
-    subtitle: t("settings.ttSettings.madeByText"),
-    items: buildSettingsTree(),
-  });
+  tree = buildSettingsTree();
+  nodes = new Map();
+  registerNodes(tree, ROOT_ID);
+  showPanel(ROOT_ID, false);
 }

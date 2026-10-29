@@ -3,16 +3,12 @@ import { getCurrentPlayer, watchPlayer, watchVideoId } from "../shared/playerLif
 
 const EVENTS = { YT_STATE_CHANGE: "onStateChange", CONFIG_CHANGE: "configChange" };
 const CONFIG_KEYS = { QUALITY: "preferredVideoQuality" };
-const MAX_PLAYER_POLL_ATTEMPTS = 50;
-const PLAYER_POLL_DELAY_MS = 200;
 const MAX_APPLY_RETRIES = 10;
 const APPLY_RETRY_DELAY_MS = 500;
 
 class PreferredQualityHandler {
   #player = null;
-  #pollTimer = null;
   #applyRetryTimer = null;
-  #pollAttempts = 0;
   #applyRetryAttempts = 0;
   #lastVideoId = null;
   #hasAppliedQuality = false;
@@ -29,22 +25,6 @@ class PreferredQualityHandler {
     });
   }
 
-  #pollForPlayer(resetBudget = false) {
-    clearTimeout(this.#pollTimer);
-    this.#pollTimer = null;
-    if (resetBudget) this.#pollAttempts = 0;
-
-    const playerElement = getCurrentPlayer();
-    if (!playerElement) {
-      if (this.#pollAttempts >= MAX_PLAYER_POLL_ATTEMPTS) return;
-      this.#pollAttempts += 1;
-      this.#pollTimer = setTimeout(() => this.#pollForPlayer(false), PLAYER_POLL_DELAY_MS);
-      return;
-    }
-    this.#pollAttempts = 0;
-    this.#attachPlayer(playerElement);
-  }
-
   #clearApplyRetry() {
     if (this.#applyRetryTimer) {
       clearTimeout(this.#applyRetryTimer);
@@ -59,31 +39,32 @@ class PreferredQualityHandler {
   }
 
   #attachPlayer(playerElement) {
+    // watchPlayer reports the next player, so there is no polling here.
     if (!playerElement) {
       if (this.#player) {
-        try { this.#player.removeEventListener(EVENTS.YT_STATE_CHANGE, this.#handleStateChange); } catch (e) {}
+        try {
+          this.#player.removeEventListener(EVENTS.YT_STATE_CHANGE, this.#handleStateChange);
+        } catch (e) {}
       }
       this.#player = null;
       this.#lastVideoId = null;
       this.#resetApplyState();
-      this.#pollForPlayer(true);
       return;
     }
     if (playerElement === this.#player) return;
 
     if (this.#player) {
-      try { this.#player.removeEventListener(EVENTS.YT_STATE_CHANGE, this.#handleStateChange); } catch (e) {}
+      try {
+        this.#player.removeEventListener(EVENTS.YT_STATE_CHANGE, this.#handleStateChange);
+      } catch (e) {}
     }
-    this.#pollAttempts = 0;
-    clearTimeout(this.#pollTimer);
-    this.#pollTimer = null;
     this.#player = playerElement;
     this.#lastVideoId = null;
     this.#resetApplyState();
     try {
       this.#player.addEventListener(EVENTS.YT_STATE_CHANGE, this.#handleStateChange);
     } catch (e) {
-      console.warn("Could not attach state change listener:", e);
+      console.warn("[AxoTube:preferredVideoQuality] Could not attach state change listener:", e);
     }
     this.#handleStateChange();
   }
@@ -103,7 +84,8 @@ class PreferredQualityHandler {
       this.#applyRetryTimer ||
       this.#hasAppliedQuality ||
       this.#applyRetryAttempts >= MAX_APPLY_RETRIES
-    ) return;
+    )
+      return;
 
     this.#applyRetryAttempts += 1;
     this.#applyRetryTimer = setTimeout(() => {
@@ -114,7 +96,7 @@ class PreferredQualityHandler {
         this.#hasAppliedQuality = this.#applyQuality();
         if (!this.#hasAppliedQuality) this.#scheduleApplyRetry();
       } catch (e) {
-        console.warn("[PreferredQuality] Retry failed:", e);
+        console.warn("[AxoTube:preferredVideoQuality] Retry failed:", e);
       }
     }, APPLY_RETRY_DELAY_MS);
   }
@@ -136,7 +118,7 @@ class PreferredQualityHandler {
         if (!this.#hasAppliedQuality) this.#scheduleApplyRetry();
       }
     } catch (e) {
-      console.warn("State change handler failed:", e);
+      console.warn("[AxoTube:preferredVideoQuality] State change handler failed:", e);
     }
   };
 
@@ -153,7 +135,7 @@ class PreferredQualityHandler {
       this.#player.setPlaybackQualityRange(quality, quality);
       return true;
     } catch (e) {
-      console.warn("[PreferredQuality] Failed to apply quality:", e);
+      console.warn("[AxoTube:preferredVideoQuality] Failed to apply quality:", e);
       return false;
     }
   }
@@ -179,7 +161,7 @@ class PreferredQualityHandler {
       });
       return sorted[0]?.quality || null;
     } catch (e) {
-      console.warn("[PreferredQuality] Quality determination failed:", e);
+      console.warn("[AxoTube:preferredVideoQuality] Quality determination failed:", e);
       return null;
     }
   }
@@ -188,5 +170,8 @@ class PreferredQualityHandler {
 try {
   window.preferredVideoQualityHandler = new PreferredQualityHandler();
 } catch (e) {
-  console.error("PreferredQualityHandler initialization failed:", e);
+  console.error(
+    "[AxoTube:preferredVideoQuality] PreferredQualityHandler initialization failed:",
+    e,
+  );
 }

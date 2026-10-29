@@ -5,12 +5,87 @@ import { configRead } from "../config.js";
 import languages from "../translations/language-names.js";
 
 const LANGUAGE_CODES = [
-  "af", "sq", "am", "ar", "hy", "as", "az", "eu", "be", "bn", "bs", "bg", "my", "ca",
-  "zh-CN", "zh-TW", "zh-HK", "hr", "cs", "da", "nl", "en", "et", "fil", "fi", "fr", "gl",
-  "ka", "de", "el", "gu", "he", "hi", "hu", "is", "id", "ga", "it", "ja", "kn", "kk", "km",
-  "ko", "ky", "lo", "lv", "lt", "mk", "ms", "ml", "mt", "mr", "mn", "ne", "no", "or", "fa",
-  "pl", "pt", "pa", "ro", "ru", "sr", "si", "sk", "sl", "es", "sw", "sv", "ta", "te", "th",
-  "tr", "uk", "ur", "uz", "vi", "cy", "yi", "yo", "zu",
+  "af",
+  "sq",
+  "am",
+  "ar",
+  "hy",
+  "as",
+  "az",
+  "eu",
+  "be",
+  "bn",
+  "bs",
+  "bg",
+  "my",
+  "ca",
+  "zh-CN",
+  "zh-TW",
+  "zh-HK",
+  "hr",
+  "cs",
+  "da",
+  "nl",
+  "en",
+  "et",
+  "fil",
+  "fi",
+  "fr",
+  "gl",
+  "ka",
+  "de",
+  "el",
+  "gu",
+  "he",
+  "hi",
+  "hu",
+  "is",
+  "id",
+  "ga",
+  "it",
+  "ja",
+  "kn",
+  "kk",
+  "km",
+  "ko",
+  "ky",
+  "lo",
+  "lv",
+  "lt",
+  "mk",
+  "ms",
+  "ml",
+  "mt",
+  "mr",
+  "mn",
+  "ne",
+  "no",
+  "or",
+  "fa",
+  "pl",
+  "pt",
+  "pa",
+  "ro",
+  "ru",
+  "sr",
+  "si",
+  "sk",
+  "sl",
+  "es",
+  "sw",
+  "sv",
+  "ta",
+  "te",
+  "th",
+  "tr",
+  "uk",
+  "ur",
+  "uz",
+  "vi",
+  "cy",
+  "yi",
+  "yo",
+  "zu",
 ];
 
 export function getComprehensiveLanguageList() {
@@ -49,7 +124,7 @@ export function getCountryLanguage(countryCode) {
     const lang = maximized.language || "en";
     return { code: lang, name: languages.language.standard.long[lang] || lang };
   } catch (e) {
-    console.warn("axotube Subtitle Localization: Could not infer language for country", countryCode, e);
+    console.warn("[AxoTube:moreSubtitles] Could not infer language for country", countryCode, e);
     return null;
   }
 }
@@ -59,10 +134,10 @@ let isPatched = false;
 function getUserCountryCode() {
   try {
     if (window.yt && window.yt.config_ && window.yt.config_.GL) return window.yt.config_.GL;
-    console.warn("axotube Subtitle Localization: Could not determine user country code");
+    console.warn("[AxoTube:moreSubtitles] Could not determine user country code");
     return null;
   } catch (error) {
-    console.error("axotube Subtitle Localization: Error getting country code:", error);
+    console.error("[AxoTube:moreSubtitles] Error getting country code:", error);
     return null;
   }
 }
@@ -73,7 +148,8 @@ function languageExistsInMenu(items, languageCode, languageName) {
     const translationLang = commands?.[0]?.selectSubtitlesTrackCommand?.translationLanguage;
     return !!(
       translationLang &&
-      (translationLang.languageCode === languageCode || translationLang.languageName === languageName)
+      (translationLang.languageCode === languageCode ||
+        translationLang.languageName === languageName)
     );
   });
 }
@@ -85,8 +161,15 @@ function createLanguageOption(languageCode, languageName) {
       serviceEndpoint: {
         commandExecutorCommand: {
           commands: [
-            { selectSubtitlesTrackCommand: { translationLanguage: { languageCode, languageName } } },
-            { openClientOverlayAction: { type: "CLIENT_OVERLAY_TYPE_CAPTIONS_LANGUAGE", updateAction: true } },
+            {
+              selectSubtitlesTrackCommand: { translationLanguage: { languageCode, languageName } },
+            },
+            {
+              openClientOverlayAction: {
+                type: "CLIENT_OVERLAY_TYPE_CAPTIONS_LANGUAGE",
+                updateAction: true,
+              },
+            },
             { signalAction: { signal: "POPUP_BACK" } },
           ],
         },
@@ -141,9 +224,9 @@ function patchSubtitleMenu() {
         return originalResolveCommand.apply(this, arguments);
       }
 
-      const items = cmd.openPopupAction?.popup?.overlaySectionRenderer?.overlay
-        ?.overlayTwoPanelRenderer?.actionPanel?.overlayPanelRenderer?.content
-        ?.overlayPanelItemListRenderer?.items;
+      const items =
+        cmd.openPopupAction?.popup?.overlaySectionRenderer?.overlay?.overlayTwoPanelRenderer
+          ?.actionPanel?.overlayPanelRenderer?.content?.overlayPanelItemListRenderer?.items;
       if (!Array.isArray(items)) return originalResolveCommand.apply(this, arguments);
 
       const existingLanguages = getExistingLanguages(items);
@@ -197,7 +280,7 @@ function attemptSubtitlePatch() {
   subtitlePollCount += 1;
   if (patchSubtitleMenu()) return;
   if (subtitlePollCount >= SUBTITLE_POLL_LIMIT) {
-    console.warn("axotube Subtitle Localization: resolveCommand did not become ready in time.");
+    console.warn("[AxoTube:moreSubtitles] resolveCommand did not become ready in time.");
     return;
   }
   subtitlePollTimer = setTimeout(attemptSubtitlePatch, SUBTITLE_POLL_DELAY_MS);

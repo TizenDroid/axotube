@@ -11,9 +11,8 @@ export const cloneJSON = clone;
 
 const defaultConfig = clone(configSchema.defaults);
 // Outside the real Tizen host keep the existing browser/dev default.
-defaultConfig.enableFixedUI = window.h5vcc && window.h5vcc.tizentube
-  ? configSchema.defaults.enableFixedUI
-  : true;
+defaultConfig.enableFixedUI =
+  window.h5vcc && window.h5vcc.tizentube ? configSchema.defaults.enableFixedUI : true;
 
 export const validateConfigValue = configPolicy.validateConfigValue;
 
@@ -29,7 +28,7 @@ function initConfig() {
       if (validateConfigValue(key, parsed[key])) localConfig[key] = clone(parsed[key]);
     });
   } catch (err) {
-    console.warn("Config read failed; using defaults:", err);
+    console.warn("[AxoTube:config] Config read failed; using defaults:", err);
   }
 }
 
@@ -42,7 +41,7 @@ function tryPersistConfig() {
     return true;
   } catch (err) {
     if (err.name === "QuotaExceededError") {
-      console.warn("localStorage quota exceeded; replacing axotube config only");
+      console.warn("[AxoTube:config] localStorage quota exceeded; replacing axotube config only");
       try {
         if (typeof window.localStorage.removeItem === "function") {
           window.localStorage.removeItem(CONFIG_KEY);
@@ -52,11 +51,11 @@ function tryPersistConfig() {
         window.localStorage[CONFIG_KEY] = nativeJSONStringify(localConfig);
         return true;
       } catch (e2) {
-        console.error("Failed to persist axotube config:", e2);
+        console.error("[AxoTube:config] Failed to persist axotube config:", e2);
         return false;
       }
     }
-    console.error("Failed to persist config:", err);
+    console.error("[AxoTube:config] Failed to persist config:", err);
     return false;
   }
 }
@@ -66,7 +65,7 @@ function tryPersistConfig() {
 // re-validating on every call was pure overhead.
 export function configRead(key) {
   if (!Object.prototype.hasOwnProperty.call(defaultConfig, key)) {
-    console.warn("Unknown config key", key);
+    console.warn("[AxoTube:config] Unknown config key", key);
     return undefined;
   }
   if (localConfig[key] === undefined) localConfig[key] = clone(defaultConfig[key]);
@@ -75,7 +74,7 @@ export function configRead(key) {
 
 export function configWrite(key, value) {
   if (!validateConfigValue(key, value)) {
-    console.warn("Rejected invalid config value", key, value);
+    console.warn("[AxoTube:config] Rejected invalid config value", key, value);
     return false;
   }
   localConfig[key] = clone(value);

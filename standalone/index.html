@@ -28,6 +28,21 @@
     <script>
         "use strict";
 
+        // Samsung TV browser user agent, applied to the whole webview the way
+        // TizenBrew does it (tizen.websetting.setUserAgentString). It runs here,
+        // on the first page, before anything navigates to YouTube, so the HTML,
+        // scripts and API requests all carry it. No settings UI.
+        var DEFAULT_USER_AGENT = "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) AppleWebKit/537.3 (KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3";
+        try {
+            if (window.tizen && tizen.websetting && typeof tizen.websetting.setUserAgentString === "function") {
+                tizen.websetting.setUserAgentString(DEFAULT_USER_AGENT);
+            } else {
+                console.warn("tizen.websetting unavailable; user agent not changed");
+            }
+        } catch (e) {
+            console.warn("Could not set user agent: " + e.message);
+        }
+
         function safeRegisterKey(key) {
             try {
                 if (window.tizen && tizen.tvinputdevice && typeof tizen.tvinputdevice.registerKey === "function") {
@@ -73,10 +88,16 @@
         }
 
         var PROXY_URL = "http://localhost:8099";
+        // The service listens on 127.0.0.1 only. Checking that address directly
+        // avoids "localhost" resolving to IPv6 first and waiting out a timeout.
+        var HEALTH_URL = "http://127.0.0.1:8099/tizentube/health";
         var DIAL_URL = "http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube";
-        var healthAttempts = 0;
-        var MAX_HEALTH_ATTEMPTS = 100;
         var HEALTH_REQUEST_TIMEOUT_MS = 2000;
+        var LAUNCH_RETRY_LIMIT = 3;
+        var launchFailures = 0;
+        var healthAttempts = 0;
+        var SLOW_START_ATTEMPT = 40;
+        var MAX_HEALTH_ATTEMPTS = 600;
 
         function setStatus(text) {
             var el = document.getElementById("status");
@@ -106,35 +127,62 @@
             });
         }
 
+        // Polls quickly at first, then backs off. The bound is generous (about
+        // ten minutes) so a slow TV keeps the status line updated and recovers
+        // as soon as the service answers.
+        function healthDelayMs() {
+            return healthAttempts < 20 ? 300 : 1000;
+        }
+
         function openYouTube() {
             var args = sanitizeCastArgs(getCastArgs());
             var target = PROXY_URL + "/tv?additionalDataUrl=" + DIAL_URL + (args ? "&" + args : "");
             healthAttempts += 1;
-            fetchWithDeadline(PROXY_URL + "/tizentube/health", { cache: "no-store" }, HEALTH_REQUEST_TIMEOUT_MS)
+            if (healthAttempts > MAX_HEALTH_ATTEMPTS) {
+                setStatus("Service did not respond. Restart the app.");
+                return;
+            }
+            setStatus(
+                healthAttempts < SLOW_START_ATTEMPT
+                    ? "Starting axotube service… (" + healthAttempts + ")"
+                    : "Service is slow to start. Still waiting… (" + healthAttempts + ")"
+            );
+            fetchWithDeadline(HEALTH_URL, { cache: "no-store" }, HEALTH_REQUEST_TIMEOUT_MS)
                 .then(function (r) {
                     if (r.ok) {
+                        setStatus("Service running. Opening YouTube…");
                         location.href = target;
-                    } else if (healthAttempts < MAX_HEALTH_ATTEMPTS) {
-                        setTimeout(openYouTube, 300);
                     } else {
-                        setStatus("Could not start axotube service. Restart the app.");
+                        setTimeout(openYouTube, healthDelayMs());
                     }
                 })
                 .catch(function () {
-                    if (healthAttempts < MAX_HEALTH_ATTEMPTS) setTimeout(openYouTube, 300);
-                    else setStatus("Could not start axotube service. Restart the app.");
+                    setTimeout(openYouTube, healthDelayMs());
                 });
         }
 
         function launchService() {
+            setStatus("Launching axotube service…");
             try {
                 var pkgId = tizen.application.getCurrentApplication().appInfo.packageId;
                 var serviceId = pkgId + ".StandaloneService";
                 tizen.application.launchAppControl(
                     new tizen.ApplicationControl("http://tizen.org/appcontrol/operation/service"),
                     serviceId,
-                    openYouTube,
-                    function (e) { setStatus("Launch Service failed: " + (e && e.message ? e.message : e)); }
+                    function () {
+                        setStatus("Service launched. Waiting for it to respond…");
+                        openYouTube();
+                    },
+                    function (e) {
+                        launchFailures += 1;
+                        var reason = e && e.message ? e.message : e;
+                        if (launchFailures < LAUNCH_RETRY_LIMIT) {
+                            setStatus("Service launch failed (" + reason + "). Retrying…");
+                            setTimeout(launchService, 2000);
+                        } else {
+                            setStatus("Service launch failed: " + reason + ". Restart the app.");
+                        }
+                    }
                 );
             } catch (e) {
                 setStatus("Launch Service failed: " + e.message);

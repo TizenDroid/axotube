@@ -26,6 +26,10 @@ fs.copyFileSync(
   path.join(STANDALONE, "userscript", "userScript.js"),
 );
 console.log("copied fresh dist/userScript.js -> standalone/userscript/userScript.js");
+const builtEarly = path.join(ROOT, "dist", "early.js");
+if (!fs.existsSync(builtEarly)) throw new Error("Root build did not produce dist/early.js");
+fs.copyFileSync(builtEarly, path.join(STANDALONE, "userscript", "early.js"));
+console.log("copied fresh dist/early.js -> standalone/userscript/early.js");
 
 const svcDir = path.join(STANDALONE, "service");
 // standalone/service intentionally has a tiny independent package. Versions are

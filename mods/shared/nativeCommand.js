@@ -5,7 +5,8 @@ let cachedKey = null;
 let cachedRoot = null;
 let cachedInstance = null;
 let resolverPatcher = null;
-let patchWatchTimer = null;
+let watchingRoutes = false;
+let retryTimers = [];
 
 function registry() {
   try {
@@ -71,9 +72,11 @@ function findResolver() {
   // The receiver remains window when dispatched through this fallback.
   try {
     if (typeof window !== "undefined" && typeof window._yttv_resolveCommand === "function") {
-      return { resolveCommand: function (command, context) {
-        return window._yttv_resolveCommand(command, context);
-      } };
+      return {
+        resolveCommand: function (command, context) {
+          return window._yttv_resolveCommand(command, context);
+        },
+      };
     }
   } catch (e) {}
   return null;
@@ -126,7 +129,10 @@ export function dispatchNativeCommandWhenReady(command, options = {}) {
           // Even a thrown native method may already have acted. ACK this
           // attempt instead of executing the same queued command again.
           try {
-            console.warn("axotube: native command threw after dispatch attempt; not retrying", e);
+            console.warn(
+              "[AxoTube:nativeCommand] native command threw after dispatch attempt; not retrying",
+              e,
+            );
           } catch (ignored) {}
           resolve(true);
         }
@@ -168,10 +174,20 @@ export function refreshNativeResolverPatches() {
   return found;
 }
 
-/** Observe native replacement roots without running discovery on every frame. */
+// Replacement resolvers appear when the route changes, so discovery runs on
+// navigation instead of on a timer (the registry walk is not cheap). Three
+// short retries after each navigation cover resolvers the client builds late.
+const RETRY_DELAYS_MS = [250, 1000, 3000];
+
+function onRouteChange() {
+  refreshNativeResolverPatches();
+  for (const timer of retryTimers) clearTimeout(timer);
+  retryTimers = RETRY_DELAYS_MS.map((delay) => setTimeout(refreshNativeResolverPatches, delay));
+}
+
+/** Refresh resolver patches on navigation. Idempotent. */
 export function watchNativeResolverPatches() {
-  if (patchWatchTimer !== null) return;
-  // Replacement resolvers appear on navigation, not every frame; 5 s is ample
-  // and each tick walks the whole native registry.
-  patchWatchTimer = setInterval(refreshNativeResolverPatches, 5000);
+  if (watchingRoutes) return;
+  watchingRoutes = true;
+  window.addEventListener("hashchange", onRouteChange, false);
 }

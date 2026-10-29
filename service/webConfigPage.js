@@ -70,7 +70,7 @@ module.exports.webConfigPage = `<!DOCTYPE html>
     enableSponsorBlockMusicOfftopic:"SponsorBlock", enableSponsorBlockFiller:"SponsorBlock", enableSponsorBlockHighlight:"SponsorBlock",
     videoSpeed:"Player", speedSettingsIncrement:"Player", preferredVideoQuality:"Player", videoPreferredCodec:"Player", enablePreviousNextButtons:"Player",
     enableSuperThanksButton:"Player", enableSpeedControlsButton:"Player", enablePatchingVideoPlayer:"Player", enableMPButton:"Player",
-    enableSwapMPWithPIP:"Player", enablePreviews:"Player", previewLengthSeconds:"Player", autoFrameRate:"Player", autoFrameRatePauseVideoFor:"Player",
+    enableSwapMPWithPIP:"Player", enablePreviews:"Player", previewLengthSeconds:"Player", enableRemainingTime:"Player", enablePauseOnBlur:"Player", enableLowMemoryMode:"Player", autoFrameRate:"Player", autoFrameRatePauseVideoFor:"Player", enableOnePressMode:"Player", enableExperimentalResolution:"Player", experimentalMaxResolution:"Player",
     enableDeArrowTitles:"Player", enableDeArrowThumbnails:"Player",
     routeColor:"Theme", routeBackgroundUrl:"Theme", themePreset:"Theme", textTheme:"Theme",
     enableHqThumbnails:"Interface", enableLongPress:"Interface", enableShorts:"Interface", enableReducedMotion:"Interface",

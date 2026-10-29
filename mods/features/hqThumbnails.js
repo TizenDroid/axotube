@@ -49,8 +49,7 @@ export function hqify(items) {
       const videoID = item.tileRenderer.onSelectCommand?.watchEndpoint?.videoId;
       if (!videoID) continue;
 
-      const primaryThumbnails =
-        item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails;
+      const primaryThumbnails = item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails;
       if (primaryThumbnails === hqThumbnailsCache.get(videoID)) continue;
 
       let thumbnails = hqThumbnailsCache.get(videoID);
@@ -63,18 +62,18 @@ export function hqify(items) {
       }
 
       if (
-        item.tileRenderer.onFocusCommand?.startInlinePlaybackCommand
-          ?.playbackEndpoint?.startPlaylistItemEndpoint?.playlistItemData
-          ?.thumbnail?.thumbnails
+        item.tileRenderer.onFocusCommand?.startInlinePlaybackCommand?.playbackEndpoint
+          ?.startPlaylistItemEndpoint?.playlistItemData?.thumbnail?.thumbnails
       ) {
-        item.tileRenderer.onFocusCommand.startInlinePlaybackCommand.playbackEndpoint.startPlaylistItemEndpoint.playlistItemData.thumbnail.thumbnails = thumbnails;
+        item.tileRenderer.onFocusCommand.startInlinePlaybackCommand.playbackEndpoint.startPlaylistItemEndpoint.playlistItemData.thumbnail.thumbnails =
+          thumbnails;
       }
 
       if (item.tileRenderer.onFocusCommand) {
         deepSetThumbnails(item.tileRenderer.onFocusCommand, thumbnails);
       }
     } catch (e) {
-      console.warn("Error processing thumbnail:", e);
+      console.warn("[AxoTube:hqThumbnails] Error processing thumbnail:", e);
     }
   }
 }

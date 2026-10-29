@@ -11,15 +11,10 @@ import { readFileSync } from "fs";
 // at build time (shown in the welcome toast). mods/package.json has its own
 // version, so we explicitly read the project root one. The build runs from
 // the mods/ directory, so the root package.json is one level up.
-const rootPackage = JSON.parse(
-  readFileSync(`${process.cwd()}/../package.json`, "utf8"),
-);
+const rootPackage = JSON.parse(readFileSync(`${process.cwd()}/../package.json`, "utf8"));
 const AXOTUBE_VERSION = String(rootPackage.version);
 
-export default {
-  input: "userScript.js",
-  output: { file: "../dist/userScript.js", format: "iife" },
-  plugins: [
+const makePlugins = () => [
     json(),
 
     string({
@@ -43,7 +38,11 @@ export default {
         [
           "@babel/preset-env",
           {
-            // Target Tizen 4 (N5470) Cobalt / Chromium 47
+            // Target Tizen 4 (N5470) Cobalt / Chromium 47. forceAllTransforms
+            // is required: Chrome 47 already supports arrow functions, so
+            // without it Babel left them (and other ES2015 syntax) in the
+            // bundle. The ES5 check in tests/es5-output.test.cjs enforces this.
+            forceAllTransforms: true,
             targets: {
               browsers: ["Chrome 47"],
             },
@@ -82,11 +81,7 @@ export default {
     terser({
       ecma: 5, // Output ES5 for maximum Tizen 4 compatibility
       mangle: {
-        reserved: [
-          "h5vcc",
-          "_yttv",
-          "localStorage",
-        ],
+        reserved: ["h5vcc", "_yttv", "localStorage"],
       },
       compress: {
         passes: 1, // Conservative compression to avoid breaking old engines
@@ -104,7 +99,21 @@ export default {
       // Bake the version from the root package.json into the bundle
       // (mods/version.js token -> e.g. "1.15.19"). The token lives inside a
       // string literal, so replace with the bare value (no quotes added).
-      "__AXOTUBE_VERSION__": AXOTUBE_VERSION,
+      __AXOTUBE_VERSION__: AXOTUBE_VERSION,
     }),
-  ],
-};
+  ];
+
+// Two bundles. userScript.js is the main app. early.js is injected at the start
+// of <head> by the standalone proxy, so it runs before YouTube's own scripts.
+export default [
+  {
+    input: "userScript.js",
+    output: { file: "../dist/userScript.js", format: "iife" },
+    plugins: makePlugins(),
+  },
+  {
+    input: "early.js",
+    output: { file: "../dist/early.js", format: "iife" },
+    plugins: makePlugins(),
+  },
+];

@@ -22,6 +22,11 @@ import "./ui/bootLoader.js";
 
 // ── 4. Application modules ────────────────────────────────────────────────────
 import "./features/userAgentSpoofing.js";
+// Before the client reads window.environment, so the memory-saving switch lands.
+import "./features/lowMemoryMode.js";
+// Before the player reads the container size and codec support.
+import "./features/experimentalResolution.js";
+import "./features/codecPreference.js";
 import "./translations/index.js";
 import "./domrect-polyfill";
 
@@ -29,6 +34,9 @@ import "./features/adblock.js";
 import "./features/featureTweaks.js";
 import "./features/hqThumbnailsFocusObserver.js";
 import "./features/sponsorblock.js";
+import "./features/remainingTime.js";
+import "./features/pauseOnBlur.js";
+import "./features/onePressMode.js";
 import "./ui/ui.js";
 import "./ui/speedUI.js";
 import "./ui/theme.js";

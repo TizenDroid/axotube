@@ -1,5 +1,4 @@
 // Shared thumbnail-quality helpers.
-import { configRead } from "../config.js";
 import { createBoundedCache } from "./boundedCache.js";
 
 export const THUMBNAIL_URLS = [
@@ -50,7 +49,9 @@ export function probeBestThumbnailQuality(videoId, onResult) {
     hqPendingTesters.delete(videoId);
     hqQualityCache.set(videoId, quality);
     waiters.forEach((cb) => {
-      try { cb(quality); } catch (e) {}
+      try {
+        cb(quality);
+      } catch (e) {}
     });
   };
 
@@ -77,8 +78,4 @@ export function isVideoThumbnailArray(thumbnails) {
     thumbnails[0].width &&
     thumbnails[0].width > 100
   );
-}
-
-export function isHqThumbnailsEnabled() {
-  return configRead("enableHqThumbnails");
 }

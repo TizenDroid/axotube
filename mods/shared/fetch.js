@@ -12,9 +12,7 @@ export function createFetchWithTimeout(timeout) {
       if (typeof AbortController === "function") controller = new AbortController();
     } catch (e) {}
 
-    const requestOptions = controller
-      ? { ...options, signal: controller.signal }
-      : options;
+    const requestOptions = controller ? { ...options, signal: controller.signal } : options;
     let timeoutId = null;
     const timeoutPromise = new Promise((_, reject) => {
       timeoutId = setTimeout(() => {

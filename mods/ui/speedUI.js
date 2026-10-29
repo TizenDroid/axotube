@@ -12,7 +12,7 @@ function applyConfiguredSpeed(video) {
   try {
     video.playbackRate = configRead("videoSpeed");
   } catch (e) {
-    console.warn("Speed apply failed:", e);
+    console.warn("[AxoTube:speedUI] Speed apply failed:", e);
   }
 }
 
@@ -20,13 +20,15 @@ function attachVideo(video = getCurrentVideo()) {
   if (!video || video === boundVideo) return;
 
   if (boundVideo) {
-    try { boundVideo.removeEventListener("canplay", onCanPlay); } catch (e) {}
+    try {
+      boundVideo.removeEventListener("canplay", onCanPlay);
+    } catch (e) {}
   }
   boundVideo = video;
   try {
     boundVideo.addEventListener("canplay", onCanPlay);
   } catch (e) {
-    console.warn("Speed initialization failed:", e);
+    console.warn("[AxoTube:speedUI] Speed initialization failed:", e);
   }
   applyConfiguredSpeed(boundVideo);
 }
@@ -78,15 +80,18 @@ function speedSettings() {
   const currentSpeed = configRead("videoSpeed");
   let selectedIndex = 0;
   const configuredIncrement = Number(configRead("speedSettingsIncrement"));
-  const requestedIncrement = Number.isFinite(configuredIncrement) && configuredIncrement > 0
-    ? configuredIncrement
-    : 0.25;
+  const requestedIncrement =
+    Number.isFinite(configuredIncrement) && configuredIncrement > 0 ? configuredIncrement : 0.25;
   // Rendering hundreds of buttons is expensive on older Tizen TVs. Keep the
   // setting precise in Web Config, but coarsen only the modal list when needed.
   const increment = Math.max(requestedIncrement, MAX_SPEED / MAX_SPEED_OPTIONS);
   const buttons = [];
 
-  for (let speed = increment; speed <= MAX_SPEED && buttons.length < MAX_SPEED_OPTIONS; speed += increment) {
+  for (
+    let speed = increment;
+    speed <= MAX_SPEED && buttons.length < MAX_SPEED_OPTIONS;
+    speed += increment
+  ) {
     const fixedSpeed = Math.round(speed * 100) / 100;
     buttons.push(
       buttonItem({ title: `${fixedSpeed}x` }, null, [
@@ -136,13 +141,9 @@ function speedSettings() {
   );
 
   try {
-    showModal(
-      "Playback Speed",
-      overlayPanelItemListRenderer(buttons, selectedIndex),
-      "tt-speed",
-    );
+    showModal("Playback Speed", overlayPanelItemListRenderer(buttons, selectedIndex), "axo-speed");
   } catch (e) {
-    console.error("Speed settings modal failed:", e);
+    console.error("[AxoTube:speedUI] Speed settings modal failed:", e);
   }
 }
 

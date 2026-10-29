@@ -55,10 +55,7 @@ export function extractAssignedFunctions(code) {
       if (node.type !== "AssignmentExpression") return;
       const rhs = node.right;
       if (!rhs || !rhs.range) return;
-      const rhsSrc = original.slice(
-        rhs.range[0] - wrapOffset,
-        rhs.range[1] - wrapOffset,
-      );
+      const rhsSrc = original.slice(rhs.range[0] - wrapOffset, rhs.range[1] - wrapOffset);
       let inner = null;
 
       if (
@@ -78,20 +75,14 @@ export function extractAssignedFunctions(code) {
             break;
           }
         }
-      } else if (
-        rhs.type === "FunctionExpression" ||
-        rhs.type === "ArrowFunctionExpression"
-      ) {
+      } else if (rhs.type === "FunctionExpression" || rhs.type === "ArrowFunctionExpression") {
         inner = rhsSrc;
       }
 
       out.push({
         left:
           node.left && node.left.range
-            ? original.slice(
-                node.left.range[0] - wrapOffset,
-                node.left.range[1] - wrapOffset,
-              )
+            ? original.slice(node.left.range[0] - wrapOffset, node.left.range[1] - wrapOffset)
             : null,
         rhs: rhsSrc,
         returned: inner,

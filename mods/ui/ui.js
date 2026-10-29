@@ -28,19 +28,16 @@ function applyReducedMotionFlags() {
     flags.enableSkipButtonSlideInAnimation = !reduced;
     flags.enableLikeButtonAnimation = !reduced;
   } catch (e) {
-    console.warn("Reduced motion flags apply failed:", e);
+    console.warn("[AxoTube:ui] Reduced motion flags apply failed:", e);
   }
 }
 
 function applyReducedMotionBody() {
   try {
     if (!document.body) return;
-    document.body.classList.toggle(
-      "axotube-reduced-motion",
-      !!configRead("enableReducedMotion"),
-    );
+    document.body.classList.toggle("axotube-reduced-motion", !!configRead("enableReducedMotion"));
   } catch (e) {
-    console.warn("Reduced motion apply failed:", e);
+    console.warn("[AxoTube:ui] Reduced motion apply failed:", e);
   }
 }
 
@@ -62,26 +59,29 @@ function clearDimmingTimer() {
 function armDimmingTimer() {
   clearDimmingTimer();
   if (!configRead("enableScreenDimming")) return;
-  keyTimeout = setTimeout(() => {
-    keyTimeout = null;
-    if (!configRead("enableScreenDimming")) {
-      restoreScreenOpacity();
-      return;
-    }
-    const videoPlayer = document.querySelector(".html5-video-player");
-    if (!videoPlayer) return;
-    const playerStateObject = videoPlayer.getPlayerStateObject?.();
-    if (playerStateObject?.isPlaying) return;
-    const container = document.getElementById("container");
-    if (container) {
-      container.style.setProperty(
-        "opacity",
-        (1 - configRead("dimmingOpacity")).toString(),
-        "important",
-      );
-      screenIsDimmed = true;
-    }
-  }, configRead("dimmingTimeout") * 1000);
+  keyTimeout = setTimeout(
+    () => {
+      keyTimeout = null;
+      if (!configRead("enableScreenDimming")) {
+        restoreScreenOpacity();
+        return;
+      }
+      const videoPlayer = document.querySelector(".html5-video-player");
+      if (!videoPlayer) return;
+      const playerStateObject = videoPlayer.getPlayerStateObject?.();
+      if (playerStateObject?.isPlaying) return;
+      const container = document.getElementById("container");
+      if (container) {
+        container.style.setProperty(
+          "opacity",
+          (1 - configRead("dimmingOpacity")).toString(),
+          "important",
+        );
+        screenIsDimmed = true;
+      }
+    },
+    configRead("dimmingTimeout") * 1000,
+  );
 }
 
 function execute_once_dom_loaded() {
@@ -115,7 +115,7 @@ function execute_once_dom_loaded() {
         window.tectonicConfig.featureSwitches.enableListAnimations = true;
       }
     } catch (e) {
-      console.warn("Could not apply UI fixes:", e);
+      console.warn("[AxoTube:ui] Could not apply UI fixes:", e);
     }
   }
   applyReducedMotionFlags();
@@ -127,12 +127,12 @@ function execute_once_dom_loaded() {
       try {
         patchResolveCommand();
       } catch (e) {
-        console.warn("Settings command patch refresh failed:", e);
+        console.warn("[AxoTube:ui] Settings command patch refresh failed:", e);
       }
       try {
         modernUI();
       } catch (e) {
-        console.error("Settings open failed:", e);
+        console.error("[AxoTube:ui] Settings open failed:", e);
       }
     } else if (evt.keyCode == 39 && evt.type === "keydown") {
       if (document.querySelector("ytlr-search-text-box > .zylon-focus") && window.isPipPlaying) {
@@ -141,7 +141,7 @@ function execute_once_dom_loaded() {
           if (ytlrPlayer) ytlrPlayer.style.setProperty("background-color", "rgb(0, 0, 0)");
           pipToFullscreen();
         } catch (e) {
-          console.warn("PiP exit failed:", e);
+          console.warn("[AxoTube:ui] PiP exit failed:", e);
         }
       }
     }
@@ -163,13 +163,13 @@ function execute_once_dom_loaded() {
     try {
       resolveCommand(JSON.parse(launchData));
     } catch (e) {
-      console.warn("Launch command failed:", e);
+      console.warn("[AxoTube:ui] Launch command failed:", e);
     }
   } else if (configRead("reloadHomeOnStartup")) {
     try {
       if (location.hash && location.hash.substring(1) !== "/") location.hash = "/";
     } catch (e) {
-      console.warn("Reload home on startup failed:", e);
+      console.warn("[AxoTube:ui] Reload home on startup failed:", e);
     }
   }
 
@@ -179,7 +179,7 @@ function execute_once_dom_loaded() {
       commandExecutor.executeFunction(new commandExecutor.commandFunction("reloadGuideAction"));
     }
   } catch (e) {
-    console.warn("Guide reload failed:", e);
+    console.warn("[AxoTube:ui] Guide reload failed:", e);
   }
 
   if (configRead("enableFixedUI")) {
@@ -188,9 +188,9 @@ function execute_once_dom_loaded() {
         const body = document.body;
         if (body?.classList.contains("app-quality-root")) body.classList.remove("app-quality-root");
       });
-      observer.observe(document.body, { attributes: true });
+      observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     } catch (e) {
-      console.warn("UI quality observer failed:", e);
+      console.warn("[AxoTube:ui] UI quality observer failed:", e);
     }
   }
 
@@ -203,7 +203,7 @@ function ensureResolveCommandPatched() {
     // Keep newly-created YouTube resolvers patched after route/host replacement.
     watchNativeResolverPatches();
   } catch (e) {
-    console.warn("axotube: unable to install native command patch:", e);
+    console.warn("[AxoTube:ui] unable to install native command patch:", e);
   }
 }
 

@@ -1,98 +1,37 @@
-const deviceProfiles = [
-    {
-        architecture: 'Linux arm64-v8a',
-        os: 'Android 10',
-        rasterizer: 'gles',
-        manufacturer: 'Sony',
-        deviceType: 'ATV',
-        chipsetModel: 'sdm845',
-        modelYear: 13140765,
-        firmwareVersion: '52.1.C.0.268',
-        brand: 'KDDI',
-        model: 'SOV38'
-    },
-    {
-        architecture: 'Linux armeabi-v7a',
-        os: 'Android 14',
-        rasterizer: 'gles',
-        manufacturer: 'Google',
-        deviceType: 'ATV',
-        chipsetModel: 'sabrina',
-        modelYear: 2020,
-        firmwareVersion: 'UTTC.250917.004',
-        brand: 'google',
-        model: 'Chromecast'
-    },
-    {
-        architecture: 'Linux armeabi-v7a',
-        os: 'Android 12',
-        rasterizer: 'gles',
-        manufacturer: 'TCL',
-        deviceType: 'ATV',
-        chipsetModel: 'merak',
-        modelYear: 2023,
-        firmwareVersion: 'STT2.221228.001',
-        brand: 'TCL',
-        model: 'Smart TV Pro'
-    },
-    {
-        architecture: 'Linux armeabi-v7a',
-        os: 'Android 7.1.2',
-        rasterizer: 'gles',
-        manufacturer: 'Amazon',
-        deviceType: 'ATV',
-        chipsetModel: 'mt8695',
-        modelYear: 0,
-        firmwareVersion: 'NS6294',
-        brand: 'Amazon',
-        model: 'AFTMM'
+// The webview's user agent is set to a Samsung TV browser string, the same way
+// TizenBrew does it: tizen.websetting.setUserAgentString changes the agent for
+// the whole webview, so HTTP requests and navigator.userAgent both carry it.
+//
+// The standalone splash page applies it first, before anything navigates to
+// YouTube. This module is the fallback for a page that loads without the
+// splash having run. It reloads at most once per session so the page's own
+// requests pick the agent up, and the guard stops any reload loop.
+
+const DEFAULT_USER_AGENT =
+  "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) AppleWebKit/537.3 (KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3";
+const APPLIED_SESSION_KEY = "axotube-user-agent-applied";
+
+function setWebviewUserAgent(ua) {
+  try {
+    if (window.tizen && window.tizen.websetting && typeof window.tizen.websetting.setUserAgentString === "function") {
+      window.tizen.websetting.setUserAgentString(ua);
+      return true;
     }
-]
-
-const cobaltVersion = '25.lts.30.1034958-gold';
-const v8Version = 'v8/8.8.278.17-jit';
-const starboardVersion = '15';
-const auxField = 'com.google.android.youtube.tv/5.30.301';
-const USER_AGENT_APPLIED_SESSION_KEY = 'axotube-user-agent-applied';
-const MAX_READY_ATTEMPTS = 120;
-let readyAttempts = 0;
-
-function generateUserAgent(profile) {
-    return `Mozilla/5.0 (${profile.architecture}; ${profile.os}) Cobalt/${cobaltVersion} (unlike Gecko) ${v8Version} ${profile.rasterizer} Starboard/${starboardVersion}, ${profile.manufacturer}_${profile.deviceType}_${profile.chipsetModel}_${profile.modelYear}/${profile.firmwareVersion} (${profile.brand}, ${profile.model}) ${auxField}`;
+  } catch (e) {
+    console.warn("[AxoTube:userAgentSpoofing] setUserAgentString failed:", e);
+  }
+  return false;
 }
 
-function trySpoofUserAgent() {
-    const api = window.h5vcc && window.h5vcc.tizentube;
-    if (!document.querySelector('.content-container') || !api || typeof api.SetUserAgent !== 'function') {
-        readyAttempts += 1;
-        if (readyAttempts < MAX_READY_ATTEMPTS) setTimeout(trySpoofUserAgent, 250);
-        return;
+function applyDefaultUserAgent() {
+  if (navigator.userAgent && navigator.userAgent.indexOf("SamsungBrowser/2.1") !== -1) return;
+  if (!setWebviewUserAgent(DEFAULT_USER_AGENT)) return;
+  try {
+    if (sessionStorage.getItem(APPLIED_SESSION_KEY) !== DEFAULT_USER_AGENT) {
+      sessionStorage.setItem(APPLIED_SESSION_KEY, DEFAULT_USER_AGENT);
+      location.reload();
     }
-
-    const ua = localStorage.getItem('userAgent');
-    if (ua) {
-        try {
-            api.SetUserAgent(ua);
-            if (sessionStorage.getItem(USER_AGENT_APPLIED_SESSION_KEY) !== ua) {
-                sessionStorage.setItem(USER_AGENT_APPLIED_SESSION_KEY, ua);
-                location.reload();
-            }
-        } catch (e) {
-            console.warn('Failed to apply saved axotube user agent:', e);
-        }
-        return;
-    }
-
-    const randomProfile = deviceProfiles[Math.floor(Math.random() * deviceProfiles.length)];
-    const spoofedUserAgent = generateUserAgent(randomProfile);
-    try {
-        localStorage.setItem('userAgent', spoofedUserAgent);
-        api.SetUserAgent(spoofedUserAgent);
-        sessionStorage.setItem(USER_AGENT_APPLIED_SESSION_KEY, spoofedUserAgent);
-        location.reload();
-    } catch (e) {
-        console.warn('Failed to create/apply axotube user agent:', e);
-    }
+  } catch (e) {}
 }
 
-trySpoofUserAgent();
+applyDefaultUserAgent();

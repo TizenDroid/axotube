@@ -3,6 +3,7 @@ import { configRead, cloneJSON } from "../config.js";
 
 export function addPreviews(items) {
   if (!configRead("enablePreviews")) return;
+  const durationMs = configRead("previewLengthSeconds") * 1000; // read once, not per item
   for (const item of items) {
     if (!item.tileRenderer) continue;
     const watchEndpoint = item.tileRenderer.onSelectCommand?.watchEndpoint;
@@ -16,7 +17,7 @@ export function addPreviews(items) {
         blockAdoption: true,
         caption: false,
         delayMs: 3000,
-        durationMs: configRead("previewLengthSeconds") * 1000,
+        durationMs,
         muted: false,
         restartPlaybackBeforeSeconds: 10,
         resumeVideo: true,

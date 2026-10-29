@@ -25,7 +25,7 @@ export function installResponsePipeline(filters) {
       } catch (err) {
         if (!reportedErrors[i]) {
           reportedErrors[i] = true;
-          console.error("AxoTube JSON response filter failed:", err);
+          console.error("[AxoTube:responsePipeline] AxoTube JSON response filter failed:", err);
         }
       }
     }

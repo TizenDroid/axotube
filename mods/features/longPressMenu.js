@@ -16,8 +16,10 @@ function makeQueuePayload(item) {
 }
 
 function hasQueueItem(items) {
-  return items.some((menuItem) =>
-    menuItem?.menuServiceItemRenderer?.serviceEndpoint?.playlistEditEndpoint?.customAction?.action === 'ADD_TO_QUEUE'
+  return items.some(
+    (menuItem) =>
+      menuItem?.menuServiceItemRenderer?.serviceEndpoint?.playlistEditEndpoint?.customAction
+        ?.action === "ADD_TO_QUEUE",
   );
 }
 
@@ -26,10 +28,11 @@ export function addLongPress(items) {
 
   for (const item of items) {
     if (!item.tileRenderer) continue;
-    if (item.tileRenderer.style !== 'TILE_STYLE_YTLR_DEFAULT') continue;
+    if (item.tileRenderer.style !== "TILE_STYLE_YTLR_DEFAULT") continue;
     if (!item.tileRenderer.contentId || !item.tileRenderer.onSelectCommand?.watchEndpoint) continue;
 
-    const existingItems = item.tileRenderer.onLongPressCommand?.showMenuCommand?.menu?.menuRenderer?.items;
+    const existingItems =
+      item.tileRenderer.onLongPressCommand?.showMenuCommand?.menu?.menuRenderer?.items;
     if (Array.isArray(existingItems)) {
       if (!hasQueueItem(existingItems)) {
         existingItems.push(queueMenuItem(makeQueuePayload(item)));
@@ -44,16 +47,16 @@ export function addLongPress(items) {
     if (!item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails) continue;
     const subtitleNode = tileMetadata.lines?.[0]?.lineRenderer?.items?.[0]?.lineItemRenderer?.text;
     if (!subtitleNode) continue;
-    const subtitle = subtitleNode.runs?.[0]?.text || subtitleNode.simpleText || '';
+    const subtitle = subtitleNode.runs?.[0]?.text || subtitleNode.simpleText || "";
 
     const copiedItem = makeQueuePayload(item);
     const data = longPressData({
       videoId: copiedItem.tileRenderer.contentId,
       thumbnails: copiedItem.tileRenderer.header.tileHeaderRenderer.thumbnail.thumbnails,
-      title: tileMetadata.title?.simpleText || '',
+      title: tileMetadata.title?.simpleText || "",
       subtitle,
       watchEndpointData: copiedItem.tileRenderer.onSelectCommand.watchEndpoint,
-      item: copiedItem
+      item: copiedItem,
     });
     item.tileRenderer.onLongPressCommand = data;
   }

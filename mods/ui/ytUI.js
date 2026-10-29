@@ -72,7 +72,9 @@ function OverlayPanelHeaderRenderer(title, subtitle, thumbnails) {
 
 function Modal(header, content, id, update) {
   const titleSubtitleObj =
-    typeof header === "string" ? { title: header, subtitle: "" } : (header || { title: "", subtitle: "" });
+    typeof header === "string"
+      ? { title: header, subtitle: "" }
+      : header || { title: "", subtitle: "" };
   const overlayPanelHeaderRenderer = titleSubtitleObj.overlayPanelHeaderRenderer || {
     title: {
       simpleText: titleSubtitleObj.title,
@@ -324,13 +326,7 @@ function SettingsCategory(categoryId, items, title) {
   return category;
 }
 
-function SettingActionRenderer(
-  title,
-  itemId,
-  serviceEndpoint,
-  summary,
-  thumbnail,
-) {
+function SettingActionRenderer(title, itemId, serviceEndpoint, summary, thumbnail) {
   return {
     settingActionRenderer: {
       title: {

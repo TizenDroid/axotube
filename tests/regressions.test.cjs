@@ -1,10 +1,10 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
-const ROOT = path.resolve(__dirname, '..');
-const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const ROOT = path.resolve(__dirname, "..");
+const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 const has = (src, text) => assert.ok(src.includes(text), `missing: ${text}`);
 
 function between(src, start, end) {
@@ -15,293 +15,332 @@ function between(src, start, end) {
   return src.slice(a, b);
 }
 
-test('core feature defaults stay enabled', () => {
-  const d = JSON.parse(read('config-schema.json')).defaults;
+test("core feature defaults stay enabled", () => {
+  const d = JSON.parse(read("config-schema.json")).defaults;
   for (const key of [
-    'enableAdBlock', 'enableSponsorBlock', 'enableDeArrowTitles',
-    'enableDeArrowThumbnails', 'enableHqThumbnails',
-    'enablePatchingVideoPlayer', 'enableLongPress', 'enablePreviews',
-  ]) assert.equal(d[key], true, `${key} default changed`);
+    "enableAdBlock",
+    "enableSponsorBlock",
+    "enableDeArrowTitles",
+    "enableDeArrowThumbnails",
+    "enableHqThumbnails",
+    "enablePatchingVideoPlayer",
+    "enableLongPress",
+    "enablePreviews",
+  ])
+    assert.equal(d[key], true, `${key} default changed`);
 });
 
-test('AdBlock still handles core ad response shapes', () => {
-  const src = read('mods/features/adblock.js');
-  for (const key of ['adPlacements', 'playerAds', 'adSlots', 'adSlotRenderer', 'promo']) has(src, key);
+test("AdBlock still handles core ad response shapes", () => {
+  const src = read("mods/features/adblock.js");
+  for (const key of ["adPlacements", "playerAds", "adSlots", "adSlotRenderer", "promo"])
+    has(src, key);
 });
 
-test('saved UA reload is session guarded', () => {
-  const src = read('mods/features/userAgentSpoofing.js');
+test("default user agent is the Samsung TV string, set through tizen.websetting with a reload guard", () => {
+  const src = read("mods/features/userAgentSpoofing.js");
+  has(src, "SamsungBrowser/2.1 TV Safari/537.3");
+  has(src, "tizen.websetting.setUserAgentString(ua)");
   has(src, "axotube-user-agent-applied");
-  const branch = between(src, "const ua = localStorage.getItem('userAgent');", 'const randomProfile');
-  has(branch, 'sessionStorage.getItem(USER_AGENT_APPLIED_SESSION_KEY) !== ua');
-  has(branch, 'sessionStorage.setItem(USER_AGENT_APPLIED_SESSION_KEY, ua)');
-  has(branch, 'location.reload()');
+  has(src, "location.reload()");
+  // The splash applies it before anything navigates to YouTube.
+  const splash = read("standalone/index.html");
+  has(splash, "tizen.websetting.setUserAgentString(DEFAULT_USER_AGENT)");
+  has(splash, "SamsungBrowser/2.1 TV Safari/537.3");
 });
 
-test('phone polling uses independent locks and explicit ACK', () => {
-  const src = read('mods/features/webConfig.js');
-  const consume = between(src, 'function consumeCommand()', 'function pushNowPlaying()');
-  has(consume, 'commandPolling');
-  assert.ok(!consume.includes('configSyncing'));
-  const playing = between(src, 'function pushNowPlaying()', 'const MAX_POLL_INTERVAL_MS');
-  has(playing, 'nowPlayingPushing');
-  assert.ok(!playing.includes('configSyncing'));
-  has(src, '/api/command/ack');
-  has(src, 'dispatchWhenReady(cmd).then((ok)');
+test("phone polling uses independent locks and explicit ACK", () => {
+  const src = read("mods/features/webConfig.js");
+  const consume = between(src, "function consumeCommand()", "function pushNowPlaying()");
+  has(consume, "commandPolling");
+  assert.ok(!consume.includes("configSyncing"));
+  const playing = between(src, "function pushNowPlaying()", "const MAX_POLL_INTERVAL_MS");
+  has(playing, "nowPlayingPushing");
+  assert.ok(!playing.includes("configSyncing"));
+  has(src, "/api/command/ack");
+  has(src, "dispatchWhenReady(cmd).then((ok)");
 });
 
-test('cast waits for callable resolver', () => {
-  const src = read('mods/features/castReceiver.js');
-  has(src, 'dispatchNativeCommandWhenReady');
-  const shared = read('mods/shared/nativeCommand.js');
+test("cast waits for callable resolver", () => {
+  const src = read("mods/features/castReceiver.js");
+  has(src, "dispatchNativeCommandWhenReady");
+  const shared = read("mods/shared/nativeCommand.js");
   has(shared, 'typeof instance.resolveCommand === "function"');
-  has(shared, 'instance.resolveCommand(command)');
+  has(shared, "instance.resolveCommand(command)");
 });
 
-test('UI commands delegate to one native dispatch owner', () => {
-  const fn = between(read('mods/ui/ytUI.js'), 'function dispatchCommand', 'function canDispatch');
-  has(fn, 'return dispatchNativeCommand(cmd, _)');
-  assert.ok(!fn.includes('cachedCommandRoot'));
-  const shared = read('mods/shared/nativeCommand.js');
-  has(shared, 'result: instance.resolveCommand(command, context)');
+test("UI commands delegate to one native dispatch owner", () => {
+  const fn = between(read("mods/ui/ytUI.js"), "function dispatchCommand", "function canDispatch");
+  has(fn, "return dispatchNativeCommand(cmd, _)");
+  assert.ok(!fn.includes("cachedCommandRoot"));
+  const shared = read("mods/shared/nativeCommand.js");
+  has(shared, "result: instance.resolveCommand(command, context)");
 });
 
-test('Reduced Motion helper is module scoped and live', () => {
-  const src = read('mods/ui/ui.js');
-  assert.ok(src.indexOf('function applyReducedMotionFlags') < src.indexOf('function execute_once_dom_loaded'));
+test("Reduced Motion helper is module scoped and live", () => {
+  const src = read("mods/ui/ui.js");
+  assert.ok(
+    src.indexOf("function applyReducedMotionFlags") <
+      src.indexOf("function execute_once_dom_loaded"),
+  );
   has(src, 'key === "enableReducedMotion"');
 });
 
-test('dimming can be cancelled and restores opacity', () => {
-  const src = read('mods/ui/ui.js');
-  has(src, 'function clearDimmingTimer()');
-  has(src, 'clearTimeout(keyTimeout)');
-  has(src, 'restoreScreenOpacity()');
+test("dimming can be cancelled and restores opacity", () => {
+  const src = read("mods/ui/ui.js");
+  has(src, "function clearDimmingTimer()");
+  has(src, "clearTimeout(keyTimeout)");
+  has(src, "restoreScreenOpacity()");
   has(src, 'key === "enableScreenDimming"');
 });
 
-test('AFR resets on leave-watch and reattaches', () => {
-  const src = read('mods/features/autoFrameRate.js');
-  has(src, 'function isWatchRoute()');
-  has(src, 'if (!isWatchRoute())');
-  has(src, 'SetFrameRate.call(window.h5vcc.tizentube, 0)');
-  has(src, 'setTimeout(attachToVideoPlayer, 0)');
+test("AFR resets on leave-watch and reattaches", () => {
+  const src = read("mods/features/autoFrameRate.js");
+  has(src, "function isWatchRoute()");
+  has(src, "if (!isWatchRoute())");
+  has(src, "SetFrameRate.call(window.h5vcc.tizentube, 0)");
+  has(src, "setTimeout(attachToVideoPlayer, 0)");
 });
 
-test('preview feature-map readiness retries actual capability', () => {
-  const src = read('mods/features/enableFeatures.js');
-  has(src, 'ENABLE_PREVIEWS_WITH_SOUND');
-  has(src, 'if (!featureMap)');
-  has(src, 'retryAttempts');
-  has(src, 'MAX_RETRY_ATTEMPTS');
+test("preview feature-map readiness retries actual capability", () => {
+  const src = read("mods/features/enableFeatures.js");
+  has(src, "ENABLE_PREVIEWS_WITH_SOUND");
+  has(src, "if (!featureMap)");
+  has(src, "retryAttempts");
+  has(src, "MAX_RETRY_ATTEMPTS");
 });
 
-test('preview readiness polling is bounded on slow Tizen devices', () => {
-  const src = read('mods/features/enableFeatures.js');
-  has(src, 'const MAX_RETRY_ATTEMPTS = 20');
-  has(src, 'if (retryAttempts >= MAX_RETRY_ATTEMPTS) return');
-  assert.ok(!src.includes('setTimeout(enableFeatures, 250)'), '250ms unbounded polling can steal main-thread time from remote input');
+test("preview readiness polling is bounded on slow Tizen devices", () => {
+  const src = read("mods/features/enableFeatures.js");
+  has(src, "const MAX_RETRY_ATTEMPTS = 20");
+  has(src, "if (retryAttempts >= MAX_RETRY_ATTEMPTS) return");
+  assert.ok(
+    !src.includes("setTimeout(enableFeatures, 250)"),
+    "250ms unbounded polling can steal main-thread time from remote input",
+  );
 });
 
-test('guide JSON patch fails open on mixed arrays', () => {
-  const src = read('mods/ui/customGuideAction.js');
-  has(src, 'if (!section || !Array.isArray(section.items)) continue');
-  has(src, 'export function filterGuideItems');
-  assert.ok(!src.includes('JSON.parse ='), 'guide filter must not install a second JSON hook');
-  const pipeline = read('mods/shared/responsePipeline.js');
-  has(pipeline, 'JSON.parse = parse');
-  has(pipeline, 'filters[i](result)');
+test("guide JSON patch fails open on mixed arrays", () => {
+  const src = read("mods/ui/customGuideAction.js");
+  has(src, "if (!section || !Array.isArray(section.items)) continue");
+  has(src, "export function filterGuideItems");
+  assert.ok(!src.includes("JSON.parse ="), "guide filter must not install a second JSON hook");
+  const pipeline = read("mods/shared/responsePipeline.js");
+  has(pipeline, "JSON.parse = parse");
+  has(pipeline, "filters[i](result)");
 });
 
-test('config validates values and never clears unrelated storage', () => {
-  const src = read('mods/config.js');
-  has(src, 'configPolicy.validateConfigValue');
-  has(src, 'configSchema.defaults');
-  has(src, 'removeItem(CONFIG_KEY)');
-  assert.ok(!src.includes('localStorage.clear('));
-  const policy = read('shared/configPolicy.js');
-  has(policy, 'function validateConfigValue(key, value)');
-  has(read('service/service.js'), 'require("../shared/configPolicy.js")');
+test("config validates values and never clears unrelated storage", () => {
+  const src = read("mods/config.js");
+  has(src, "configPolicy.validateConfigValue");
+  has(src, "configSchema.defaults");
+  has(src, "removeItem(CONFIG_KEY)");
+  assert.ok(!src.includes("localStorage.clear("));
+  const policy = read("shared/configPolicy.js");
+  has(policy, "function validateConfigValue(key, value)");
+  has(read("service/service.js"), 'require("../shared/configPolicy.js")');
 });
 
-test('launchToOnStartup stays string-or-null across TV and web', () => {
-  const cfg = read('shared/configPolicy.js');
-  const web = read('service/webConfigPage.js');
+test("launchToOnStartup stays string-or-null across TV and web", () => {
+  const cfg = read("shared/configPolicy.js");
+  const web = read("service/webConfigPage.js");
   has(cfg, 'value === null || typeof value === "string"');
   has(web, 'key === "launchToOnStartup"');
-  has(web, 'JSON.parse(v); state[key]=v');
+  has(web, "JSON.parse(v); state[key]=v");
 });
 
-test('HQ probes fan out and cache is bounded', () => {
-  const src = read('mods/shared/hqThumbnails.js');
-  has(src, 'hqPendingTesters.get(videoId).push(onResult)');
-  has(src, 'createBoundedCache(MAX_HQ_CACHE_ENTRIES)');
-  has(src, 'MAX_HQ_CACHE_ENTRIES = 256');
+test("HQ probes fan out and cache is bounded", () => {
+  const src = read("mods/shared/hqThumbnails.js");
+  has(src, "hqPendingTesters.get(videoId).push(onResult)");
+  has(src, "createBoundedCache(MAX_HQ_CACHE_ENTRIES)");
+  has(src, "MAX_HQ_CACHE_ENTRIES = 256");
 });
 
-test('DeArrow accepts timestamp zero and bounds cache', () => {
-  const src = read('mods/features/deArrow.js');
-  has(src, 'timestamp !== undefined');
-  has(src, 'MAX_DEARROW_CACHE_ENTRIES = 256');
-  has(src, 'if (!res.ok)');
+test("DeArrow accepts timestamp zero and bounds cache", () => {
+  const src = read("mods/features/deArrow.js");
+  has(src, "timestamp !== undefined");
+  has(src, "MAX_DEARROW_CACHE_ENTRIES = 256");
+  has(src, "if (!res.ok)");
 });
 
-test('long press toggle runs before native-menu mutation and queue action dedupes', () => {
-  const src = read('mods/features/longPressMenu.js');
-  const fn = between(src, 'export function addLongPress', 'export { makeQueuePayload }');
-  assert.ok(fn.indexOf('configRead("enableLongPress")') < fn.indexOf('onLongPressCommand'));
-  has(src, 'function hasQueueItem');
+test("long press toggle runs before native-menu mutation and queue action dedupes", () => {
+  const src = read("mods/features/longPressMenu.js");
+  const fn = between(src, "export function addLongPress", "export { makeQueuePayload }");
+  assert.ok(fn.indexOf('configRead("enableLongPress")') < fn.indexOf("onLongPressCommand"));
+  has(src, "function hasQueueItem");
 });
 
-test('inline previews only target watch endpoints', () => {
-  has(read('mods/features/videoPreviews.js'), 'onSelectCommand?.watchEndpoint');
+test("inline previews only target watch endpoints", () => {
+  has(read("mods/features/videoPreviews.js"), "onSelectCommand?.watchEndpoint");
 });
 
-test('Hide Watched parses browse id independently of query order', () => {
-  const src = read('mods/features/hideWatchedVideos.js');
-  has(src, 'function parseHashParams');
-  has(src, 'params.browseId || params.browse_id');
+test("Hide Watched parses browse id independently of query order", () => {
+  const src = read("mods/features/hideWatchedVideos.js");
+  has(src, "function parseHashParams");
+  has(src, "params.browseId || params.browse_id");
 });
 
-test('queue uses positional state for duplicate ids', () => {
-  const src = read('mods/features/videoQueuing.js');
-  has(src, 'currentIndex');
-  has(src, 'playQueueIndex(nextIndex)');
+test("queue uses positional state for duplicate ids", () => {
+  const src = read("mods/features/videoQueuing.js");
+  has(src, "currentIndex");
+  has(src, "playQueueIndex(nextIndex)");
 });
 
-test('Who’s Watching interval is explicitly clearable', () => {
-  const src = read('mods/ui/disableWhosWatching.js');
-  has(src, 'function clearPermanentInterval');
-  has(src, 'if (!value) clearPermanentInterval()');
-  has(src, 'permanentlyEnableWhoIsWatchingMenu');
+test("Who’s Watching interval is explicitly clearable", () => {
+  const src = read("mods/ui/disableWhosWatching.js");
+  has(src, "function clearPermanentInterval");
+  has(src, "if (!value) clearPermanentInterval()");
+  has(src, "permanentlyEnableWhoIsWatchingMenu");
 });
 
-test('theme presets keep distinct colors and CSS inputs are sanitized', () => {
-  const colors = JSON.parse(read('config-schema.json')).themePresetColors;
-  assert.equal(colors.darkGray, '#1c1a1a');
-  assert.equal(colors.navy, '#0d1b2a');
-  assert.equal(colors.darkRed, '#3b0505');
-  assert.equal(colors.darkGreen, '#052e1b');
-  assert.equal(colors.darkPurple, '#1a1025');
-  const theme = read('mods/ui/theme.js');
-  has(theme, 'function safeColor');
-  has(theme, 'function safeBackgroundUrl');
+test("theme presets keep distinct colors and CSS inputs are sanitized", () => {
+  const colors = JSON.parse(read("config-schema.json")).themePresetColors;
+  assert.equal(colors.darkGray, "#1c1a1a");
+  assert.equal(colors.navy, "#0d1b2a");
+  assert.equal(colors.darkRed, "#3b0505");
+  assert.equal(colors.darkGreen, "#052e1b");
+  assert.equal(colors.darkPurple, "#1a1025");
+  const theme = read("mods/ui/theme.js");
+  has(theme, "function safeColor");
+  has(theme, "function safeBackgroundUrl");
 });
 
-test('SponsorBlock initializes current route and clears pause scheduling', () => {
-  const src = read('mods/features/sponsorblock.js');
-  has(src, 'syncSponsorBlockForCurrentRoute()');
+test("SponsorBlock initializes current route and clears pause scheduling", () => {
+  const src = read("mods/features/sponsorblock.js");
+  has(src, "syncSponsorBlockForCurrentRoute()");
   has(src, 'DOMContentLoaded", syncSponsorBlockForCurrentRoute');
-  has(src, 'if (this.video.paused)');
-  has(src, 'this.handled.set(segment.UUID');
-  has(src, 'end <= now + END_EPSILON_S');
-  assert.doesNotMatch(src, /setTimeout\(\(\) => \{\s*this\.performSkip/, 'skips must not be wall-clock timers');
+  has(src, "if (this.video.paused)");
+  has(src, "this.handled.set(segment.UUID");
+  has(src, "end <= now + END_EPSILON_S");
+  assert.doesNotMatch(
+    src,
+    /setTimeout\(\(\) => \{\s*this\.performSkip/,
+    "skips must not be wall-clock timers",
+  );
 });
 
-test('Auto quality releases fixed range and replacement player is watched', () => {
-  const src = read('mods/features/preferredVideoQuality.js');
+test("Auto quality releases fixed range and replacement player is watched", () => {
+  const src = read("mods/features/preferredVideoQuality.js");
   has(src, 'setPlaybackQualityRange("auto", "auto")');
-  has(src, 'watchPlayer((player) => this.#attachPlayer(player))');
-  has(src, 'watchVideoId((id) =>');
+  has(src, "watchPlayer((player) => this.#attachPlayer(player))");
+  has(src, "watchVideoId((id) =>");
 });
 
-test('speed applies immediately and replacement video is watched', () => {
-  const src = read('mods/ui/speedUI.js');
-  has(src, 'applyConfiguredSpeed(boundVideo)');
-  has(src, 'watchVideo(attachVideo)');
-  has(read('mods/shared/playerLifecycle.js'), 'setInterval(refreshPlayerLifecycle, DISCOVERY_INTERVAL_MS)');
+test("speed applies immediately and replacement video is watched", () => {
+  const src = read("mods/ui/speedUI.js");
+  has(src, "applyConfiguredSpeed(boundVideo)");
+  has(src, "watchVideo(attachVideo)");
+  has(
+    read("mods/shared/playerLifecycle.js"),
+    "setInterval(refreshPlayerLifecycle, DISCOVERY_INTERVAL_MS)",
+  );
 });
 
-test('PiP retries late services and cleans inline state', () => {
-  const src = read('mods/features/pictureInPicture.js');
-  has(src, 'MAX_PIP_LOAD_ATTEMPTS');
-  has(src, 'function cleanupPipStyles');
-  has(src, 'cleanupPipStyles()');
+test("PiP retries late services and cleans inline state", () => {
+  const src = read("mods/features/pictureInPicture.js");
+  has(src, "MAX_PIP_LOAD_ATTEMPTS");
+  has(src, "function cleanupPipStyles");
+  has(src, "cleanupPipStyles()");
 });
 
-test('custom player patch initializes only after owner write succeeds', () => {
-  const src = read('mods/ui/customUI.js');
-  has(src, 'function makeRef');
-  has(src, 'if (!ref.write(YtlrPlayerActionsContainer))');
-  has(src, 'customUIInitialized = true');
+test("custom player patch initializes only after owner write succeeds", () => {
+  const src = read("mods/ui/customUI.js");
+  has(src, "function makeRef");
+  has(src, "if (!ref.write(YtlrPlayerActionsContainer))");
+  has(src, "customUIInitialized = true");
 });
 
-test('custom player deep scans retain the old bounded retry budget', () => {
-  const src = read('mods/ui/customUI.js');
-  has(src, 'const MAX_ATTEMPTS = 10');
-  has(src, 'deepFindContainer(20000, true)');
+test("custom player deep scans retain the old bounded retry budget", () => {
+  const src = read("mods/ui/customUI.js");
+  has(src, "const MAX_ATTEMPTS = 10");
+  has(src, "deepFindContainer(20000, true)");
 });
 
-test('LAN API is paired while loopback and DIAL remain functional', () => {
-  const src = read('service/service.js');
+test("LAN API is paired while loopback and DIAL remain functional", () => {
+  const src = read("service/service.js");
   for (const text of [
-    'function isLoopback', 'function requireApiAuth', 'app.post("/api/pair"',
-    'app.use("/api", requireApiAuth)', 'app.post("/api/command/ack"',
+    "function isLoopback",
+    "function requireApiAuth",
+    'app.post("/api/pair"',
+    'app.use("/api", requireApiAuth)',
+    'app.post("/api/command/ack"',
     'prefix: "/dial"',
-  ]) has(src, text);
+  ])
+    has(src, text);
 });
 
-test('successful pairing keeps the TV-displayed code valid for another phone', () => {
-  const src = read('service/service.js');
+test("successful pairing keeps the TV-displayed code valid for another phone", () => {
+  const src = read("service/service.js");
   const route = between(src, 'app.post("/api/pair"', 'app.use("/api", requireApiAuth)');
-  has(route, 'res.json({ ok: true, token: authToken })');
-  assert.ok(!route.includes('pairingCode = newPairingCode()'), 'pairing must not silently rotate a code the TV only displayed once');
+  has(route, "res.json({ ok: true, token: authToken })");
+  assert.ok(
+    !route.includes("pairingCode = newPairingCode()"),
+    "pairing must not silently rotate a code the TV only displayed once",
+  );
 });
 
-test('legacy persisted config migration keeps valid settings independently', () => {
-  const src = read('service/service.js');
-  const migration = between(src, 'function migrateStoredConfig', 'function loadStore()');
-  has(migration, 'launchToOnStartup');
-  has(migration, 'JSON.stringify');
-  has(migration, 'continue');
-  const loader = between(src, 'function loadStore()', 'const initialStore');
-  has(loader, 'migrateStoredConfig(parsed.config)');
-  assert.ok(!loader.includes('sanitizeConfig(parsed.config) || {}'), 'one invalid legacy value must not wipe all valid saved settings');
+test("legacy persisted config migration keeps valid settings independently", () => {
+  const src = read("service/service.js");
+  const migration = between(src, "function migrateStoredConfig", "function loadStore()");
+  has(migration, "launchToOnStartup");
+  has(migration, "JSON.stringify");
+  has(migration, "continue");
+  const loader = between(src, "function loadStore()", "const initialStore");
+  has(loader, "migrateStoredConfig(parsed.config)");
+  assert.ok(
+    !loader.includes("sanitizeConfig(parsed.config) || {}"),
+    "one invalid legacy value must not wipe all valid saved settings",
+  );
 });
 
-test('web config pairs and avoids innerHTML sinks', () => {
-  const src = read('service/webConfigPage.js');
-  has(src, 'axotube-pair-token');
+test("web config pairs and avoids innerHTML sinks", () => {
+  const src = read("service/webConfigPage.js");
+  has(src, "axotube-pair-token");
   has(src, 'opts.headers.Authorization = "Bearer " + token');
-  has(src, 'textContent');
-  assert.ok(!src.includes('.innerHTML ='));
+  has(src, "textContent");
+  assert.ok(!src.includes(".innerHTML ="));
 });
 
-test('standalone proxy has trusted-host/private-host checks and strips credentials', () => {
-  const src = read('standalone/service/index.js');
+test("standalone proxy has trusted-host/private-host checks and strips credentials", () => {
+  const src = read("standalone/service/index.js");
   for (const text of [
-    'function isAllowedCorsTarget', 'function isPrivateHostname',
-    'googlevideo.com', '127.', 'blocked.cookie = true',
-    "app.listen(PORT, '127.0.0.1')",
-  ]) has(src, text);
+    "function isAllowedCorsTarget",
+    "function isPrivateHostname",
+    "googlevideo.com",
+    "127.",
+    "blocked.cookie = true",
+    "app.listen(PORT, '127.0.0.1'",
+    "server.on('error'",
+  ])
+    has(src, text);
 });
 
-test('standalone startup guards Tizen APIs and bounds health retries', () => {
-  const src = read('standalone/index.html');
-  has(src, 'function safeRegisterKey');
-  has(src, 'MAX_HEALTH_ATTEMPTS = 100');
-  has(src, 'function sanitizeCastArgs');
+test("standalone startup guards Tizen APIs and bounds health retries", () => {
+  const src = read("standalone/index.html");
+  has(src, "function safeRegisterKey");
+  has(src, "MAX_HEALTH_ATTEMPTS = 600");
+  has(src, "127.0.0.1:8099/tizentube/health");
+  has(src, "function sanitizeCastArgs");
 });
 
-test('updater compares versions and handles missing APK', () => {
-  const src = read('mods/features/updater.js');
-  has(src, 'function compareVersions');
-  has(src, 'compareVersions(latestVersion, currentAppVersion) <= 0');
-  has(src, 'if (!downloadUrl)');
+test("updater compares versions and handles missing APK", () => {
+  const src = read("mods/features/updater.js");
+  has(src, "function compareVersions");
+  has(src, "compareVersions(latestVersion, currentAppVersion) <= 0");
+  has(src, "if (!downloadUrl)");
 });
 
-test('release scripts force tests and fresh builds', () => {
-  const root = JSON.parse(read('package.json'));
-  assert.equal(root.scripts.test, 'node --test tests/*.test.cjs');
-  assert.equal(root.scripts['build:standalone'], 'node scripts/build-standalone.js');
-  has(read('scripts/build-standalone.js'), 'run("npm run build", ROOT)');
-  const pkg = read('scripts/package-wgt.ps1');
-  has(pkg, 'npm run test');
-  has(pkg, 'npm run build:standalone');
+test("release scripts force tests and fresh builds", () => {
+  const root = JSON.parse(read("package.json"));
+  assert.equal(root.scripts.test, "node --test tests/*.test.cjs");
+  assert.equal(root.scripts["build:standalone"], "node scripts/build-standalone.js");
+  has(read("scripts/build-standalone.js"), 'run("npm run build", ROOT)');
+  const pkg = read("scripts/package-wgt.ps1");
+  has(pkg, "npm run test");
+  has(pkg, "npm run build:standalone");
 });
 
-test('standalone version metadata matches root', () => {
-  const rootVersion = JSON.parse(read('package.json')).version;
-  assert.equal(JSON.parse(read('standalone/service/package.json')).version, rootVersion);
-  has(read('standalone/config.xml'), `version="${rootVersion}"`);
+test("standalone version metadata matches root", () => {
+  const rootVersion = JSON.parse(read("package.json")).version;
+  assert.equal(JSON.parse(read("standalone/service/package.json")).version, rootVersion);
+  has(read("standalone/config.xml"), `version="${rootVersion}"`);
 });

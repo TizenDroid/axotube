@@ -133,7 +133,8 @@ function loadStore() {
     if (parsed && typeof parsed === "object") {
       return {
         config: migrateStoredConfig(parsed.config),
-        revision: Number.isSafeInteger(parsed.revision) && parsed.revision >= 0 ? parsed.revision : 0,
+        revision:
+          Number.isSafeInteger(parsed.revision) && parsed.revision >= 0 ? parsed.revision : 0,
         authToken:
           typeof parsed.authToken === "string" && parsed.authToken.length >= 32
             ? parsed.authToken
@@ -173,8 +174,12 @@ let storePersisted = saveStore();
 function configEquals(a, b) {
   const keysA = Object.keys(a).sort();
   const keysB = Object.keys(b).sort();
-  return keysA.length === keysB.length && keysA.every((key, index) =>
-    key === keysB[index] && JSON.stringify(a[key]) === JSON.stringify(b[key]));
+  return (
+    keysA.length === keysB.length &&
+    keysA.every(
+      (key, index) => key === keysB[index] && JSON.stringify(a[key]) === JSON.stringify(b[key]),
+    )
+  );
 }
 
 // Persist the next complete state before publishing its new revision to readers.
@@ -313,7 +318,13 @@ app.post("/api/config", (req, res) => {
     return;
   }
   if (envelope && req.body.revision !== configRevision) {
-    res.status(409).json({ ok: false, error: "Settings changed on TV; reload before saving", revision: configRevision });
+    res
+      .status(409)
+      .json({
+        ok: false,
+        error: "Settings changed on TV; reload before saving",
+        revision: configRevision,
+      });
     return;
   }
   const result = commitConfig(clean);
@@ -333,7 +344,14 @@ app.post("/api/config/push", (req, res) => {
     return;
   }
   if (rev !== configRevision) {
-    res.status(409).json({ ok: false, applied: false, error: "Stale config revision", revision: configRevision });
+    res
+      .status(409)
+      .json({
+        ok: false,
+        applied: false,
+        error: "Stale config revision",
+        revision: configRevision,
+      });
     return;
   }
   const result = commitConfig(clean);
@@ -459,7 +477,9 @@ function parseLaunchData(launchData) {
       const rawKey = eq === -1 ? part : part.slice(0, eq);
       const rawValue = eq === -1 ? "" : part.slice(eq + 1);
       try {
-        out[decodeURIComponent(rawKey.replace(/\+/g, " "))] = decodeURIComponent(rawValue.replace(/\+/g, " "));
+        out[decodeURIComponent(rawKey.replace(/\+/g, " "))] = decodeURIComponent(
+          rawValue.replace(/\+/g, " "),
+        );
       } catch (err) {
         out[rawKey] = rawValue;
       }

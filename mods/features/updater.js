@@ -1,11 +1,6 @@
 // axotube update checker
 import { t } from "i18next";
-import {
-  buttonItem,
-  showModal,
-  showToast,
-  overlayPanelItemListRenderer,
-} from "../ui/ytUI.js";
+import { buttonItem, showModal, showToast, overlayPanelItemListRenderer } from "../ui/ytUI.js";
 import { configRead } from "../config.js";
 import { fetchWithTimeout } from "../shared/fetch.js";
 
@@ -15,7 +10,7 @@ try {
     if (configRead("dontCheckUpdateUntil") <= currentEpoch) checkForUpdates();
   }
 } catch (err) {
-  console.error("axotube updater: init failed, continuing without it", err);
+  console.error("[AxoTube:updater] init failed, continuing without it", err);
 }
 
 function normalizeVersion(version) {
@@ -73,10 +68,9 @@ function compareVersions(a, b) {
 }
 
 function getLatestRelease() {
-  return fetchWithTimeout(
-    "https://api.github.com/repos/reisxd/TizenTubeCobalt/releases/latest",
-    { headers: { Accept: "application/vnd.github+json" } },
-  ).then((response) => {
+  return fetchWithTimeout("https://api.github.com/repos/reisxd/TizenTubeCobalt/releases/latest", {
+    headers: { Accept: "application/vnd.github+json" },
+  }).then((response) => {
     if (!response.ok) throw new Error(`Update API HTTP ${response.status}`);
     return response.json();
   });
@@ -117,7 +111,8 @@ function checkForUpdates(showNoUpdateToast) {
     !window.h5vcc ||
     !window.h5vcc.tizentube ||
     typeof window.h5vcc.tizentube.GetVersion !== "function"
-  ) return;
+  )
+    return;
 
   const currentAppVersion = normalizeVersion(window.h5vcc.tizentube.GetVersion());
   const currentEpoch = Math.floor(Date.now() / 1000);
@@ -151,11 +146,14 @@ function checkForUpdates(showNoUpdateToast) {
           title: t("updater.modalTitle"),
           // Release notes are appended untranslated: they are remote text and
           // must never pass through the translator's interpolation.
-          subtitle: t("updater.modalBody", {
-            latest: latestVersion,
-            current: currentAppVersion,
-            date: releaseDate,
-          }) + "\n" + releaseNotes,
+          subtitle:
+            t("updater.modalBody", {
+              latest: latestVersion,
+              current: currentAppVersion,
+              date: releaseDate,
+            }) +
+            "\n" +
+            releaseNotes,
         },
         overlayPanelItemListRenderer([
           buttonItem(
@@ -186,12 +184,12 @@ function checkForUpdates(showNoUpdateToast) {
             ],
           ),
         ]),
-        "tt-update-modal",
+        "axo-update-modal",
         false,
       );
     })
     .catch((error) => {
-      console.error("Error fetching the latest release:", error);
+      console.error("[AxoTube:updater] Error fetching the latest release:", error);
       if (showNoUpdateToast) {
         showToast(t("app.name"), t("toasts.updateCheckFailed"), null);
       }

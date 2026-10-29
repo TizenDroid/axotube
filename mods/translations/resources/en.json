@@ -60,7 +60,11 @@
                     "ttWelcomeMsg": "Show TT Welcome Message",
                     "guestSignInReminder": "Show Guest Sign In Reminder",
                     "reloadHomeOnStartup": "Reload Home on Startup",
-                    "previewLength": "Preview length"
+                    "previewLength": "Preview length",
+                    "remainingTime": "Show remaining time in player",
+                    "pauseOnBlur": "Pause when app goes to background",
+                    "lowMemoryMode": "Low memory mode (YouTube)",
+                    "onePressMode": "One-press remote mode (OK plays/pauses, left and right skip 10s)"
                 }
             },
             "theme": {
@@ -136,6 +140,14 @@
                     "afrPauseDuration": {
                         "title": "Auto Frame Rate Pause Duration",
                         "subtitle": "Set the duration (in seconds) to pause video playback when adjusting frame rate"
+                    },
+                    "experimentalResolution": {
+                        "title": "Experimental: unlock 1440p and 4K",
+                        "subtitle": "Lets YouTube offer resolutions above the TV screen size. Can stutter on limited TVs. Restarts the app when changed."
+                    },
+                    "experimentalMaxResolution": {
+                        "title": "Experimental maximum resolution",
+                        "subtitle": "Highest resolution YouTube may offer while the experimental unlock is on"
                     }
                 }
             },

@@ -11,8 +11,7 @@ function injectXmlContent() {
     name: "inject-xml-content",
     renderChunk(code) {
       // Better regex - less fragile
-      const pattern =
-        /var\s+(\w+)_TEMPLATE\s+=\s+.*?readFileSync\([^)]*?'([^']+)'[^)]*?\);/g;
+      const pattern = /var\s+(\w+)_TEMPLATE\s+=\s+.*?readFileSync\([^)]*?'([^']+)'[^)]*?\);/g;
 
       const modifiedCode = code.replace(pattern, (match, varName, fileName) => {
         const xmlContent = fs.readFileSync(

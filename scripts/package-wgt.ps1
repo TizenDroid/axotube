@@ -34,11 +34,27 @@ try {
     & $tizen build-web -e ".*" -e "node_modules/*" -e "package*.json" -- $standalone
     if ($LASTEXITCODE -ne 0) { throw "build-web failed" }
 
+    # The widget output lives inside the project, so build-web also stages old
+    # packages from release/ (the .apk files are several megabytes each).
+    $stagedRelease = Join-Path $standalone ".buildResult\release"
+    if (Test-Path $stagedRelease) { Remove-Item -Recurse -Force $stagedRelease }
+
+    # service/dist/index.js is an ncc bundle with express and node-fetch inlined.
+    # Its node_modules and build-time files must not ship in the widget.
+    $stagedService = Join-Path $standalone ".buildResult\service"
+    foreach ($unneeded in @("node_modules", "build-service.js", "index.js", "package.json", "package-lock.json")) {
+        $target = Join-Path $stagedService $unneeded
+        if (Test-Path $target) { Remove-Item -Recurse -Force $target }
+    }
+
+    $outPath = Join-Path $standalone $OutDir
+    New-Item -ItemType Directory -Force -Path $outPath | Out-Null
+
     Write-Host "==> tizen package (-s $Profile)"
-    & $tizen package -t wgt -o $OutDir -s $Profile -- (Join-Path $standalone ".buildResult")
+    & $tizen package -t wgt -o $outPath -s $Profile -- (Join-Path $standalone ".buildResult")
     if ($LASTEXITCODE -ne 0) { throw "package failed" }
 
-    Get-ChildItem (Join-Path $standalone $OutDir) -Filter *.wgt | Select-Object FullName, Length
+    Get-ChildItem $outPath -Filter *.wgt | Select-Object FullName, Length, LastWriteTime
 } finally {
     Pop-Location
 }

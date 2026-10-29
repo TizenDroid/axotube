@@ -9,9 +9,7 @@ const deArrowCache = createBoundedCache(MAX_DEARROW_CACHE_ENTRIES);
 function applyDeArrow(item, videoId, data, titlesEnabled, thumbnailsEnabled) {
   try {
     if (titlesEnabled && data.titles && data.titles.length > 0) {
-      const mostVoted = data.titles.reduce((max, title) =>
-        max.votes > title.votes ? max : title,
-      );
+      const mostVoted = data.titles.reduce((max, title) => (max.votes > title.votes ? max : title));
       if (item.tileRenderer?.metadata?.tileMetadataRenderer?.title) {
         item.tileRenderer.metadata.tileMetadataRenderer.title.simpleText = mostVoted.title;
       }
@@ -37,7 +35,7 @@ function applyDeArrow(item, videoId, data, titlesEnabled, thumbnailsEnabled) {
       }
     }
   } catch (e) {
-    console.warn("Error processing DeArrow data:", e);
+    console.warn("[AxoTube:deArrow] Error processing DeArrow data:", e);
   }
 }
 

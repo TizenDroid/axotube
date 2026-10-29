@@ -8,7 +8,9 @@ const { createRequire } = require("node:module");
 const ROOT = path.resolve(__dirname, "..");
 const SERVICE_PATH = path.join(ROOT, "service", "service.js");
 const SERVICE_REQUIRE = createRequire(SERVICE_PATH);
-const DEFAULTS = JSON.parse(fs.readFileSync(path.join(ROOT, "config-schema.json"), "utf8")).defaults;
+const DEFAULTS = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "config-schema.json"), "utf8"),
+).defaults;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -22,7 +24,9 @@ async function openService({ config = {}, revision = 0 } = {}) {
   const memoryFs = {
     constants: fs.constants,
     accessSync() {},
-    readFileSync() { return stored; },
+    readFileSync() {
+      return stored;
+    },
     writeFileSync(_name, value) {
       if (failWrites) throw new Error("simulated disk failure");
       staged = value;
@@ -32,8 +36,12 @@ async function openService({ config = {}, revision = 0 } = {}) {
       stored = staged;
       staged = null;
     },
-    existsSync() { return staged !== null; },
-    unlinkSync() { staged = null; },
+    existsSync() {
+      return staged !== null;
+    },
+    unlinkSync() {
+      staged = null;
+    },
   };
   const express = SERVICE_REQUIRE("express");
   function testExpress() {
@@ -47,9 +55,15 @@ async function openService({ config = {}, revision = 0 } = {}) {
   }
   Object.assign(testExpress, express);
   const tizen = {
-    systeminfo: { getCapability() { return ""; } },
+    systeminfo: {
+      getCapability() {
+        return "";
+      },
+    },
     application: {
-      getAppInfo() { return { packageId: "axotube.test" }; },
+      getAppInfo() {
+        return { packageId: "axotube.test" };
+      },
       getAppsContext() {},
       launchAppControl() {},
     },
@@ -60,7 +74,11 @@ async function openService({ config = {}, revision = 0 } = {}) {
       if (name === "express") return testExpress;
       if (name === "./webConfigPage.js") return { webConfigPage: "<html></html>" };
       if (name === "@patrickkfkan/peer-dial") {
-        return { Server: class { start() {} } };
+        return {
+          Server: class {
+            start() {}
+          },
+        };
       }
       return SERVICE_REQUIRE(name);
     },
@@ -69,7 +87,9 @@ async function openService({ config = {}, revision = 0 } = {}) {
     global: { isAxoTubeStandalone: true },
     Buffer,
     URL,
-    setInterval() { return 1; },
+    setInterval() {
+      return 1;
+    },
     console: { log() {}, warn() {}, error() {} },
   };
   vm.runInNewContext(fs.readFileSync(SERVICE_PATH, "utf8"), context, { filename: SERVICE_PATH });
@@ -79,19 +99,29 @@ async function openService({ config = {}, revision = 0 } = {}) {
   async function request(method, url, body, additionalHeaders = {}) {
     const response = await fetch(origin + url, {
       method,
-      headers: { ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...additionalHeaders },
+      headers: {
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...additionalHeaders,
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     return { status: response.status, body: await response.json() };
   }
   return {
-    origin, request,
+    origin,
+    request,
     impersonateLanClient() {
       vm.runInNewContext('remoteAddress = () => "192.0.2.123"', context);
     },
-    setFailWrites(value) { failWrites = value; },
-    persisted() { return JSON.parse(stored); },
-    async close() { await new Promise((resolve) => server.close(resolve)); },
+    setFailWrites(value) {
+      failWrites = value;
+    },
+    persisted() {
+      return JSON.parse(stored);
+    },
+    async close() {
+      await new Promise((resolve) => server.close(resolve));
+    },
   };
 }
 
@@ -135,27 +165,49 @@ function openTvClient(origin, initialConfig) {
     emitter.dispatchEvent("configChange", { key, value });
     return true;
   }
-  const source = fs.readFileSync(path.join(ROOT, "mods", "features", "webConfig.js"), "utf8")
+  const source = fs
+    .readFileSync(path.join(ROOT, "mods", "features", "webConfig.js"), "utf8")
     .replace(/import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";/g, "")
     .replace(/^import\s+[^\n;]+;\s*$/gm, "")
     .replace("http://127.0.0.1:8085", origin);
   const context = vm.createContext({
-    configRead(key) { return state[key]; },
+    configRead(key) {
+      return state[key];
+    },
     configWrite,
-    configSnapshot() { return clone(state); },
+    configSnapshot() {
+      return clone(state);
+    },
     nativeJSONStringify: JSON.stringify.bind(JSON),
     configChangeEmitter: emitter,
-    hasNativeResolver() { return true; },
-    dispatchNativeCommandWhenReady() { return Promise.resolve(true); },
+    hasNativeResolver() {
+      return true;
+    },
+    dispatchNativeCommandWhenReady() {
+      return Promise.resolve(true);
+    },
     fetchWithTimeout: (url, opts) => fetch(url, opts),
     showToast() {},
     window: { h5vcc: { tizentube: {} }, _yttv: {} },
-    document: { querySelector() { return null; } },
+    document: {
+      querySelector() {
+        return null;
+      },
+    },
     location: { hash: "" },
-    Promise, Object, Array, Number, Set,
+    Promise,
+    Object,
+    Array,
+    Number,
+    Set,
     setTimeout: testSetTimeout,
-    clearTimeout(id) { timeouts.delete(id); },
-    setInterval(fn) { interval = fn; return 1; },
+    clearTimeout(id) {
+      timeouts.delete(id);
+    },
+    setInterval(fn) {
+      interval = fn;
+      return 1;
+    },
     console,
   });
   vm.runInContext(source, context, { filename: "mods/features/webConfig.js" });
@@ -163,11 +215,23 @@ function openTvClient(origin, initialConfig) {
   return {
     state,
     write: configWrite,
-    start() { boot(); },
-    firePush() { const fn = pushTimer; pushTimer = null; if (fn) fn(); },
-    poll() { if (interval) interval(); },
-    appliedRevision() { return vm.runInContext("appliedRevision", context); },
-    dirty() { return Array.from(vm.runInContext("dirtyKeys", context)); },
+    start() {
+      boot();
+    },
+    firePush() {
+      const fn = pushTimer;
+      pushTimer = null;
+      if (fn) fn();
+    },
+    poll() {
+      if (interval) interval();
+    },
+    appliedRevision() {
+      return vm.runInContext("appliedRevision", context);
+    },
+    dirty() {
+      return Array.from(vm.runInContext("dirtyKeys", context));
+    },
   };
 }
 
@@ -178,7 +242,8 @@ test("TV CAS increments only for changed snapshots, and stale pushes never overw
   assert.equal(initial.body.revision, 0);
 
   const accepted = await host.request("POST", "/api/config/push", {
-    revision: 0, config: { videoSpeed: 1.25 },
+    revision: 0,
+    config: { videoSpeed: 1.25 },
   });
   assert.equal(accepted.status, 200);
   assert.equal(accepted.body.applied, true);
@@ -186,13 +251,15 @@ test("TV CAS increments only for changed snapshots, and stale pushes never overw
   assert.equal(host.persisted().revision, 1);
 
   const noOp = await host.request("POST", "/api/config/push", {
-    revision: 1, config: { videoSpeed: 1.25 },
+    revision: 1,
+    config: { videoSpeed: 1.25 },
   });
   assert.equal(noOp.body.changed, false);
   assert.equal(noOp.body.revision, 1);
 
   const stale = await host.request("POST", "/api/config/push", {
-    revision: 0, config: { videoSpeed: 2 },
+    revision: 0,
+    config: { videoSpeed: 2 },
   });
   assert.equal(stale.status, 409);
   assert.equal(stale.body.applied, false);
@@ -203,11 +270,13 @@ test("revision-aware phone saves reject stale snapshots; legacy phone clients st
   const host = await openService({ config: { videoSpeed: 1 }, revision: 3 });
   t.after(() => host.close());
   const phone = await host.request("POST", "/api/config", {
-    revision: 3, config: { videoSpeed: 1.5 },
+    revision: 3,
+    config: { videoSpeed: 1.5 },
   });
   assert.equal(phone.body.revision, 4);
   const stalePhone = await host.request("POST", "/api/config", {
-    revision: 3, config: { videoSpeed: 2 },
+    revision: 3,
+    config: { videoSpeed: 2 },
   });
   assert.equal(stalePhone.status, 409);
   assert.equal((await host.request("GET", "/api/config")).body.config.videoSpeed, 1.5);
@@ -228,9 +297,14 @@ test("pairing still permits a second phone and requires the token for LAN access
   assert.equal(host.persisted().authToken, first.body.token);
   host.impersonateLanClient();
   assert.equal((await host.request("GET", "/api/config")).status, 401);
-  assert.equal((await host.request("GET", "/api/config", undefined, {
-    Authorization: `Bearer ${first.body.token}`,
-  })).status, 200);
+  assert.equal(
+    (
+      await host.request("GET", "/api/config", undefined, {
+        Authorization: `Bearer ${first.body.token}`,
+      })
+    ).status,
+    200,
+  );
 });
 
 test("failed disk writes never advance committed revision or acknowledge TV/phone saves", async (t) => {
@@ -238,19 +312,23 @@ test("failed disk writes never advance committed revision or acknowledge TV/phon
   t.after(() => host.close());
   host.setFailWrites(true);
   const tv = await host.request("POST", "/api/config/push", {
-    revision: 5, config: { videoSpeed: 1.5 },
+    revision: 5,
+    config: { videoSpeed: 1.5 },
   });
   assert.equal(tv.status, 503);
   const phone = await host.request("POST", "/api/config", {
-    revision: 5, config: { videoSpeed: 2 },
+    revision: 5,
+    config: { videoSpeed: 2 },
   });
   assert.equal(phone.status, 503);
   assert.deepEqual((await host.request("GET", "/api/config")).body, {
-    revision: 5, config: { videoSpeed: 1 },
+    revision: 5,
+    config: { videoSpeed: 1 },
   });
   host.setFailWrites(false);
   const retry = await host.request("POST", "/api/config/push", {
-    revision: 5, config: { videoSpeed: 1.5 },
+    revision: 5,
+    config: { videoSpeed: 1.5 },
   });
   assert.equal(retry.body.revision, 6);
 });
@@ -267,15 +345,16 @@ test("TV detects stale push and rebases only unsent local edits over newer phone
   phoneConfig.themePreset = "navy";
   phoneConfig.routeColor = "#0d1b2a";
   const phone = await host.request("POST", "/api/config", {
-    revision: 7, config: phoneConfig,
+    revision: 7,
+    config: phoneConfig,
   });
   assert.equal(phone.body.revision, 8);
   tv.firePush(); // Sends stale revision 7 and must fetch/rebase revision 8.
   await waitUntil(async () => {
     const read = (await host.request("GET", "/api/config")).body;
-    return read.revision === 9 &&
-      read.config.videoSpeed === 1.5 &&
-      read.config.themePreset === "navy";
+    return (
+      read.revision === 9 && read.config.videoSpeed === 1.5 && read.config.themePreset === "navy"
+    );
   }, "TV did not rebase local videoSpeed over updated phone theme");
   assert.equal(tv.state.routeColor, "#0d1b2a");
   assert.equal(tv.appliedRevision(), 9);

@@ -71,7 +71,7 @@ function deepFindContainer(maxNodes, strict) {
 
   function walk(node, depth, owner, ownerKey, ownerIsMap) {
     if (!node || depth > 8 || visited > maxNodes) return null;
-    if ((typeof node === "object" || typeof node === "function")) {
+    if (typeof node === "object" || typeof node === "function") {
       if (seen.has(node)) return null;
       seen.add(node);
     }
@@ -176,13 +176,16 @@ function applyPatches() {
       }
 
       try {
-        const functions = assignedFunctions || (assignedFunctions = extractAssignedFunctions(origSource));
+        const functions =
+          assignedFunctions || (assignedFunctions = extractAssignedFunctions(origSource));
         const pipCommand = {
           type: "TRANSPORT_CONTROLS_BUTTON_TYPE_PIP",
           button: {
             buttonRenderer: ButtonRenderer(
               false,
-              configRead("enableSwapMPWithPIP") ? t("player.pictureInPicture") : t("player.miniPlayer"),
+              configRead("enableSwapMPWithPIP")
+                ? t("player.pictureInPicture")
+                : t("player.miniPlayer"),
               "CLEAR_COOKIES",
               {
                 customAction: {
@@ -202,8 +205,13 @@ function applyPatches() {
           if (typeof origSettingActionGroup === "function") {
             inst[settingActionGroup] = function () {
               const res = origSettingActionGroup.apply(this, arguments);
-              if (Array.isArray(res) && !res.find((item) => item.type === "TRANSPORT_CONTROLS_BUTTON_TYPE_PIP")) {
-                const settingsIdx = res.findIndex((item) => item.type === "TRANSPORT_CONTROLS_BUTTON_TYPE_PLAYBACK_SETTINGS");
+              if (
+                Array.isArray(res) &&
+                !res.find((item) => item.type === "TRANSPORT_CONTROLS_BUTTON_TYPE_PIP")
+              ) {
+                const settingsIdx = res.findIndex(
+                  (item) => item.type === "TRANSPORT_CONTROLS_BUTTON_TYPE_PLAYBACK_SETTINGS",
+                );
                 if (settingsIdx !== -1) res.splice(settingsIdx, 0, pipCommand);
               }
               return res;
@@ -234,13 +242,21 @@ function applyPatches() {
           if (typeof origEngagementActionButton === "function") {
             inst[engagementActionButton] = function () {
               const res = origEngagementActionButton.apply(this, arguments);
-              if (Array.isArray(res) && !res.find((item) => item.type === "TRANSPORT_CONTROLS_BUTTON_TYPE_SPEED")) {
+              if (
+                Array.isArray(res) &&
+                !res.find((item) => item.type === "TRANSPORT_CONTROLS_BUTTON_TYPE_SPEED")
+              ) {
                 res.push({
                   type: "TRANSPORT_CONTROLS_BUTTON_TYPE_SPEED",
                   button: {
-                    buttonRenderer: ButtonRenderer(false, t("player.speedControls"), "SLOW_MOTION_VIDEO", {
-                      customAction: { action: "TT_SPEED_SETTINGS_SHOW" },
-                    }),
+                    buttonRenderer: ButtonRenderer(
+                      false,
+                      t("player.speedControls"),
+                      "SLOW_MOTION_VIDEO",
+                      {
+                        customAction: { action: "AXO_SPEED_SETTINGS_SHOW" },
+                      },
+                    ),
                   },
                 });
               }
@@ -277,7 +293,7 @@ function applyPatches() {
           };
         }
       } catch (e) {
-        console.warn("Custom UI patching failed:", e);
+        console.warn("[AxoTube:customUI] Custom UI patching failed:", e);
       }
 
       return inst;
@@ -292,7 +308,7 @@ function applyPatches() {
     customUIInitialized = true;
     return true;
   } catch (e) {
-    console.error("Custom UI apply failed:", e);
+    console.error("[AxoTube:customUI] Custom UI apply failed:", e);
     containerRef = null;
     return false;
   }

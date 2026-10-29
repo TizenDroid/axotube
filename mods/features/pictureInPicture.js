@@ -60,7 +60,7 @@ function pipLoad() {
     }
     return true;
   } catch (e) {
-    console.warn("PiP service loading failed:", e);
+    console.warn("[AxoTube:pictureInPicture] PiP service loading failed:", e);
     schedulePipLoad();
     return false;
   }
@@ -103,7 +103,7 @@ function ensurePipButton() {
   if (!window.isPipPlaying) return;
   try {
     const searchBar = document.querySelector("ytlr-search-bar");
-    if (!searchBar || document.querySelector("#tt-pip-button")) return;
+    if (!searchBar || document.querySelector("#axo-pip-button")) return;
     const voiceButton = searchBar.querySelector("ytlr-search-voice");
     if (!voiceButton || !voiceButton.children[0] || !voiceButton.children[0].children[0]) return;
 
@@ -117,7 +117,7 @@ function ensurePipButton() {
     const pipButton = document.createElement("ytlr-search-voice");
     copyCompatibleClasses(voiceButton, pipButton, originalClasses.ytlrSearchVoice);
     pipButton.style.left = "10.25em";
-    pipButton.id = "tt-pip-button";
+    pipButton.id = "axo-pip-button";
 
     const pipButtonMicButton = document.createElement("ytlr-search-voice-mic-button");
     copyCompatibleClasses(
@@ -137,18 +137,26 @@ function ensurePipButton() {
     pipButton.appendChild(pipButtonMicButton);
     searchBar.appendChild(pipButton);
   } catch (e) {
-    console.warn("PiP button creation failed:", e);
+    console.warn("[AxoTube:pictureInPicture] PiP button creation failed:", e);
   }
 }
 
+let pipUiFrame = null;
+
 function startPipUiObserver() {
   if (pipUiObserver || !window.isPipPlaying || !document.body) return;
+  // Mutations arrive in bursts while the client renders; one check per frame
+  // is enough to put the button back if the search bar re-renders.
   pipUiObserver = new MutationObserver(() => {
-    if (!window.isPipPlaying) {
-      stopPipUiObserver();
-      return;
-    }
-    ensurePipButton();
+    if (pipUiFrame !== null) return;
+    pipUiFrame = requestAnimationFrame(() => {
+      pipUiFrame = null;
+      if (!window.isPipPlaying) {
+        stopPipUiObserver();
+        return;
+      }
+      ensurePipButton();
+    });
   });
   pipUiObserver.observe(document.body, { childList: true, subtree: true });
   ensurePipButton();
@@ -159,7 +167,11 @@ function stopPipUiObserver() {
     pipUiObserver.disconnect();
     pipUiObserver = null;
   }
-  const button = document.querySelector("#tt-pip-button");
+  if (pipUiFrame !== null) {
+    cancelAnimationFrame(pipUiFrame);
+    pipUiFrame = null;
+  }
+  const button = document.querySelector("#axo-pip-button");
   if (button && button.parentNode) button.parentNode.removeChild(button);
 }
 
@@ -251,7 +263,7 @@ function enablePip() {
               PlayerService.loadVideo(playbackConfig);
             }
           } catch (e) {
-            console.warn("PiP video load failed:", e);
+            console.warn("[AxoTube:pictureInPicture] PiP video load failed:", e);
           }
         }, 1000);
         break;
@@ -268,7 +280,7 @@ function enablePip() {
       throw e;
     }
   } catch (e) {
-    console.error("Enable PiP failed:", e);
+    console.error("[AxoTube:pictureInPicture] Enable PiP failed:", e);
   }
 }
 
@@ -276,17 +288,26 @@ function pipToFullscreen() {
   try {
     if (!PlayerService || !PlayerService.loadedPlaybackConfig) return;
     const videoElement = document.querySelector("video");
-    const { clickTrackingParams, commandMetadata, watchEndpoint } = PlayerService.loadedPlaybackConfig;
-    const updatedWatchEndpoint = videoElement && watchEndpoint
-      ? Object.assign({}, watchEndpoint, { startTimeSeconds: Math.floor(videoElement.currentTime) })
-      : watchEndpoint;
-    if (!tryDispatchNativeCommand({
-      clickTrackingParams, commandMetadata, watchEndpoint: updatedWatchEndpoint,
-    }).dispatched) return;
+    const { clickTrackingParams, commandMetadata, watchEndpoint } =
+      PlayerService.loadedPlaybackConfig;
+    const updatedWatchEndpoint =
+      videoElement && watchEndpoint
+        ? Object.assign({}, watchEndpoint, {
+            startTimeSeconds: Math.floor(videoElement.currentTime),
+          })
+        : watchEndpoint;
+    if (
+      !tryDispatchNativeCommand({
+        clickTrackingParams,
+        commandMetadata,
+        watchEndpoint: updatedWatchEndpoint,
+      }).dispatched
+    )
+      return;
     window.isPipPlaying = false;
     cleanupPipStyles();
   } catch (e) {
-    console.error("PiP to fullscreen failed:", e);
+    console.error("[AxoTube:pictureInPicture] PiP to fullscreen failed:", e);
   }
 }
 

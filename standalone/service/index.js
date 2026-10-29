@@ -12,6 +12,8 @@ var fs = require('fs');
 var net = require('net');
 
 var USERSCRIPT_PATH = path.join(__dirname, '..', '..', 'userscript', 'userScript.js');
+// Early bundle: injected at the start of <head>, before YouTube's own scripts.
+var EARLY_SCRIPT_PATH = path.join(__dirname, '..', '..', 'userscript', 'early.js');
 
 var EXACT_CORS_HOSTS = {
     'www.gstatic.com': true,
@@ -66,12 +68,20 @@ app.get('/tizentube/health', function (req, res) {
     res.status(200).end();
 });
 
-app.get('/axotube/userScript.js', function (req, res) {
+function serveScript(file, res) {
     res.setHeader('Content-Type', 'application/javascript');
     res.setHeader('Cache-Control', 'no-cache');
-    fs.createReadStream(USERSCRIPT_PATH).on('error', function () {
+    fs.createReadStream(file).on('error', function () {
         if (!res.headersSent) res.status(404).end();
     }).pipe(res);
+}
+
+app.get('/axotube/userScript.js', function (req, res) {
+    serveScript(USERSCRIPT_PATH, res);
+});
+
+app.get('/axotube/early.js', function (req, res) {
+    serveScript(EARLY_SCRIPT_PATH, res);
 });
 
 function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
@@ -212,6 +222,12 @@ app.all('*', function (req, res) {
 
             return response.text().then(function (text) {
                 if (!isCorsBypass && req.url.indexOf('/tv') === 0 && req.url.indexOf('/tv_config') === -1) {
+                    // Early bundle first, right after <head>, so its overrides exist
+                    // before YouTube reads them. The main bundle stays at the end.
+                    var earlyTag = '<script src="http://localhost:' + PORT + '/axotube/early.js"></script>';
+                    text = /<head(\s[^>]*)?>/i.test(text)
+                        ? text.replace(/<head(\s[^>]*)?>/i, function (m) { return m + earlyTag; })
+                        : earlyTag + text;
                     text += '<script src="http://localhost:' + PORT + '/axotube/userScript.js"></script>';
                 }
                 text = rewriteTrustedText(text);
@@ -225,7 +241,14 @@ app.all('*', function (req, res) {
 });
 
 // The content proxy is intentionally loopback-only; DIAL/phone control stays on 8085.
-app.listen(PORT, '127.0.0.1');
+var server = app.listen(PORT, '127.0.0.1', function () {
+    console.log('[AxoTube:service] listening on 127.0.0.1:' + PORT);
+});
+// Without this, a busy port (e.g. an earlier instance still running) fails
+// silently and the splash only ever times out.
+server.on('error', function (err) {
+    console.error('[AxoTube:service] could not listen on port ' + PORT + ': ' + err.code);
+});
 
 global.isAxoTubeStandalone = true;
 require('../../dist/service.js');

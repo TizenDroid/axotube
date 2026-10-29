@@ -40,6 +40,9 @@
     "enableSwapMPWithPIP": false,
     "enablePreviews": true,
     "previewLengthSeconds": 40,
+    "enableRemainingTime": false,
+    "enablePauseOnBlur": false,
+    "enableLowMemoryMode": false,
     "enableHideWatchedVideos": false,
     "hideWatchedVideosThreshold": 80,
     "hideWatchedVideosPages": [],
@@ -60,7 +63,10 @@
     "autoFrameRatePauseVideoFor": 0,
     "enableSigninReminder": false,
     "sortSubscriptionsByAlphabet": false,
-    "enableReducedMotion": false
+    "enableReducedMotion": false,
+    "enableOnePressMode": false,
+    "enableExperimentalResolution": false,
+    "experimentalMaxResolution": "1440p"
   },
   "ranges": {
     "videoSpeed": [0.05, 5],
@@ -76,7 +82,8 @@
     "preferredVideoQuality": ["auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"],
     "videoPreferredCodec": ["any", "vp9", "av01", "avc1"],
     "themePreset": ["default", "black", "darkGray", "charcoal", "navy", "darkRed", "darkGreen", "darkPurple"],
-    "textTheme": ["default", "white", "gray", "red", "blue", "green", "purple", "yellow"]
+    "textTheme": ["default", "white", "gray", "red", "blue", "green", "purple", "yellow"],
+    "experimentalMaxResolution": ["1440p", "2160p"]
   },
   "themePresetColors": {
     "default": "#0f0f0f",

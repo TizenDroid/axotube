@@ -69,16 +69,25 @@ function showServiceToast() {
 
 function valuesEqual(a, b) {
   if (a === b) return true;
-  try { return nativeJSONStringify(a) === nativeJSONStringify(b); } catch (err) { return false; }
+  try {
+    return nativeJSONStringify(a) === nativeJSONStringify(b);
+  } catch (err) {
+    return false;
+  }
 }
 
 function differsFromServer(snapshot) {
   if (!serverConfig) return false;
   const localKeys = Object.keys(snapshot);
   const remoteKeys = Object.keys(serverConfig);
-  return localKeys.length !== remoteKeys.length || localKeys.some((key) =>
-    !Object.prototype.hasOwnProperty.call(serverConfig, key) ||
-    !valuesEqual(snapshot[key], serverConfig[key]));
+  return (
+    localKeys.length !== remoteKeys.length ||
+    localKeys.some(
+      (key) =>
+        !Object.prototype.hasOwnProperty.call(serverConfig, key) ||
+        !valuesEqual(snapshot[key], serverConfig[key]),
+    )
+  );
 }
 
 function pushIfChanged() {
@@ -141,8 +150,15 @@ function pullAndApply() {
       return res.json();
     })
     .then((data) => {
-      if (!data || !Number.isSafeInteger(data.revision) || data.revision < 0 ||
-          !data.config || typeof data.config !== "object" || Array.isArray(data.config)) return;
+      if (
+        !data ||
+        !Number.isSafeInteger(data.revision) ||
+        data.revision < 0 ||
+        !data.config ||
+        typeof data.config !== "object" ||
+        Array.isArray(data.config)
+      )
+        return;
       showServiceToast();
       pollFailures = 0;
       const remote = data.config;
@@ -189,8 +205,10 @@ function buildCommand(command) {
     if (command.playlistId) watch.playlistId = command.playlistId;
     return { watchEndpoint: watch };
   }
-  if (command.action === "search" && command.query) return { searchEndpoint: { query: command.query } };
-  if (command.action === "browse" && command.browseId) return { browseEndpoint: { browseId: command.browseId } };
+  if (command.action === "search" && command.query)
+    return { searchEndpoint: { query: command.query } };
+  if (command.action === "browse" && command.browseId)
+    return { browseEndpoint: { browseId: command.browseId } };
   return null;
 }
 
@@ -215,7 +233,9 @@ function acknowledgeExecutedCommand(id) {
     lastExecutedCommandId = null;
     lastExecutedCommandNeedsReload = false;
     if (shouldReload) {
-      try { window.location.reload(); } catch (err) {}
+      try {
+        window.location.reload();
+      } catch (err) {}
     }
     return true;
   });
@@ -249,12 +269,16 @@ function consumeCommand() {
         if (!ok) return;
         lastExecutedCommandId = id;
         lastExecutedCommandNeedsReload = false;
-        try { showToast(t("app.name"), t("toasts.commandReceived")); } catch (err) {}
+        try {
+          showToast(t("app.name"), t("toasts.commandReceived"));
+        } catch (err) {}
         return acknowledgeExecutedCommand(id);
       });
     })
     .catch(() => {})
-    .then(() => { commandPolling = false; });
+    .then(() => {
+      commandPolling = false;
+    });
 }
 
 function pushNowPlaying() {
@@ -288,8 +312,12 @@ function pushNowPlaying() {
     .then((res) => {
       if (!res.ok) throw new Error(`now playing HTTP ${res.status}`);
     })
-    .catch(() => { lastNowPlaying = ""; })
-    .then(() => { nowPlayingPushing = false; });
+    .catch(() => {
+      lastNowPlaying = "";
+    })
+    .then(() => {
+      nowPlayingPushing = false;
+    });
 }
 
 // Poll every POLL_INTERVAL_MS while the service answers. Each failed pull
