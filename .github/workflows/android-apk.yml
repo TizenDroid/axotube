@@ -1,0 +1,161 @@
+name: Android TV APK
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+      - '!android-main-*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Choose Android signing mode
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
+            keystore_path="${RUNNER_TEMP}/axotube-android-release.jks"
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+            chmod 600 "$keystore_path"
+            test -s "$keystore_path"
+            echo "ANDROID_KEYSTORE_FILE=${keystore_path}" >> "$GITHUB_ENV"
+            echo "ANDROID_SIGNING_MODE=release" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Android release signing secrets are incomplete; building a debug-signed, installable APK. Reinstall may be required for later CI builds."
+            echo "ANDROID_SIGNING_MODE=debug" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            mods/package-lock.json
+            service/package-lock.json
+
+      - name: Install page and service dependencies
+        run: |
+          npm ci --prefix mods
+          npm ci --prefix service
+
+      - name: Run regression tests
+        run: npm test
+
+      - name: Build fresh standalone page bundles and service
+        run: node scripts/build-standalone.js
+
+      - name: Stage fresh Android fallback bundles
+        run: node android/copy-bundles.cjs
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+
+      - name: Assemble Android TV APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -f ./gradlew ]]; then
+            chmod +x ./gradlew
+            build_tool=./gradlew
+          else
+            build_tool=gradle
+          fi
+          if [[ "$ANDROID_SIGNING_MODE" == 'release' ]]; then
+            "$build_tool" --no-daemon --stacktrace :app:assembleRelease
+            echo "ANDROID_APK_PATH=android/app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_ENV"
+          else
+            "$build_tool" --no-daemon --stacktrace :app:assembleDebug
+            echo "ANDROID_APK_PATH=android/app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
+          fi
+
+      - name: Verify APK signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$ANDROID_APK_PATH"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$apksigner"
+          "$apksigner" verify --verbose "$ANDROID_APK_PATH"
+
+      - name: Name installable APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          test -s "$ANDROID_APK_PATH"
+          mkdir -p release
+          cp "$ANDROID_APK_PATH" "release/AxoTube-Android-${version}.apk"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: axotube-android-apk-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # Every successful main push gets its own prerelease. Re-runs get distinct
+      # tags; this preserves unrelated releases and prevents asset collisions.
+      - name: Publish main-branch APK prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-main-${{ github.run_id }}-${{ github.run_attempt }}
+          target_commitish: ${{ github.sha }}
+          name: AxoTube Android ${{ steps.apk.outputs.version }} (main build ${{ github.run_number }})
+          prerelease: true
+          make_latest: false
+          files: release/*.apk
+          fail_on_unmatched_files: true
+          body: |
+            Automated Android TV build from `${{ github.sha }}`.
+            Signing mode: `${{ env.ANDROID_SIGNING_MODE }}`.
+            Debug-signed builds may require uninstalling the previous APK before installing
+            another CI build. Add the Android release signing secrets for stable upgrade signing.
+
+      - name: Attach APK to pushed tag release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: AxoTube ${{ github.ref_name }}
+          prerelease: false
+          files: release/*.apk
+          fail_on_unmatched_files: true
+          body: |
+            Android TV APK for `${{ github.ref_name }}`.
+            Signing mode: `${{ env.ANDROID_SIGNING_MODE }}`.
+            The app loads jsDelivr bundle updates at runtime and has packaged fallback bundles.

@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.axotube.tv'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'org.axotube.tv'
+        minSdk 23
+        targetSdk 28
+        def rootVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
+        versionCode 1260100 + (System.getenv('GITHUB_RUN_NUMBER') ?: '0').toInteger()
+        versionName rootVersion
+    }
+
+    signingConfigs {
+        release {
+            def keyFile = System.getenv('ANDROID_KEYSTORE_FILE') ?: System.getenv('ANDROID_KEYSTORE_PATH')
+            if (keyFile && System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                    && System.getenv('ANDROID_KEY_ALIAS') && System.getenv('ANDROID_KEY_PASSWORD')) {
+                storeFile file(keyFile)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+// Keep the APK's offline fallback scripts in sync with freshly built dist/.
+// CI must run `npm ci && npm run build` in the repository root first.
+tasks.register('copyWebBundles', Exec) {
+    workingDir rootProject.projectDir
+    commandLine 'node', 'copy-bundles.cjs'
+    inputs.files(file('../../dist/early.js'), file('../../dist/userScript.js'), file('../../package.json'))
+    outputs.dir(file('src/main/assets/bundles'))
+}
+tasks.configureEach {
+    if (name.matches('merge(Debug|Release)Assets')
+            || name.toLowerCase().contains('lint')) {
+        dependsOn tasks.named('copyWebBundles')
+    }
+}

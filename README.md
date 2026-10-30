@@ -23,6 +23,8 @@ A TizenBrew module is included for people already running TizenBrew. The WGT,
 installed with Apps2Samsung, is the recommended path and the one this README
 covers first.
 
+An experimental **Android TV APK** is also available from GitHub Releases.
+
 > [!NOTE]
 > AxoTube is a client for YouTube TV, not a replacement service. You still sign
 > in with your own account, and YouTube still serves the video.
@@ -53,8 +55,10 @@ covers first.
   thumbnail upgrades for slower TVs.
 - **Phone configuration.** Pair a phone with a six-digit code and change settings
   from the web page the TV serves on your network.
-- **Updates without reinstalling.** Page bundles are published to npm and fetched
-  through jsDelivr; the WGT only needs replacing when the service changes.
+- **Updates without reinstalling.** The WGT can fetch newer page bundles through
+  jsDelivr when the `axotube-bundle` npm package is published; the WGT only needs
+  replacing when the service changes. The Android build uses the GitHub-backed
+  jsDelivr channel instead.
 
 ## How it works
 
@@ -111,6 +115,30 @@ stays on "Starting axotube service", give it a minute, then restart the app.
 Add `axotube` as an npm module in the TizenBrew module manager. The npm package
 can lag behind the GitHub source; the WGT is built from the same tree.
 
+### Android TV (experimental)
+
+Download `AxoTube-Android-<version>.apk` from [GitHub Releases](https://github.com/TizenDroid/axotube/releases)
+and sideload it on your Android TV, for example with `adb install`. The
+[`Android TV APK`](https://github.com/TizenDroid/axotube/actions/workflows/android-apk.yml)
+workflow builds on every push to `main`, on pushed tags, and when run manually.
+Each successful `main` build is published as a separate prerelease with an APK
+also downloadable from the workflow artifacts.
+
+The Android app starts a loopback proxy on port 8099 and checks for script updates
+through jsDelivr's GitHub CDN. It pins both downloaded scripts to the same Git
+commit and caches them locally; compiled scripts are included inside the APK for
+offline startup. YouTube video playback still requires internet access.
+
+Without Android signing secrets, CI publishes a debug-signed APK. The signing key
+may differ between builds, so an upgrade can require uninstalling the older APK
+and losing its local app data. The workflow supports stable release signing with
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
+`ANDROID_KEY_PASSWORD` repository secrets. See [Android build instructions](android/README.md).
+
+Android's WebView, device codecs, DRM and sign-in have not been verified on every
+TV model. The Android APK does not yet provide the WGT's port 8085 DIAL casting
+and phone configuration service.
+
 ## Settings
 
 Open YouTube's settings and choose **AxoTube Settings**, or press the settings
@@ -141,13 +169,14 @@ on purpose: a widget that installs but cannot boot is worse than a failed build.
 | `mods/` | Browser bundle: response filters, player patches, settings UI |
 | `service/` | Node service: content proxy, DIAL, pairing, config store |
 | `standalone/` | WGT shell, splash page, service entry, signing metadata |
+| `android/` | Experimental Android TV WebView app, local proxy, and bundle cache |
 | `shared/configPolicy.js` | One validation policy used by the browser and the service |
 | `tests/` | Regression suite, including ES5 output and runtime fixtures |
 
 ## Limitations
 
-- Samsung Tizen TVs only. This does not run on Android TV, webOS, phones, or
-  tablets, and there is no plan to port it.
+- The WGT targets Samsung Tizen TVs only. The experimental Android TV APK is a
+  separate client; webOS and other platforms are not supported.
 - SponsorBlock and DeArrow need their public APIs. If those are down, the
   features are simply absent for that session.
 - Experimental 1440p and 2160p can stutter on a 1080p panel. The TV may accept
