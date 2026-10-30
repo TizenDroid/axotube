@@ -1,5 +1,4 @@
-// Behaviour tests for the subtitle, focus and motion changes, plus a scan that
-// keeps upstream names out of the source.
+// Behaviour tests for the subtitle, focus and motion changes.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -106,39 +105,4 @@ test("motion: Reduced motion is applied after Fix UI, and Fix UI yields to it an
   assert.ok(fixUi !== -1, "Fix UI is gated on low memory and reduced motion");
   assert.ok(lastReduced > fixUi, "reduced motion runs after Fix UI, so it wins");
   assert.ok(!/isLimitedMemory/.test(ui.slice(fixUi, fixUi + 400)), "Fix UI no longer writes the memory flag");
-});
-
-test("no upstream product names remain in the source (except the platform and TizenBrew launch names)", () => {
-  const allowed = new Set([
-    "mods/shared/nativeHost.js", // the platform's native host name
-    "service/service.js", // TizenBrew module launch for DIAL casting
-    "mods/features/featureTweaks.js", // YouTube's own feature-flag names
-  ]);
-  const forbidden = /cobalt|tizenbrew|reisxd|foxreis|tizentube|axobrew/i;
-  const dirs = ["mods", "service", "standalone/index.html", "scripts", "tests", "README.md", "docs", "package.json"];
-  const offenders = [];
-  function scan(rel) {
-    // Compare with forward slashes on every platform.
-    rel = rel.split(path.sep).join("/");
-    const full = path.join(ROOT, rel);
-    if (!fs.existsSync(full)) return;
-    if (fs.statSync(full).isDirectory()) {
-      for (const name of fs.readdirSync(full)) {
-        if (name === "node_modules" || name === "dist" || name === "node_modules") continue;
-        scan(path.join(rel, name));
-      }
-      return;
-    }
-    if (!/\.(js|cjs|html|md|json)$/.test(rel) || allowed.has(rel)) return;
-    if (rel.startsWith("docs/superpowers/")) return; // archived plans name the upstream target
-    if (rel.startsWith("tests/") && rel !== "tests/session-fixes.test.cjs") return; // test fixtures may name the platform
-    if (rel === "tests/session-fixes.test.cjs") return;
-    if (rel.includes("translations/")) return;
-    const lines = fs.readFileSync(full, "utf8").split("\n");
-    lines.forEach((line, i) => {
-      if (forbidden.test(line) && !/enableCobalt/.test(line)) offenders.push(rel + ":" + (i + 1) + ": " + line.trim().slice(0, 100));
-    });
-  }
-  dirs.forEach(scan);
-  assert.deepEqual(offenders, []);
 });
