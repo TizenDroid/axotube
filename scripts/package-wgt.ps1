@@ -40,11 +40,15 @@ try {
     if (Test-Path $stagedRelease) { Remove-Item -Recurse -Force $stagedRelease }
 
     # service/dist/index.js is an ncc bundle with express and node-fetch inlined.
-    # Its node_modules and build-time files must not ship in the widget.
+    # Nothing else under service/ belongs in the widget: not the source files,
+    # not node_modules, and not the runtime config store (it holds the pairing
+    # token) that a local run may have left in service/dist.
     $stagedService = Join-Path $standalone ".buildResult\service"
-    foreach ($unneeded in @("node_modules", "build-service.js", "index.js", "package.json", "package-lock.json")) {
-        $target = Join-Path $stagedService $unneeded
-        if (Test-Path $target) { Remove-Item -Recurse -Force $target }
+    if (Test-Path $stagedService) {
+        Get-ChildItem $stagedService -Force | Where-Object { $_.Name -ne "dist" } |
+            Remove-Item -Recurse -Force
+        Get-ChildItem (Join-Path $stagedService "dist") -Force | Where-Object { $_.Name -ne "index.js" } |
+            Remove-Item -Recurse -Force
     }
 
     $outPath = Join-Path $standalone $OutDir

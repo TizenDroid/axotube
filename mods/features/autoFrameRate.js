@@ -1,3 +1,4 @@
+import { nativeHost } from "../shared/nativeHost.js";
 import { configRead, configChangeEmitter } from "../config.js";
 import {
   getCurrentPlayer,
@@ -19,7 +20,7 @@ function isWatchRoute() {
 }
 
 function getFrameRateApi() {
-  return window.h5vcc && window.h5vcc.tizentube && window.h5vcc.tizentube.SetFrameRate;
+  return nativeHost() && nativeHost().SetFrameRate;
 }
 
 function resetFrameRate() {
@@ -27,7 +28,7 @@ function resetFrameRate() {
   const SetFrameRate = getFrameRateApi();
   if (!SetFrameRate) return;
   try {
-    SetFrameRate.call(window.h5vcc.tizentube, 0);
+    SetFrameRate.call(nativeHost(), 0);
     frameRateForced = false;
   } catch (e) {
     console.warn("[AxoTube:autoFrameRate] Failed to reset auto frame rate:", e);
@@ -81,7 +82,7 @@ function handlePlaybackStart() {
     const temporarilyPause = pauseFor > 0 && video && !video.paused && !pendingResume;
     if (temporarilyPause) video.pause();
     try {
-      setFrameRate.call(window.h5vcc.tizentube, parseFloat(resolutionMatch[3]));
+      setFrameRate.call(nativeHost(), parseFloat(resolutionMatch[3]));
       frameRateForced = true;
     } finally {
       if (temporarilyPause && video.paused) {

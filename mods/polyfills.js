@@ -1,5 +1,5 @@
 /**
- * polyfills.js – browser-API polyfills for Tizen 4 (N5470 / Cobalt).
+ * polyfills.js – browser-API polyfills for Tizen 4 (N5470).
  *
  * Covers APIs that core-js does NOT polyfill (DOM/browser-runtime APIs):
  *   • globalThis
@@ -57,7 +57,7 @@
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EventTarget – Safe Constructable Polyfill
-// Older Cobalt/Tizen ships EventTarget as a non-constructable interface.
+// Older Tizen browsers ship EventTarget as a non-constructable interface.
 // config.js does:  export const configChangeEmitter = new EventTarget();
 //
 // IMPORTANT: If EventTarget exists natively we must NOT replace it entirely,

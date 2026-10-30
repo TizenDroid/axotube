@@ -15,9 +15,9 @@ function between(src, start, end) {
   return src.slice(a, b);
 }
 
-test("1.22.2 metadata stays synchronized", () => {
+test("1.25.0 metadata stays synchronized", () => {
   const root = JSON.parse(read("package.json")).version;
-  assert.equal(root, "1.22.2");
+  assert.equal(root, "1.25.0");
   assert.equal(JSON.parse(read("standalone/service/package.json")).version, root);
   has(read("standalone/config.xml"), `version="${root}"`);
 });
@@ -118,14 +118,6 @@ test("standalone health check has a per-request deadline", () => {
   has(src, 'reject(new Error("Request timed out"))');
 });
 
-test("known updater architecture never falls back to a different APK architecture", () => {
-  const src = read("mods/features/updater.js");
-  const fn = between(src, "function findDownloadUrl", "function checkForUpdates");
-  has(fn, "return asset ? asset.browser_download_url : null");
-  has(fn, 'architecture.includes("arm64")');
-  has(fn, 'architecture.includes("arm")');
-});
-
 test("AdBlock stringify hook restores caller objects after serialization", () => {
   const src = read("mods/features/adblock.js");
   const stringify = between(src, "JSON.stringify = function", "window.JSON.stringify");
@@ -218,16 +210,6 @@ test("focused HQ thumbnail probing tries sddefault before falling back to hqdefa
     sdPos !== -1 && hqPos !== -1 && sdPos < hqPos,
     "sddefault should be tested before hqdefault fallback",
   );
-});
-
-test("updater compares numeric SemVer prerelease identifiers correctly", () => {
-  const src = read("mods/features/updater.js");
-  const code = between(src, "function normalizeVersion", "function getLatestRelease");
-  const compareVersions = Function(`${code}; return compareVersions;`)();
-  assert.equal(compareVersions("1.20.0-rc.2", "1.20.0-rc.10"), -1);
-  assert.equal(compareVersions("1.20.0-rc.10", "1.20.0-rc.2"), 1);
-  assert.equal(compareVersions("1.20.0-beta", "1.20.0"), -1);
-  assert.equal(compareVersions("v1.21.0", "1.21.0"), 0);
 });
 
 test("stutter-fix speed is selected when 1.0001x is the configured speed", () => {

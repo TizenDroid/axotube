@@ -87,6 +87,7 @@ function runtime() {
     clock = until;
   }
   const context = vm.createContext({
+    nativeHost: () => (window.h5vcc && window.h5vcc.tizentube) || null,
     document,
     window,
     location: window.location,

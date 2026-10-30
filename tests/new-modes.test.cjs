@@ -59,6 +59,7 @@ test("experimental: 2160p/1440p report a larger container and sane codec params 
   const cfg = { enableExperimentalResolution: true, experimentalMaxResolution: "2160p" };
   win.MediaSource = MediaSource; // in a browser window.MediaSource is MediaSource
   const ctx = vm.createContext({
+    nativeHost: () => null,
     window: win,
     MediaSource,
     console,
@@ -123,83 +124,6 @@ test("experimental: disabled leaves the platform untouched", () => {
 
   assert.equal(MediaSource.isTypeSupported, native);
   assert.equal(win.h5vcc, undefined);
-});
-
-function onePressContext({ hash = "#/watch?v=abc123", enabled = true, video }) {
-  const win = makeWindow({ location: { hash, reload() {} } });
-  const cfg = { enableOnePressMode: enabled };
-  const ctx = vm.createContext({
-    window: win,
-    document: { querySelector: () => null },
-    console,
-    location: win.location,
-    configRead: (k) => cfg[k],
-    getCurrentVideo: () => video,
-    getCurrentPlayer: () => null,
-  });
-  ctx.window = win;
-  load("mods/features/onePressMode.js", ctx);
-  const handler = win.listeners.keydown[0];
-  assert.equal(handler.capture, true, "registered in the capture phase");
-  return handler.fn;
-}
-
-test("one-press: left and right seek exactly 10 seconds and clamp to the media", () => {
-  const video = { currentTime: 100, duration: 300, paused: false, pause() {}, play() {} };
-  const fire = onePressContext({ video });
-  const left = keyEvent(37);
-  fire(left);
-  assert.equal(video.currentTime, 90);
-  assert.equal(left.stoppedImmediate, true, "leanback never sees the press");
-  fire(keyEvent(39));
-  assert.equal(video.currentTime, 100);
-
-  video.currentTime = 4;
-  fire(keyEvent(37));
-  assert.equal(video.currentTime, 0, "clamped at the start");
-  video.currentTime = 295;
-  fire(keyEvent(39));
-  assert.equal(video.currentTime, 300, "clamped at the end");
-});
-
-test("one-press: OK toggles playback", () => {
-  let paused = false;
-  const video = {
-    currentTime: 0,
-    duration: 300,
-    get paused() {
-      return paused;
-    },
-    pause() {
-      paused = true;
-    },
-    play() {
-      paused = false;
-    },
-  };
-  const fire = onePressContext({ video });
-  fire(keyEvent(13));
-  assert.equal(paused, true);
-  fire(keyEvent(13));
-  assert.equal(paused, false);
-});
-
-test("one-press: inactive off the watch page, when disabled, and for other keys", () => {
-  const video = { currentTime: 100, duration: 300, paused: false, pause() {}, play() {} };
-
-  const offWatch = onePressContext({ hash: "#/browse", video });
-  offWatch(keyEvent(39));
-  assert.equal(video.currentTime, 100);
-
-  const disabled = onePressContext({ enabled: false, video });
-  disabled(keyEvent(39));
-  assert.equal(video.currentTime, 100);
-
-  const other = onePressContext({ video });
-  const ev = keyEvent(40);
-  other(ev);
-  assert.equal(video.currentTime, 100);
-  assert.equal(ev.stoppedImmediate, false);
 });
 
 function loadCodecPreference(preference) {
@@ -287,68 +211,3 @@ test("user agent: no reload when the page already has the Samsung string", () =>
   assert.equal(applied, 0);
 });
 
-function onePressWithDom({ controlsShown = false, tile = false }) {
-  const video = { currentTime: 100, duration: 300, paused: false, pause() {}, play() {} };
-  const visibleEl = {
-    getAttribute: () => null,
-    classList: { contains: () => false },
-    parentNode: null,
-    getClientRects: () => [{}],
-  };
-  const hiddenStyle = { display: "block", visibility: "hidden", opacity: "0" };
-  const shownStyle = { display: "block", visibility: "visible", opacity: "1" };
-  const win = makeWindow({
-    location: { hash: "#/watch?v=abc123", reload() {} },
-    getComputedStyle: (el) => (el.__shown ? shownStyle : hiddenStyle),
-  });
-  const bar = Object.assign({}, visibleEl, { __shown: controlsShown });
-  const tileNode = { getAttribute: () => null, classList: { contains: () => false }, parentNode: null, __shown: true };
-  const tileEl = { closest: () => tileNode };
-  const doc = {
-    querySelector: (sel) => (sel === "ytlr-progress-bar" ? bar : null),
-  };
-  const ctx = vm.createContext({
-    window: win,
-    document: doc,
-    console,
-    location: win.location,
-    configRead: (k) => k === "enableOnePressMode",
-    getCurrentVideo: () => video,
-    getCurrentPlayer: () => null,
-  });
-  ctx.window = win;
-  load("mods/features/onePressMode.js", ctx);
-  const down = win.listeners.keydown[0].fn;
-  const up = win.listeners.keyup[0].fn;
-  return { video, down, up, tileEl, doc };
-}
-
-test("one-press: visible controls leave arrows to leanback", () => {
-  const { video, down } = onePressWithDom({ controlsShown: true });
-  const ev = keyEvent(39);
-  down(ev);
-  assert.equal(video.currentTime, 100, "no seek while the progress bar is showing");
-  assert.equal(ev.stoppedImmediate, false, "leanback gets the press");
-});
-
-test("one-press: a press we handle has its keyup swallowed, unhandled keyups pass", () => {
-  const { down, up } = onePressWithDom({});
-  const press = keyEvent(37);
-  down(press);
-  assert.equal(press.stoppedImmediate, true);
-  const release = keyEvent(37);
-  up(release);
-  assert.equal(release.stoppedImmediate, true, "keyup of a handled press is swallowed");
-  const stray = keyEvent(37);
-  up(stray);
-  assert.equal(stray.stoppedImmediate, false, "a later keyup with no handled keydown passes");
-});
-
-test("one-press: focus on a tile leaves arrows to leanback", () => {
-  const { video, down, tileEl } = onePressWithDom({});
-  const ev = keyEvent(39);
-  ev.target = tileEl;
-  down(ev);
-  assert.equal(video.currentTime, 100);
-  assert.equal(ev.stoppedImmediate, false);
-});

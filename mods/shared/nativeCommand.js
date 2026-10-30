@@ -68,7 +68,7 @@ function findResolver() {
     }
   }
 
-  // Some TizenBrew hosts provide their own callable resolver before _yttv.
+  // Some hosts provide their own callable resolver before _yttv.
   // The receiver remains window when dispatched through this fallback.
   try {
     if (typeof window !== "undefined" && typeof window._yttv_resolveCommand === "function") {

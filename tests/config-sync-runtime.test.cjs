@@ -171,6 +171,7 @@ function openTvClient(origin, initialConfig) {
     .replace(/^import\s+[^\n;]+;\s*$/gm, "")
     .replace("http://127.0.0.1:8085", origin);
   const context = vm.createContext({
+    nativeHost: () => ({}),
     configRead(key) {
       return state[key];
     },

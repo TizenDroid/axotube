@@ -1,5 +1,5 @@
 // The webview's user agent is set to a Samsung TV browser string, the same way
-// TizenBrew does it: tizen.websetting.setUserAgentString changes the agent for
+// tizen.websetting.setUserAgentString changes the agent for
 // the whole webview, so HTTP requests and navigator.userAgent both carry it.
 //
 // The standalone splash page applies it first, before anything navigates to

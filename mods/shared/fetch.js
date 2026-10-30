@@ -1,6 +1,6 @@
 // Shared fetch helpers. Network-calling features (DeArrow, SponsorBlock,
 // web config, updater) reuse this deadline wrapper. The Promise.race deadline
-// is intentional: old Tizen/Cobalt may expose fetch without abortable-fetch
+// is intentional: old Tizen may expose fetch without abortable-fetch
 // support, so AbortController alone is not a reliable timeout there.
 
 export const FETCH_TIMEOUT = 5000;

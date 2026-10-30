@@ -6,14 +6,45 @@ var app = express();
 var PORT = 8099;
 var UPSTREAM_TIMEOUT_MS = 10000;
 var fetch = require('node-fetch');
+var https = require('https');
+// Reuse TLS connections to YouTube across requests. Page, script and segment
+// fetches otherwise each pay a new TCP+TLS handshake on the TV.
+var upstreamAgent = new https.Agent({ keepAlive: true, keepAliveMsecs: 15000, maxSockets: 16 });
 var URL = require('url');
 var path = require('path');
 var fs = require('fs');
 var net = require('net');
 
-var USERSCRIPT_PATH = path.join(__dirname, '..', '..', 'userscript', 'userScript.js');
+var bundleUpdates = require('./bundleUpdates.js');
+// Shipped bundles, read-only inside the WGT. Newer bundles from the CDN are cached
+// in a writable folder and preferred once they are newer than the shipped ones.
+var BUNDLED_DIR = path.join(__dirname, '..', '..', 'userscript');
+var BUNDLE_CACHE_DIR = (function () {
+    var preferred = path.join(__dirname, 'bundle-cache');
+    try {
+        fs.mkdirSync(preferred, { recursive: true });
+        fs.accessSync(preferred, fs.constants.W_OK);
+        return preferred;
+    } catch (e) {
+        return path.join(require('os').tmpdir(), 'axotube-bundle-cache');
+    }
+})();
+var BUNDLE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// The first /tv page waits at most this long for the first update check.
+var FIRST_CHECK_WAIT_MS = 4000;
+var bundleUpdater = bundleUpdates.createBundleUpdater({
+    bundledDir: BUNDLED_DIR,
+    cacheDir: BUNDLE_CACHE_DIR,
+    packageName: bundleUpdates.DEFAULT_PACKAGE,
+    fetchText: function (url) {
+        return fetch(url, { timeout: 8000, agent: upstreamAgent }).then(function (res) {
+            if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + url);
+            return res.text();
+        });
+    },
+    log: function (msg) { console.log('[AxoTube:bundles] ' + msg); }
+});
 // Early bundle: injected at the start of <head>, before YouTube's own scripts.
-var EARLY_SCRIPT_PATH = path.join(__dirname, '..', '..', 'userscript', 'early.js');
 
 var EXACT_CORS_HOSTS = {
     'www.gstatic.com': true,
@@ -64,24 +95,45 @@ app.use(function (req, res, next) {
     next();
 });
 
-app.get('/tizentube/health', function (req, res) {
+app.get('/axotube/health', function (req, res) {
     res.status(200).end();
 });
 
-function serveScript(file, res) {
-    res.setHeader('Content-Type', 'application/javascript');
-    res.setHeader('Cache-Control', 'no-cache');
-    fs.createReadStream(file).on('error', function () {
-        if (!res.headersSent) res.status(404).end();
-    }).pipe(res);
+// Scripts are revalidated on every load, but a 304 avoids the transfer when the
+// file has not changed. The tag is built from size and mtime, which change on
+// every build, so no content hashing is needed.
+function serveScript(file, req, res) {
+    fs.stat(file, function (statErr, stat) {
+        if (statErr) return res.status(404).end();
+        var etag = '"' + stat.size.toString(16) + '-' + Math.floor(stat.mtimeMs).toString(16) + '"';
+        res.setHeader('ETag', etag);
+        res.setHeader('Cache-Control', 'no-cache');
+        if (req.headers['if-none-match'] === etag) return res.status(304).end();
+        res.setHeader('Content-Type', 'application/javascript');
+        fs.createReadStream(file).on('error', function () {
+            if (!res.headersSent) res.status(404).end();
+        }).pipe(res);
+    });
 }
 
 app.get('/axotube/userScript.js', function (req, res) {
-    serveScript(USERSCRIPT_PATH, res);
+    serveScript(bundleUpdater.filePath('userScript.js'), req, res);
 });
 
 app.get('/axotube/early.js', function (req, res) {
-    serveScript(EARLY_SCRIPT_PATH, res);
+    serveScript(bundleUpdater.filePath('early.js'), req, res);
+});
+
+// Update status for the page's popup, and an apply that re-checks and reports
+// back. The page reloads itself after apply, which picks up the new bundles.
+app.get('/axotube/update', function (req, res) {
+    res.json(bundleUpdater.status());
+});
+
+app.post('/axotube/update/apply', function (req, res) {
+    bundleUpdater.apply().then(function () {
+        res.json(bundleUpdater.status());
+    });
 });
 
 function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
@@ -149,6 +201,20 @@ function rewriteTrustedText(text) {
     return text;
 }
 
+// Start the first check now. The /tv page waits briefly for it, so the first load
+// after an update already gets the new bundle, and the wait never exceeds the cap.
+var firstBundleCheck = bundleUpdater.check();
+var firstBundleCheckDone = false;
+firstBundleCheck.then(function () { firstBundleCheckDone = true; });
+setInterval(function () { bundleUpdater.check(); }, BUNDLE_CHECK_INTERVAL_MS);
+app.use(function (req, res, next) {
+    if (firstBundleCheckDone || req.url.indexOf('/tv') !== 0 || req.url.indexOf('/tv_config') !== -1) {
+        return next();
+    }
+    var cap = new Promise(function (resolve) { setTimeout(resolve, FIRST_CHECK_WAIT_MS); });
+    Promise.race([firstBundleCheck, cap]).then(function () { next(); });
+});
+
 app.all('*', function (req, res) {
     var isCorsBypass = req.path.indexOf('/cors-bypass/') === 0;
     var parsedTarget;
@@ -167,7 +233,8 @@ app.all('*', function (req, res) {
         headers: buildUpstreamHeaders(req, parsedTarget, isCorsBypass),
         body: hasBody ? req : undefined,
         redirect: 'manual',
-        timeout: UPSTREAM_TIMEOUT_MS
+        timeout: UPSTREAM_TIMEOUT_MS,
+        agent: upstreamAgent
     };
 
     fetch(targetUrl, fetchOptions)

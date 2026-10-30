@@ -4,6 +4,9 @@
  * or prevent the remaining filters from running.
  */
 let installedParse = null;
+// Total rescans of YouTube's module registry: 20 quick ones plus about a minute
+// of slower ones.
+const PARSER_RESCAN_LIMIT = 32;
 
 export function installResponsePipeline(filters) {
   if (installedParse) return installedParse;
@@ -59,13 +62,15 @@ export function installResponsePipeline(filters) {
   JSON.parse = parse;
   installedParse = parse;
   let nativeParserFound = bindNativeParsers();
-  // Catch the initial creation of _yttv promptly, then switch to a cheap
-  // background rescan for lazy modules and native app replacements.
+  // Catch the initial creation of _yttv promptly, then back off. The rescan is
+  // bounded: a native parser that appears later than about a minute is not
+  // worth a timer that runs for the whole session.
   if (typeof window !== "undefined" && typeof setTimeout === "function") {
     let checks = 0;
     function pollNativeParsers() {
       nativeParserFound = bindNativeParsers() || nativeParserFound;
       checks++;
+      if (checks >= PARSER_RESCAN_LIMIT) return;
       setTimeout(pollNativeParsers, !nativeParserFound && checks < 20 ? 250 : 5000);
     }
     setTimeout(pollNativeParsers, nativeParserFound ? 5000 : 250);

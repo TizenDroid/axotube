@@ -1,3 +1,4 @@
+import { nativeHost } from "../shared/nativeHost.js";
 // Web config sync + phone control bridge.
 import { t } from "i18next";
 import {
@@ -29,7 +30,7 @@ let lastExecutedCommandId = null;
 let lastExecutedCommandNeedsReload = false;
 
 function isTizen() {
-  return typeof window !== "undefined" && window.h5vcc && window.h5vcc.tizentube;
+  return typeof window !== "undefined" && nativeHost();
 }
 
 const hasResolver = hasNativeResolver;

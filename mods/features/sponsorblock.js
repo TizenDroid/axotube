@@ -27,6 +27,10 @@ const MIN_WAKE_MS = 50;
 // A seek we issued is treated as ours until its seeked event. This is the
 // fallback clear, so a seek that never reports seeked cannot leave the flag set.
 const OWN_SEEK_PENDING_MAX_MS = 1500;
+// Back undoes the last skip only within this much media time after it landed.
+const UNDO_WINDOW_S = 10;
+// Samsung TV remote Back key.
+const KEY_BACK = 10009;
 // The API request waits this long after a video opens, so a video closed
 // within a second never reaches the network at all.
 const FETCH_DELAY_MS = 1000;
@@ -193,6 +197,9 @@ class SponsorBlockHandler {
   ownSeekPending = false;
   lastSkipSegment = null;
   landingRetries = 0;
+  // Set by Back, once per skip. Undone segments are never re-armed by a seek.
+  undoUsed = false;
+  undone = new Set();
   // UUID -> number of times a seek we did not make re-armed that segment.
   rearms = new Map();
 
@@ -325,6 +332,9 @@ class SponsorBlockHandler {
       this.notSkippingToasted.clear();
       this.ownSeekTarget = null;
       this.barRetries = 0;
+      this.undone.clear();
+      this.undoUsed = false;
+      this.lastSkipSegment = null;
       if (nextVideo) {
         this.pruneHandled(nextVideo.currentTime);
         nextVideo.addEventListener("ratechange", this.scheduleSkipHandler);
@@ -476,12 +486,49 @@ class SponsorBlockHandler {
     if (configRead("enableSponsorBlockToasts")) {
       showToast(t("app.name"), t("sponsorblock.toasts.skipping", { segment: skipName }));
     }
-    this.lastSkipSegment = { start, end, UUID: segment.UUID };
+    this.lastSkipSegment = { start, end, UUID: segment.UUID, category: segment.category };
+    this.undoUsed = false;
     if (segment.UUID !== this.lastSkipUUID) this.landingRetries = 0;
     this.lastSkipUUID = segment.UUID;
     this.lastSkipAt = Date.now();
     this.seekToSegmentEnd(end);
     this.scheduleSkip();
+  }
+
+  // A seek we issue that is not a skip (the undo). Marked as ours, so it does
+  // not re-arm anything.
+  seekRaw(target) {
+    this.ownSeekTarget = target;
+    this.ownSeekPending = true;
+    if (this.pendingSeekTimer !== null) clearTimeout(this.pendingSeekTimer);
+    this.pendingSeekTimer = setTimeout(() => {
+      this.pendingSeekTimer = null;
+      this.ownSeekPending = false;
+    }, OWN_SEEK_PENDING_MAX_MS);
+    this.video.currentTime = target;
+  }
+
+  // Back, once, shortly after a skip: go back to the start of the segment we
+  // just skipped. It plays through and is not skipped again in this pass.
+  // Returns false (and changes nothing) when there is nothing to undo.
+  tryUndoLastSkip() {
+    const seg = this.lastSkipSegment;
+    if (!this.active || !this.video || !seg || this.undoUsed) return false;
+    const sinceLanding = this.video.currentTime - this.lastSkipTarget;
+    if (sinceLanding < 0 || sinceLanding > UNDO_WINDOW_S) return false;
+
+    this.undoUsed = true;
+    this.lastSkipSegment = null;
+    this.lastSkipUUID = null;
+    this.undone.add(seg.UUID);
+    this.seekRaw(seg.start);
+    this.scheduleSkip();
+
+    if (configRead("enableSponsorBlockToasts")) {
+      const name = barTypes[seg.category]?.name || seg.category;
+      showToast(t("app.name"), t("sponsorblock.toasts.undone", { segment: name }));
+    }
+    return true;
   }
 
   // Our own skip seek. The flag stays set until its seeked event, however far
@@ -524,8 +571,11 @@ class SponsorBlockHandler {
       }
       return;
     }
+    // A viewer seek moves the playhead away from the skip, so Back no longer undoes it.
+    this.lastSkipSegment = null;
     for (const [uuid, range] of this.handled) {
       if (now >= range.end - END_EPSILON_S) continue;
+      if (this.undone.has(uuid)) continue;
       const count = this.rearms.get(uuid) || 0;
       if (count >= MAX_REARMS_PER_SEGMENT) continue;
       this.rearms.set(uuid, count + 1);
@@ -562,6 +612,34 @@ class SponsorBlockHandler {
 }
 
 window.sponsorblock = null;
+
+// Back undoes a skip only while SponsorBlock has one to undo. Any other Back
+// press goes to leanback unchanged. The keyup of a handled Back is swallowed too.
+let backKeyUndone = false;
+window.addEventListener(
+  "keydown",
+  function (event) {
+    if (event.keyCode !== KEY_BACK) return;
+    const handler = window.sponsorblock;
+    if (!handler || !handler.tryUndoLastSkip()) return;
+    backKeyUndone = true;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  },
+  true,
+);
+window.addEventListener(
+  "keyup",
+  function (event) {
+    if (event.keyCode !== KEY_BACK || !backKeyUndone) return;
+    backKeyUndone = false;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+  },
+  true,
+);
 
 function currentSponsorVideoId() {
   const match = /[?&]v=([^&]+)/.exec(location.hash);

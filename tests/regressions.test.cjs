@@ -97,7 +97,7 @@ test("AFR resets on leave-watch and reattaches", () => {
   const src = read("mods/features/autoFrameRate.js");
   has(src, "function isWatchRoute()");
   has(src, "if (!isWatchRoute())");
-  has(src, "SetFrameRate.call(window.h5vcc.tizentube, 0)");
+  has(src, "SetFrameRate.call(nativeHost(), 0)");
   has(src, "setTimeout(attachToVideoPlayer, 0)");
 });
 
@@ -318,15 +318,8 @@ test("standalone startup guards Tizen APIs and bounds health retries", () => {
   const src = read("standalone/index.html");
   has(src, "function safeRegisterKey");
   has(src, "MAX_HEALTH_ATTEMPTS = 600");
-  has(src, "127.0.0.1:8099/tizentube/health");
+  has(src, "127.0.0.1:8099/axotube/health");
   has(src, "function sanitizeCastArgs");
-});
-
-test("updater compares versions and handles missing APK", () => {
-  const src = read("mods/features/updater.js");
-  has(src, "function compareVersions");
-  has(src, "compareVersions(latestVersion, currentAppVersion) <= 0");
-  has(src, "if (!downloadUrl)");
 });
 
 test("release scripts force tests and fresh builds", () => {

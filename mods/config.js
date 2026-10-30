@@ -1,3 +1,4 @@
+import { nativeHost } from "./shared/nativeHost.js";
 import configSchema from "../config-schema.json";
 import configPolicy from "../shared/configPolicy.js";
 
@@ -12,7 +13,7 @@ export const cloneJSON = clone;
 const defaultConfig = clone(configSchema.defaults);
 // Outside the real Tizen host keep the existing browser/dev default.
 defaultConfig.enableFixedUI =
-  window.h5vcc && window.h5vcc.tizentube ? configSchema.defaults.enableFixedUI : true;
+  nativeHost() ? configSchema.defaults.enableFixedUI : true;
 
 export const validateConfigValue = configPolicy.validateConfigValue;
 

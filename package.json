@@ -1,8 +1,8 @@
 {
   "name": "axotube",
   "appName": "axotube",
-  "version": "1.22.2",
-  "description": "A TizenBrew module for YouTube TV with ad filtering, SponsorBlock and playback controls.",
+  "version": "1.25.0",
+  "description": "YouTube TV for Samsung Tizen TVs with ad filtering, SponsorBlock and playback controls.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube",
   "main": "dist/userScript.js",

@@ -1,3 +1,4 @@
+import { nativeHost } from "./shared/nativeHost.js";
 import { t } from "i18next";
 import { configWrite, configRead } from "./config.js";
 import { enablePip, cleanupPipStyles } from "./features/pictureInPicture.js";
@@ -5,7 +6,7 @@ import modernUI, { handleSettingsAction } from "./ui/settings.js";
 import { writeClientSetting } from "./shared/clientSettings.js";
 import { speedSettings } from "./ui/speedUI.js";
 import { showToast, buttonItem } from "./ui/ytUI.js";
-import checkForUpdates from "./features/updater.js";
+import checkForUpdates, { applyUpdate } from "./features/updater.js";
 import { dispatchNativeCommand, registerNativeResolverPatcher } from "./shared/nativeCommand.js";
 
 export default function resolveCommand(cmd, _) {
@@ -109,9 +110,8 @@ function patchNativeResolverInstance(instance) {
         );
 
         if (
-          window.h5vcc &&
-          window.h5vcc.tizentube &&
-          window.h5vcc.tizentube?.HasSystemFeature("android.software.picture_in_picture")
+          nativeHost() &&
+          nativeHost()?.HasSystemFeature("android.software.picture_in_picture")
         ) {
           items.splice(
             3,
@@ -198,6 +198,7 @@ function customAction(action, parameters) {
     case "SETTINGS_SET":
     case "SETTINGS_TOGGLE":
     case "SETTINGS_STEP":
+    case "SETTINGS_SEGMENT":
       handleSettingsAction(action, parameters);
       break;
     case "AXO_SPEED_SETTINGS_SHOW":
@@ -206,16 +207,8 @@ function customAction(action, parameters) {
     case "UPDATE_REMIND_LATER":
       configWrite("dontCheckUpdateUntil", parameters);
       break;
-    case "UPDATE_DOWNLOAD":
-      if (
-        typeof parameters === "string" &&
-        window.h5vcc &&
-        window.h5vcc.tizentube &&
-        window.h5vcc.tizentube.InstallAppFromURL
-      ) {
-        window.h5vcc.tizentube.InstallAppFromURL(parameters);
-        showToast(t("app.name"), t("toasts.updateDownloading"));
-      }
+    case "AXO_UPDATE_APPLY":
+      applyUpdate();
       break;
     case "SET_PLAYER_SPEED": {
       const speed = Number(parameters);
@@ -227,8 +220,8 @@ function customAction(action, parameters) {
       enablePip();
       break;
     case "ENTER_PIP":
-      if (window.h5vcc && window.h5vcc.tizentube && window.h5vcc.tizentube.EnterPIP) {
-        window.h5vcc.tizentube.EnterPIP();
+      if (nativeHost() && nativeHost().EnterPIP) {
+        nativeHost().EnterPIP();
       }
       break;
     case "SHOW_TOAST":
@@ -252,10 +245,9 @@ function customAction(action, parameters) {
     case "CHECK_FOR_UPDATES":
       checkForUpdates(true);
       break;
-    case "RETURN_TO_AXOBREW":
-      try {
-        window.location.href = "/axobrew-ui/dist/index.html";
-      } catch (err) {}
+    case "AXO_RELOAD_PAGE":
+      // Reloads the page, so the proxy serves the HTML and both bundles fresh.
+      window.location.reload();
       break;
   }
 }

@@ -1,4 +1,4 @@
-// Cast receiver. When a phone casts to the TV, the TizenBrew standalone app
+// Cast receiver. When a phone casts to the TV, the standalone app
 // loads this module's appPath with the cast payload appended as URL query
 // params. This module maps those params to a resolveCommand payload and waits
 // for a real YouTube resolver before dispatching it.

@@ -54,6 +54,9 @@
     "enablePaidPromotionOverlay": true,
     "speedSettingsIncrement": 0.25,
     "videoPreferredCodec": "any",
+    "enableAutoSubtitles": true,
+    "autoSubtitleLanguage": "en",
+    "autoSubtitleAllowAuto": true,
     "launchToOnStartup": null,
     "reloadHomeOnStartup": true,
     "disabledSidebarContents": [],
@@ -83,7 +86,8 @@
     "videoPreferredCodec": ["any", "vp9", "av01", "avc1"],
     "themePreset": ["default", "black", "darkGray", "charcoal", "navy", "darkRed", "darkGreen", "darkPurple"],
     "textTheme": ["default", "white", "gray", "red", "blue", "green", "purple", "yellow"],
-    "experimentalMaxResolution": ["1440p", "2160p"]
+    "experimentalMaxResolution": ["1440p", "2160p"],
+    "autoSubtitleLanguage": ["en", "hi", "es", "fr", "de", "pt", "ja", "ko", "ru"]
   },
   "themePresetColors": {
     "default": "#0f0f0f",

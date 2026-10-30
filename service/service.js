@@ -492,7 +492,7 @@ const dialServer = new dial.Server({
   port: PORT,
   prefix: "/dial",
   manufacturer: "Reis Can",
-  modelName: "TizenBrew",
+  modelName: "AxoTube",
   friendlyName: modelName ? `axotube (${modelName})` : "axotube",
   uuid: deviceUuid,
   delegate: {
@@ -553,6 +553,12 @@ setInterval(() => {
   }
 }, 5000);
 
-app.listen(PORT, () => {
+const dialListener = app.listen(PORT, () => {
   dialServer.start();
+});
+// Without this, a busy port (for example an earlier instance still running) is an
+// unhandled 'error' event and takes the whole service down. Logging keeps the
+// content proxy on 8099 alive; DIAL and phone pairing simply stay off.
+dialListener.on("error", (err) => {
+  console.error(`[AxoTube:service] could not listen on port ${PORT}: ${err.code}`);
 });

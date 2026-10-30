@@ -12,7 +12,7 @@ import { configRead, configChangeEmitter } from "../config.js";
 //     container makes them available.
 //  2. Chromium accepts every mime parameter and ignores width, height, frame
 //     rate and so on. YouTube reads that as "no HFR/HDR support" and caps at
-//     720p30. Sane values are kept and absurd ones rejected, as on Cobalt.
+//     720p30. Sane values are kept and absurd ones rejected, as the reference client does.
 //
 // Whether the TV can actually decode the chosen resolution is not checked
 // here. A 2160p VP9 stream can stutter on a Full HD model, which is why the

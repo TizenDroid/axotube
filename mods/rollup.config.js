@@ -38,7 +38,7 @@ const makePlugins = () => [
         [
           "@babel/preset-env",
           {
-            // Target Tizen 4 (N5470) Cobalt / Chromium 47. forceAllTransforms
+            // Target Tizen 4 (N5470) / Chromium 47. forceAllTransforms
             // is required: Chrome 47 already supports arrow functions, so
             // without it Babel left them (and other ES2015 syntax) in the
             // bundle. The ES5 check in tests/es5-output.test.cjs enforces this.
@@ -88,11 +88,11 @@ const makePlugins = () => [
       },
     }),
 
-    // Terser/Babel can emit \uFFFF sequences that old V8/Cobalt engines
+    // Terser/Babel can emit \uFFFF sequences that old V8 engines
     // treat as invalid tokens, preventing the entire bundle from parsing.
     // Replace the U+FFFF character with the ASCII escape sequence text so
     // the output contains no raw control bytes (raw NUL breaks Violentmonkey
-    // and is risky on old Cobalt parsers).
+    // and is risky on old parsers).
     replace({
       preventAssignment: true,
       "\uFFFF": "\\ufffd",

@@ -89,7 +89,6 @@ function execute_once_dom_loaded() {
   if (!document.body || !window._yttv) return;
   initialized = true;
 
-  applyReducedMotionFlags();
   applyReducedMotionBody();
 
   const existingStyle = document.querySelector("style[nonce]");
@@ -105,10 +104,15 @@ function execute_once_dom_loaded() {
     window.__releaseBootLoader();
   }
 
-  if (configRead("enableFixedUI")) {
+  // Precedence, highest first:
+  //   1. Reduced motion: switches animations off, always.
+  //   2. Low memory mode: owns memory. Fix UI does not turn animations back on.
+  //   3. Fix UI: turns full animations and quality on, only when neither of the
+  //      two above is set. It no longer touches the memory flag at all.
+  // Reduced motion is applied last so nothing can undo it.
+  if (configRead("enableFixedUI") && !configRead("enableLowMemoryMode") && !configRead("enableReducedMotion")) {
     try {
       if (window.tectonicConfig) {
-        window.tectonicConfig.featureSwitches.isLimitedMemory = false;
         window.tectonicConfig.clientData.legacyApplicationQuality = "full-animation";
         window.tectonicConfig.featureSwitches.enableAnimations = true;
         window.tectonicConfig.featureSwitches.enableOnScrollLinearAnimation = true;
@@ -182,7 +186,7 @@ function execute_once_dom_loaded() {
     console.warn("[AxoTube:ui] Guide reload failed:", e);
   }
 
-  if (configRead("enableFixedUI")) {
+  if (configRead("enableFixedUI") && !configRead("enableLowMemoryMode") && !configRead("enableReducedMotion")) {
     try {
       const observer = new MutationObserver(() => {
         const body = document.body;

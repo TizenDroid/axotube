@@ -1,7 +1,7 @@
 # AxoTube runtime architecture
 
-AxoTube enhances the YouTube TV application inside TizenBrew. The browser
-bundle must remain compatible with older Tizen / Cobalt runtimes (Chromium 47).
+AxoTube enhances the YouTube TV application on Samsung Tizen TVs. The browser
+bundle must remain compatible with older Tizen runtimes (Chromium 47).
 The Node service provides pairing, phone configuration, remote commands and
 DIAL; the standalone application packages these alongside the browser bundle.
 

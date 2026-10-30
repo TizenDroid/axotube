@@ -1,7 +1,7 @@
 /**
  * userScript.js – axotube entry point.
  *
- * Import order matters for Tizen 4 (N5470 / Cobalt) compatibility:
+ * Import order matters for Tizen 4 (N5470) compatibility:
  *  1. polyfills.js    – browser-API + ES-builtin polyfills for Chromium 47
  *                       (EventTarget ctor, AbortController, CustomEvent,
  *                       Object.entries/values, Array.flat, …)
@@ -37,6 +37,7 @@ import "./features/sponsorblock.js";
 import "./features/remainingTime.js";
 import "./features/pauseOnBlur.js";
 import "./features/onePressMode.js";
+import "./features/autoSubtitles.js";
 import "./ui/ui.js";
 import "./ui/speedUI.js";
 import "./ui/theme.js";

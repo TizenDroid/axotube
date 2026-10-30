@@ -1,3 +1,5 @@
+import { nativeHost } from "../shared/nativeHost.js";
+import AXOTUBE_VERSION from "../version.js";
 import { t } from "i18next";
 import configSchema from "../../config-schema.json";
 import { configRead } from "../config.js";
@@ -12,1050 +14,564 @@ import {
 } from "./ytUI.js";
 
 // The settings tree is plain data: labels, config keys and nesting. It is
-// rendered as YouTube's own modal panels (the same look as the rest of the
-// client). Node kinds:
-//   value: "<key>"           toggle bound to a boolean config key
-//   key + value              radio choice for a string config key
-//   arrayToEdit: "<key>"     multi-select over an array config key
-//   stepper: <step>          numeric stepper bound to value (range from schema)
-//   options: [...]           submenu
-//   options: { title, subtitle, content }  information panel (text, { qrLink })
-//   action: "<ACTION>"       runs a custom action
+// rendered as YouTube's own modal panels. Node kinds:
+//   value: "<key>"          toggle bound to a boolean config key
+//   key + value             radio choice for a string or number config key
+//   arrayToEdit: "<key>"    multi-select over an array config key
+//   stepper: <step>         numeric stepper bound to value (range from schema)
+//   segment: "<type>"       SponsorBlock segment type: skip automatically,
+//                           show a skip button, or off (cycles on press)
+//   options: [...]          submenu
+//   options: { title, subtitle, content }   information panel (text, { qrLink })
+//   action: "<ACTION>"      runs a custom action
+// A null entry is left out. That is how a feature the device lacks is hidden.
+
+// Each segment type has one enable key. Whether it is shown as a skip button
+// (listed in sponsorBlockManualSkips) is a separate flag, so the mode is derived
+// from both.
+const SEGMENT_TYPES = [
+  { type: "sponsor", key: "enableSponsorBlockSponsor", icon: "MONEY_HEART" },
+  { type: "intro", key: "enableSponsorBlockIntro", icon: "PLAY_CIRCLE" },
+  { type: "outro", key: "enableSponsorBlockOutro", icon: "STOP_CIRCLE" },
+  { type: "interaction", key: "enableSponsorBlockInteraction", icon: "TOUCH_APP" },
+  { type: "selfpromo", key: "enableSponsorBlockSelfPromo", icon: "PROMOTION" },
+  { type: "preview", key: "enableSponsorBlockPreview", icon: "PREVIEW" },
+  { type: "filler", key: "enableSponsorBlockFiller", icon: "PADDING" },
+  { type: "music_offtopic", key: "enableSponsorBlockMusicOfftopic", icon: "MUSIC_NOTE" },
+];
+
+const SEGMENT_NEXT_MODE = { skip: "show", show: "off", off: "skip" };
+
+const PRESET_NAMES = [
+  "default",
+  "black",
+  "darkGray",
+  "charcoal",
+  "navy",
+  "darkRed",
+  "darkGreen",
+  "darkPurple",
+];
+const TEXT_THEMES = ["default", "white", "gray", "red", "blue", "green", "purple", "yellow"];
+const QUALITIES = ["auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"];
+const CODECS = ["any", "vp9", "av01", "avc1"];
+const SUBTITLE_LANGUAGES = ["en", "hi", "es", "fr", "de", "pt", "ja", "ko", "ru"];
+const EXPERIMENTAL_RESOLUTIONS = ["1440p", "2160p"];
+const SPEED_STEPS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5];
+const PAUSE_SECONDS = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
+const WATCHED_THRESHOLDS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+const DIM_TIMEOUTS = [10, 20, 30, 60, 120, 180, 240, 300];
+const DIM_OPACITIES = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+
+// YouTube section names are shown as YouTube spells them, so they stay untranslated.
+const SIDEBAR_ITEMS = [
+  { name: "Search", icon: "SEARCH" },
+  { name: "Home", icon: "WHAT_TO_WATCH" },
+  { name: "Sports", icon: "TROPHY" },
+  { name: "News", icon: "NEWS" },
+  { name: "Music", icon: "YOUTUBE_MUSIC" },
+  { name: "Podcasts", icon: "BROADCAST" },
+  { name: "Movies & TV", icon: "CLAPPERBOARD" },
+  { name: "Live", icon: "LIVE" },
+  { name: "Gaming", icon: "GAMING" },
+  { name: "Subscriptions", icon: "SUBSCRIPTIONS" },
+  { name: "Library", icon: "TAB_LIBRARY" },
+  { name: "More", icon: "TAB_MORE" },
+];
+
+function browseValue(browseId) {
+  return JSON.stringify({ browseEndpoint: { browseId } });
+}
+
+const STARTUP_PAGES = [
+  { name: "Search", icon: "SEARCH", value: JSON.stringify({ searchEndpoint: { query: "" } }) },
+  { name: "Home", icon: "WHAT_TO_WATCH", value: browseValue("FEtopics") },
+  { name: "Sports", icon: "TROPHY", value: browseValue("FEtopics_sports") },
+  { name: "News", icon: "NEWS", value: browseValue("FEtopics_news") },
+  { name: "Music", icon: "YOUTUBE_MUSIC", value: browseValue("FEtopics_music") },
+  { name: "Podcasts", icon: "BROADCAST", value: browseValue("FEtopics_podcasts") },
+  { name: "Movies & TV", icon: "CLAPPERBOARD", value: browseValue("FEtopics_movies") },
+  { name: "Gaming", icon: "GAMING", value: browseValue("FEtopics_gaming") },
+  { name: "Live", icon: "LIVE", value: browseValue("FEtopics_live") },
+  { name: "Subscriptions", icon: "SUBSCRIPTIONS", value: browseValue("FEsubscriptions") },
+  { name: "Library", icon: "TAB_LIBRARY", value: browseValue("FElibrary") },
+  { name: "More", icon: "TAB_MORE", value: browseValue("FEtopics_more") },
+];
+
+// What a segment type does right now: off, a skip button, or skipped automatically.
+function segmentMode(type) {
+  const entry = segmentEntry(type);
+  if (!entry || !configRead(entry.key)) return "off";
+  const manual = configRead("sponsorBlockManualSkips") || [];
+  return manual.indexOf(type) !== -1 ? "show" : "skip";
+}
+
+function segmentEntry(type) {
+  for (let i = 0; i < SEGMENT_TYPES.length; i++) {
+    if (SEGMENT_TYPES[i].type === type) return SEGMENT_TYPES[i];
+  }
+  return null;
+}
+
+// Writes only the keys that need to change. An array write toggles membership,
+// so it is sent only when the type's membership is wrong.
+function writeSegmentMode(type, mode) {
+  const entry = segmentEntry(type);
+  if (!entry) return;
+  const wantEnabled = mode !== "off";
+  if (!!configRead(entry.key) !== wantEnabled) {
+    writeClientSetting(entry.key, "boolValue", wantEnabled);
+  }
+  const manual = configRead("sponsorBlockManualSkips") || [];
+  const isManual = manual.indexOf(type) !== -1;
+  if (isManual !== (mode === "show")) {
+    writeClientSetting("sponsorBlockManualSkips", "arrayValue", type);
+  }
+}
+
+function toggle(name, key, icon) {
+  return { name, icon, value: key };
+}
+
+function radio(name, key, value) {
+  return { name, key, value };
+}
+
+function submenu(name, icon, options, menuHeader) {
+  return { name, icon, value: null, menuHeader, options };
+}
+
+function heading(title, subtitle) {
+  return { title, subtitle };
+}
+
+function aboutLink(name, link) {
+  return {
+    name,
+    icon: "OPEN_IN_NEW",
+    value: null,
+    options: {
+      title: name,
+      subtitle: link,
+      content: [t("settings.about.scanMessage", { name }), { qrLink: link }],
+    },
+  };
+}
+
+// The frame-rate row needs the TV's native frame-rate call.
+function frameRateSupported() {
+  const host = nativeHost();
+  return !!(host && host.SetFrameRate);
+}
+
 export function buildSettingsTree() {
   const settings = [
-    {
-      name: t("settings.supportTT.title"),
-      icon: "MONEY_HEART",
-      value: null,
-      options: {
-        title: t("settings.supportTT.title"),
-        subtitle: t("settings.supportTT.subtitle"),
-        content: [
-          t("settings.supportTT.content.1"),
-          t("settings.supportTT.content.2"),
-          t("settings.supportTT.content.3"),
-          t("settings.supportTT.content.4"),
-          t("settings.supportTT.content.5"),
-          t("settings.supportTT.content.6"),
-        ],
-      },
-    },
-    {
-      name: t("settings.options.socialMedia.title"),
-      icon: "PRIVACY_UNLISTED",
-      value: null,
-      options: [
-        {
-          name: "GitHub",
-          link: "https://github.com/TizenDroid/axotube",
-        },
-        {
-          name: "Discord",
-          link: "https://discord.gg/UDb8nak5YD",
-        },
-      ].map((option) => {
-        return {
-          name: option.name,
-          icon: "OPEN_IN_NEW",
-          value: null,
-          link: option.link,
-          options: {
-            title: option.name,
-            subtitle: option.link,
-            content: [
-              t("settings.options.socialMedia.qrCodeScanMessage", {
-                name: option.name,
-              }),
-              { qrLink: option.link },
-            ],
-          },
-        };
-      }),
-    },
-    {
-      name: t("settings.options.adBlock"),
-      icon: "DOLLAR_SIGN",
-      value: "enableAdBlock",
-    },
-    {
-      name: t("settings.options.sponsorblock.title"),
-      icon: "MONEY_HAND",
-      value: null,
-      menuId: "axo-sponsorblock-settings",
-      menuHeader: {
-        title: t("settings.options.sponsorblock.title"),
-        subtitle: "https://sponsor.ajay.app/",
-      },
-      options: [
-        {
-          name: t("settings.options.sponsorblock.options.enableSB"),
-          icon: "MONEY_HAND",
-          value: "enableSponsorBlock",
-        },
-        {
-          name: t("settings.options.sponsorblock.options.manualSkip"),
-          icon: "DOLLAR_SIGN",
-          value: null,
-          arrayToEdit: "sponsorBlockManualSkips",
-          menuId: "axo-sponsorblock-manual-segment-skip",
-          options: [
-            {
-              name: t("settings.options.sponsorblock.options.categories.sponsor"),
-              icon: "MONEY_HEART",
-              value: "sponsor",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.intro"),
-              icon: "PLAY_CIRCLE",
-              value: "intro",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.outro"),
-              icon: "STOP_CIRCLE",
-              value: "outro",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.interaction"),
-              icon: "TOUCH_APP",
-              value: "interaction",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.selfpromo"),
-              icon: "PROMOTION",
-              value: "selfpromo",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.preview"),
-              icon: "PREVIEW",
-              value: "preview",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.filler"),
-              icon: "PADDING",
-              value: "filler",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.music_offtopic"),
-              icon: "MUSIC_NOTE",
-              value: "music_offtopic",
-            },
-          ],
-        },
-        {
-          name: t("settings.options.sponsorblock.options.segments"),
-          icon: "SETTINGS",
-          value: null,
-          menuId: "axo-sponsorblock-segments",
-          options: [
-            {
-              name: t("settings.options.sponsorblock.options.categories.sponsor"),
-              icon: "MONEY_HEART",
-              value: "enableSponsorBlockSponsor",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.intro"),
-              icon: "PLAY_CIRCLE",
-              value: "enableSponsorBlockIntro",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.outro"),
-              icon: "STOP_CIRCLE",
-              value: "enableSponsorBlockOutro",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.interaction"),
-              icon: "TOUCH_APP",
-              value: "enableSponsorBlockInteraction",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.selfpromo"),
-              icon: "PROMOTION",
-              value: "enableSponsorBlockSelfPromo",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.preview"),
-              icon: "PREVIEW",
-              value: "enableSponsorBlockPreview",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.filler"),
-              icon: "PADDING",
-              value: "enableSponsorBlockFiller",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.music_offtopic"),
-              icon: "MUSIC_NOTE",
-              value: "enableSponsorBlockMusicOfftopic",
-            },
-            {
-              name: t("settings.options.sponsorblock.options.categories.highlights"),
-              icon: "LOCATION_POINT",
-              value: "enableSponsorBlockHighlight",
-            },
-          ],
-        },
-        {
-          name: t("settings.options.sponsorblock.options.showSBToasts"),
-          value: "enableSponsorBlockToasts",
-        },
+    submenu(
+      t("settings.ads.title"),
+      "MONEY_HAND",
+      [
+        toggle(t("settings.ads.blockAds"), "enableAdBlock", "DOLLAR_SIGN"),
+        toggle(t("settings.ads.paidPromotion"), "enablePaidPromotionOverlay"),
+        toggle(t("settings.ads.sponsorBlock"), "enableSponsorBlock", "MONEY_HAND"),
+        submenu(
+          t("settings.ads.segmentTypes.title"),
+          "SETTINGS",
+          SEGMENT_TYPES.map((entry) => ({
+            name: t(`settings.ads.segments.${entry.type}`),
+            icon: entry.icon,
+            segment: entry.type,
+          })),
+          heading(t("settings.ads.segmentTypes.title"), t("settings.ads.segmentTypes.subtitle")),
+        ),
+        toggle(t("settings.ads.highlightButton"), "enableSponsorBlockHighlight"),
+        toggle(t("settings.ads.notices"), "enableSponsorBlockToasts"),
       ],
-    },
-    {
-      name: t("settings.options.dearrow.title"),
-      icon: "VISIBILITY_OFF",
-      value: null,
-      menuHeader: {
-        title: t("settings.options.dearrow.title"),
-        subtitle: "https://dearrow.ajay.app/",
-      },
-      options: [
-        {
-          name: t("settings.options.dearrow.options.enableTitles"),
-          icon: "VISIBILITY_OFF",
-          value: "enableDeArrowTitles",
-        },
-        {
-          name: t("settings.options.dearrow.options.enableThumbnails"),
-          icon: "TV",
-          value: "enableDeArrowThumbnails",
-        },
-      ],
-    },
-    {
-      name: t("settings.options.misc.title"),
-      icon: "SETTINGS",
-      value: null,
-      options: [
-        {
-          name: t("settings.options.misc.options.endScreenCards"),
-          icon: "VISIBILITY_OFF",
-          value: "enableHideEndScreenCards",
-        },
-        {
-          name: t("settings.options.misc.options.youThereRenderer"),
-          icon: "HELP",
-          value: "enableYouThereRenderer",
-        },
-        {
-          name: t("settings.options.misc.options.paidPromoOverlay"),
-          icon: "MONEY_HAND",
-          value: "enablePaidPromotionOverlay",
-        },
-        {
-          name: t("settings.options.misc.options.whosWatching.title"),
-          icon: "ACCOUNT_CIRCLE",
-          menuId: "axo-whos-watching-menu-settings",
-          value: null,
-          options: [
-            {
-              name: t("settings.options.misc.options.whosWatching.options.enableWW"),
-              value: "enableWhoIsWatchingMenu",
-            },
-            {
-              name: t("settings.options.misc.options.whosWatching.options.permaEnableWW"),
-              value: "permanentlyEnableWhoIsWatchingMenu",
-            },
-            {
-              name: t("settings.options.misc.options.whosWatching.options.enableWWOnExit"),
-              value: "enableWhosWatchingMenuOnAppExit",
-            },
-          ],
-        },
-        {
-          name: t("settings.options.misc.options.fixUI"),
-          icon: "STAR",
-          value: "enableFixedUI",
-        },
-        {
-          name: t("settings.options.misc.options.reducedMotion"),
-          icon: "SLOW_MOTION_VIDEO",
-          value: "enableReducedMotion",
-        },
-        {
-          name: t("settings.options.misc.options.hqThumbnails"),
-          icon: "VIDEO_QUALITY",
-          value: "enableHqThumbnails",
-        },
-        {
-          name: t("settings.options.misc.options.longPress"),
-          icon: "TOUCH_APP",
-          value: "enableLongPress",
-        },
-        {
-          name: t("settings.options.misc.options.shorts"),
-          icon: "YOUTUBE_SHORTS_FILL_24",
-          value: "enableShorts",
-        },
-        {
-          name: t("settings.options.misc.options.videoPreviews"),
-          icon: "PREVIEW",
-          value: "enablePreviews",
-        },
-        {
-          name: t("settings.options.misc.options.previewLength"),
-          icon: "PREVIEW",
-          value: "previewLengthSeconds",
-          stepper: 5,
-        },
-        {
-          name: t("settings.options.misc.options.remainingTime"),
-          value: "enableRemainingTime",
-        },
-        {
-          name: t("settings.options.misc.options.pauseOnBlur"),
-          value: "enablePauseOnBlur",
-        },
-        {
-          name: t("settings.options.misc.options.lowMemoryMode"),
-          value: "enableLowMemoryMode",
-        },
-        {
-          name: t("settings.options.misc.options.onePressMode"),
-          icon: "TOUCH_APP",
-          value: "enableOnePressMode",
-        },
-        {
-          name: t("settings.options.misc.options.ttWelcomeMsg"),
-          value: "showWelcomeToast",
-        },
-        {
-          name: t("settings.options.misc.options.guestSignInReminder"),
-          value: "enableSigninReminder",
-        },
-        {
-          name: t("settings.options.misc.options.reloadHomeOnStartup"),
-          value: "reloadHomeOnStartup",
-        },
-      ],
-    },
-    {
-      name: t("settings.options.theme.title"),
-      icon: "STYLE",
-      value: null,
-      menuId: "axo-theme-settings",
-      menuHeader: {
-        title: t("settings.options.theme.title"),
-        subtitle: t("settings.options.theme.menuSubtitle"),
-      },
-      options: [
-        {
-          name: t("settings.options.theme.options.presets.title"),
-          icon: "STYLE",
-          value: null,
-          menuId: "axo-theme-presets",
-          menuHeader: {
-            title: t("settings.options.theme.options.presets.title"),
-            subtitle: t("settings.options.theme.options.presets.menuSubtitle"),
-          },
-          options: [
-            {
-              name: t("settings.options.theme.options.colors.default"),
-              icon: "COLOR_LENS",
-              key: "themePreset",
-              value: "default",
-            },
-            {
-              name: t("settings.options.theme.options.colors.black"),
-              icon: "COLOR_LENS",
-              key: "themePreset",
-              value: "black",
-            },
-            {
-              name: t("settings.options.theme.options.colors.darkGray"),
-              icon: "COLOR_LENS",
-              key: "themePreset",
-              value: "darkGray",
-            },
-            {
-              name: t("settings.options.theme.options.colors.charcoal"),
-              icon: "COLOR_LENS",
-              key: "themePreset",
-              value: "charcoal",
-            },
-            {
-              name: t("settings.options.theme.options.colors.navy"),
-              icon: "COLOR_LENS",
-              key: "themePreset",
-              value: "navy",
-            },
-            {
-              name: t("settings.options.theme.options.colors.darkRed"),
-              icon: "COLOR_LENS",
-              key: "themePreset",
-              value: "darkRed",
-            },
-            {
-              name: t("settings.options.theme.options.colors.darkGreen"),
-              icon: "COLOR_LENS",
-              key: "themePreset",
-              value: "darkGreen",
-            },
-            {
-              name: t("settings.options.theme.options.colors.darkPurple"),
-              icon: "COLOR_LENS",
-              key: "themePreset",
-              value: "darkPurple",
-            },
-          ],
-        },
-        {
-          name: t("settings.options.theme.options.routeColor.title"),
-          icon: "COLOR_LENS",
-          value: null,
-          menuId: "axo-theme-route-color",
-          options: [
-            {
-              name: t("settings.options.theme.options.colors.default"),
-              icon: "COLOR_LENS",
-              key: "routeColor",
-              value: "#0f0f0f",
-            },
-            {
-              name: t("settings.options.theme.options.colors.black"),
-              icon: "COLOR_LENS",
-              key: "routeColor",
-              value: "#000000",
-            },
-            {
-              name: t("settings.options.theme.options.colors.darkGray"),
-              icon: "COLOR_LENS",
-              key: "routeColor",
-              value: "#1c1a1a",
-            },
-            {
-              name: t("settings.options.theme.options.colors.charcoal"),
-              icon: "COLOR_LENS",
-              key: "routeColor",
-              value: "#121212",
-            },
-            {
-              name: t("settings.options.theme.options.colors.navy"),
-              icon: "COLOR_LENS",
-              key: "routeColor",
-              value: "#0d1b2a",
-            },
-            {
-              name: t("settings.options.theme.options.colors.darkRed"),
-              icon: "COLOR_LENS",
-              key: "routeColor",
-              value: "#3b0505",
-            },
-            {
-              name: t("settings.options.theme.options.colors.darkGreen"),
-              icon: "COLOR_LENS",
-              key: "routeColor",
-              value: "#052e1b",
-            },
-            {
-              name: t("settings.options.theme.options.colors.darkPurple"),
-              icon: "COLOR_LENS",
-              key: "routeColor",
-              value: "#1a1025",
-            },
-          ],
-        },
-        {
-          name: t("settings.options.theme.options.textTheme.title"),
-          icon: "COLOR_LENS",
-          value: null,
-          menuId: "axo-theme-text-color",
-          options: [
-            {
-              name: t("settings.options.theme.options.colors.default"),
-              icon: "COLOR_LENS",
-              key: "textTheme",
-              value: "default",
-            },
-            {
-              name: t("settings.options.theme.options.textTheme.options.white"),
-              icon: "COLOR_LENS",
-              key: "textTheme",
-              value: "white",
-            },
-            {
-              name: t("settings.options.theme.options.textTheme.options.gray"),
-              icon: "COLOR_LENS",
-              key: "textTheme",
-              value: "gray",
-            },
-            {
-              name: t("settings.options.theme.options.textTheme.options.red"),
-              icon: "COLOR_LENS",
-              key: "textTheme",
-              value: "red",
-            },
-            {
-              name: t("settings.options.theme.options.textTheme.options.blue"),
-              icon: "COLOR_LENS",
-              key: "textTheme",
-              value: "blue",
-            },
-            {
-              name: t("settings.options.theme.options.textTheme.options.green"),
-              icon: "COLOR_LENS",
-              key: "textTheme",
-              value: "green",
-            },
-            {
-              name: t("settings.options.theme.options.textTheme.options.purple"),
-              icon: "COLOR_LENS",
-              key: "textTheme",
-              value: "purple",
-            },
-            {
-              name: t("settings.options.theme.options.textTheme.options.yellow"),
-              icon: "COLOR_LENS",
-              key: "textTheme",
-              value: "yellow",
-            },
-          ],
-        },
-      ],
-    },
-    {
-      name: t("settings.options.subtitles.title"),
-      icon: "TRANSLATE",
-      value: null,
-      options: [
-        {
-          name: t("settings.options.subtitles.options.showLocalSubtitle"),
-          value: "enableShowUserLanguage",
-        },
-        {
-          name: t("settings.options.subtitles.options.showHiddenSubtitles"),
-          value: "enableShowOtherLanguages",
-        },
-      ],
-    },
-    {
-      name: t("settings.options.videoPlayer.title"),
-      icon: "VIDEO_YOUTUBE",
-      value: null,
-      menuHeader: {
-        title: t("settings.options.videoPlayer.title"),
-        subtitle: t("settings.options.videoPlayer.subtitle"),
-      },
-      options: [
-        {
-          name: t("settings.options.videoPlayer.options.patching.title"),
-          icon: "SETTINGS",
-          value: null,
-          menuId: "axo-video-player-ui-patching",
-          options: [
-            {
-              name: t("settings.options.videoPlayer.options.patching.options.enableVPUIPatching"),
-              icon: "SETTINGS",
-              value: "enablePatchingVideoPlayer",
-            },
-            {
-              name: t("settings.options.videoPlayer.options.patching.options.previousNextBtns"),
-              icon: "SKIP_NEXT",
-              value: "enablePreviousNextButtons",
-            },
-            {
-              name: t("settings.options.videoPlayer.options.patching.options.showSuperThxBtn"),
-              icon: "MONEY_HEART",
-              value: "enableSuperThanksButton",
-            },
-            {
-              name: t("settings.options.videoPlayer.options.patching.options.showSpeedCtrlBtn"),
-              icon: "SLOW_MOTION_VIDEO",
-              value: "enableSpeedControlsButton",
-            },
-            {
-              name: t("settings.options.videoPlayer.options.patching.options.addMPBtn"),
-              icon: "CLEAR_COOKIES",
-              value: "enableMPButton",
-            },
-            {
-              name: t("settings.options.videoPlayer.options.patching.options.swapMPWithPIP"),
-              icon: "PICTURE_IN_PICTURE",
-              value: "enableSwapMPWithPIP",
-            },
-          ],
-        },
-        {
-          name: t("settings.options.videoPlayer.options.preferredVideoQuality.title"),
-          icon: "VIDEO_QUALITY",
-          value: null,
-          menuId: "axo-preferred-video-quality",
-          menuHeader: {
-            title: t("settings.options.videoPlayer.options.preferredVideoQuality.title"),
-            subtitle: t("settings.options.videoPlayer.options.preferredVideoQuality.subtitle"),
-          },
-          options: ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p", "240p", "144p"].map(
-            (quality) => {
-              return {
-                name: quality,
-                key: "preferredVideoQuality",
-                value: quality.toLowerCase(),
-              };
-            },
+      heading(t("settings.ads.title"), t("settings.ads.subtitle")),
+    ),
+    submenu(
+      t("settings.playback.title"),
+      "PLAY_CIRCLE",
+      [
+        submenu(
+          t("settings.playback.quality.title"),
+          "VIDEO_QUALITY",
+          QUALITIES.map((quality) =>
+            radio(
+              quality === "auto" ? t("settings.common.auto") : quality,
+              "preferredVideoQuality",
+              quality,
+            ),
           ),
-        },
-        {
-          name: t("settings.options.videoPlayer.options.experimentalResolution.title"),
-          icon: "VIDEO_QUALITY",
-          value: "enableExperimentalResolution",
-        },
-        {
-          name: t("settings.options.videoPlayer.options.experimentalMaxResolution.title"),
-          icon: "VIDEO_QUALITY",
-          value: null,
-          menuId: "axo-experimental-max-resolution",
-          menuHeader: {
-            title: t("settings.options.videoPlayer.options.experimentalMaxResolution.title"),
-            subtitle: t("settings.options.videoPlayer.options.experimentalMaxResolution.subtitle"),
-          },
-          options: ["1440p", "2160p"].map((quality) => {
-            return {
-              name: quality,
-              key: "experimentalMaxResolution",
-              value: quality,
-            };
-          }),
-        },
-        {
-          name: t("settings.options.videoPlayer.options.speedSettings.title"),
-          icon: "SLOW_MOTION_VIDEO",
-          value: null,
-          menuId: "axo-speed-settings-increments",
-          menuHeader: {
-            title: t("settings.options.videoPlayer.options.speedSettings.title"),
-            subtitle: t("settings.options.videoPlayer.options.speedSettings.subtitle"),
-          },
-          options: [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5].map((increment) => {
-            return {
-              name: `${increment}x`,
-              key: "speedSettingsIncrement",
-              value: increment,
-            };
-          }),
-        },
-        {
-          name: t("settings.options.videoPlayer.options.preferredVideoCodec.title"),
-          icon: "VIDEO_QUALITY",
-          value: null,
-          menuId: "axo-preferred-video-codec",
-          menuHeader: {
-            title: t("settings.options.videoPlayer.options.preferredVideoCodec.title"),
-            subtitle: t("settings.options.videoPlayer.options.preferredVideoCodec.subtitle"),
-          },
-          options: ["any", "vp9", "av01", "avc1"].map((codec) => {
-            return {
-              name: codec === "any" ? "Any" : codec.toUpperCase(),
-              key: "videoPreferredCodec",
-              value: codec,
-            };
-          }),
-        },
-        window.h5vcc && window.h5vcc.tizentube && window.h5vcc.tizentube.SetFrameRate
-          ? {
-              name: t("settings.options.videoPlayer.options.afr"),
-              icon: "SLOW_MOTION_VIDEO",
-              value: "autoFrameRate",
-            }
+          heading(t("settings.playback.quality.title"), t("settings.playback.quality.subtitle")),
+        ),
+        submenu(
+          t("settings.playback.codec.title"),
+          "VIDEO_QUALITY",
+          CODECS.map((codec) =>
+            radio(
+              codec === "any" ? t("settings.common.any") : codec.toUpperCase(),
+              "videoPreferredCodec",
+              codec,
+            ),
+          ),
+          heading(t("settings.playback.codec.title"), t("settings.playback.codec.subtitle")),
+        ),
+        submenu(
+          t("settings.playback.speedStep.title"),
+          "SLOW_MOTION_VIDEO",
+          SPEED_STEPS.map((step) => radio(`${step}x`, "speedSettingsIncrement", step)),
+          heading(
+            t("settings.playback.speedStep.title"),
+            t("settings.playback.speedStep.subtitle"),
+          ),
+        ),
+        frameRateSupported()
+          ? submenu(
+              t("settings.playback.frameRate.title"),
+              "SLOW_MOTION_VIDEO",
+              [
+                toggle(t("settings.playback.frameRate.match"), "autoFrameRate"),
+                submenu(
+                  t("settings.playback.frameRate.pause.title"),
+                  "TIMER",
+                  PAUSE_SECONDS.map((seconds) =>
+                    radio(secondsLabel(seconds), "autoFrameRatePauseVideoFor", seconds * 1000),
+                  ),
+                  heading(
+                    t("settings.playback.frameRate.pause.title"),
+                    t("settings.playback.frameRate.pause.subtitle"),
+                  ),
+                ),
+              ],
+              heading(
+                t("settings.playback.frameRate.title"),
+                t("settings.playback.frameRate.subtitle"),
+              ),
+            )
           : null,
-        window.h5vcc && window.h5vcc.tizentube && window.h5vcc.tizentube.SetFrameRate
-          ? {
-              name: t("settings.options.videoPlayer.options.afrPauseDuration.title"),
-              icon: "TIMER",
-              value: null,
-              menuId: "axo-auto-frame-rate-pause-duration",
-              menuHeader: {
-                title: t("settings.options.videoPlayer.options.afrPauseDuration.title"),
-                subtitle: t("settings.options.videoPlayer.options.afrPauseDuration.subtitle"),
-              },
-              options: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((seconds) => {
-                return {
-                  name: `${seconds} seconds`,
-                  key: "autoFrameRatePauseVideoFor",
-                  value: seconds * 1000,
-                };
-              }),
-            }
-          : null,
+        submenu(
+          t("settings.playback.captions.title"),
+          "TRANSLATE",
+          [
+            toggle(t("settings.playback.captions.onByDefault"), "enableAutoSubtitles"),
+            submenu(
+              t("settings.playback.captions.language.title"),
+              "TRANSLATE",
+              SUBTITLE_LANGUAGES.map((code) =>
+                radio(t(`settings.playback.languages.${code}`), "autoSubtitleLanguage", code),
+              ),
+              heading(
+                t("settings.playback.captions.language.title"),
+                t("settings.playback.captions.language.subtitle"),
+              ),
+            ),
+            toggle(t("settings.playback.captions.allowAuto"), "autoSubtitleAllowAuto"),
+            toggle(t("settings.playback.captions.myLanguage"), "enableShowUserLanguage"),
+            toggle(t("settings.playback.captions.otherLanguages"), "enableShowOtherLanguages"),
+          ],
+          heading(t("settings.playback.captions.title"), t("settings.playback.captions.subtitle")),
+        ),
+        submenu(
+          t("settings.playback.experimental.title"),
+          "VIDEO_QUALITY",
+          [
+            toggle(t("settings.playback.experimental.unlock"), "enableExperimentalResolution"),
+            submenu(
+              t("settings.playback.experimental.max.title"),
+              "VIDEO_QUALITY",
+              EXPERIMENTAL_RESOLUTIONS.map((res) => radio(res, "experimentalMaxResolution", res)),
+              heading(
+                t("settings.playback.experimental.max.title"),
+                t("settings.playback.experimental.max.subtitle"),
+              ),
+            ),
+          ],
+          heading(
+            t("settings.playback.experimental.title"),
+            t("settings.playback.experimental.subtitle"),
+          ),
+        ),
+        toggle(t("settings.playback.pauseInBackground"), "enablePauseOnBlur"),
+        toggle(t("settings.playback.remainingTime"), "enableRemainingTime"),
       ],
-    },
-    {
-      name: t("settings.options.uiSettings.title"),
-      icon: "SETTINGS",
-      value: null,
-      menuHeader: {
-        title: t("settings.options.uiSettings.title"),
-        subtitle: t("settings.options.uiSettings.subtitle"),
-      },
-      options: [
-        {
-          name: t("settings.options.uiSettings.options.hideWatchedVideos.title"),
-          icon: "VISIBILITY_OFF",
-          value: null,
-          menuId: "axo-hide-watched-videos-settings",
-          options: [
+      heading(t("settings.playback.title"), t("settings.playback.subtitle")),
+    ),
+    submenu(
+      t("settings.playerControls.title"),
+      "VIDEO_YOUTUBE",
+      [
+        toggle(t("settings.playerControls.customize"), "enablePatchingVideoPlayer"),
+        toggle(t("settings.playerControls.previousNext"), "enablePreviousNextButtons", "SKIP_NEXT"),
+        toggle(
+          t("settings.playerControls.speed"),
+          "enableSpeedControlsButton",
+          "SLOW_MOTION_VIDEO",
+        ),
+        toggle(t("settings.playerControls.superThanks"), "enableSuperThanksButton", "MONEY_HEART"),
+        toggle(t("settings.playerControls.miniPlayer"), "enableMPButton"),
+        toggle(
+          t("settings.playerControls.pipInsteadOfMini"),
+          "enableSwapMPWithPIP",
+          "PICTURE_IN_PICTURE",
+        ),
+        toggle(t("settings.playerControls.onePress"), "enableOnePressMode"),
+      ],
+      heading(t("settings.playerControls.title"), t("settings.playerControls.subtitle")),
+    ),
+    submenu(
+      t("settings.browsing.title"),
+      "TV",
+      [
+        submenu(
+          t("settings.browsing.thumbnails.title"),
+          "VIDEO_QUALITY",
+          [
+            toggle(t("settings.browsing.hqThumbnails"), "enableHqThumbnails"),
+            toggle(t("settings.browsing.deArrowTitles"), "enableDeArrowTitles"),
+            toggle(t("settings.browsing.deArrowThumbnails"), "enableDeArrowThumbnails"),
+          ],
+          heading(
+            t("settings.browsing.thumbnails.title"),
+            t("settings.browsing.thumbnails.subtitle"),
+          ),
+        ),
+        submenu(
+          t("settings.browsing.previews.title"),
+          "PREVIEW",
+          [
+            toggle(t("settings.browsing.previews.on"), "enablePreviews"),
             {
-              name: t(
-                "settings.options.uiSettings.options.hideWatchedVideos.options.enableHideWatchedVideos",
-              ),
-              icon: "VISIBILITY_OFF",
-              value: "enableHideWatchedVideos",
+              name: t("settings.browsing.previews.length"),
+              icon: "TIMER",
+              value: "previewLengthSeconds",
+              stepper: 5,
             },
-            {
-              name: t(
-                "settings.options.uiSettings.options.hideWatchedVideos.options.watchedVideosThreshold.title",
+          ],
+          heading(t("settings.browsing.previews.title"), t("settings.browsing.previews.subtitle")),
+        ),
+        submenu(
+          t("settings.browsing.hideWatched.title"),
+          "VISIBILITY_OFF",
+          [
+            toggle(t("settings.browsing.hideWatched.on"), "enableHideWatchedVideos"),
+            submenu(
+              t("settings.browsing.hideWatched.threshold.title"),
+              "TIMER",
+              WATCHED_THRESHOLDS.map((percent) =>
+                radio(`${percent}%`, "hideWatchedVideosThreshold", percent),
               ),
-              value: null,
-              menuId: "axo-hide-watched-videos-threshold",
-              menuHeader: {
-                title: t(
-                  "settings.options.uiSettings.options.hideWatchedVideos.options.watchedVideosThreshold.title",
-                ),
-                subtitle: t(
-                  "settings.options.uiSettings.options.hideWatchedVideos.options.watchedVideosThreshold.subtitle",
-                ),
-              },
-              options: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((percent) => {
-                return {
-                  name: `${percent}%`,
-                  key: "hideWatchedVideosThreshold",
-                  value: percent,
-                };
-              }),
-            },
-            {
-              name: t(
-                "settings.options.uiSettings.options.hideWatchedVideos.options.setPagesToHideWatchedVideos",
+              heading(
+                t("settings.browsing.hideWatched.threshold.title"),
+                t("settings.browsing.hideWatched.threshold.subtitle"),
               ),
+            ),
+            {
+              name: t("settings.browsing.hideWatched.pages.title"),
               value: null,
               arrayToEdit: "hideWatchedVideosPages",
-              menuId: "axo-hide-watched-videos-pages",
+              menuHeader: heading(
+                t("settings.browsing.hideWatched.pages.title"),
+                t("settings.browsing.hideWatched.pages.subtitle"),
+              ),
               options: [
-                {
-                  name: "Search Results",
-                  value: "search",
-                },
-                {
-                  name: "Home",
-                  value: "home",
-                },
-                {
-                  name: "Music",
-                  value: "music",
-                },
-                {
-                  name: "Gaming",
-                  value: "gaming",
-                },
-                {
-                  name: "Subscriptions",
-                  value: "subscriptions",
-                },
-                {
-                  name: "Library",
-                  value: "library",
-                },
-                {
-                  name: "More",
-                  value: "more",
-                },
+                { name: "Search Results", value: "search" },
+                { name: "Home", value: "home" },
+                { name: "Music", value: "music" },
+                { name: "Gaming", value: "gaming" },
+                { name: "Subscriptions", value: "subscriptions" },
+                { name: "Library", value: "library" },
+                { name: "More", value: "more" },
               ],
             },
           ],
-        },
+          heading(
+            t("settings.browsing.hideWatched.title"),
+            t("settings.browsing.hideWatched.subtitle"),
+          ),
+        ),
+        toggle(t("settings.browsing.shorts"), "enableShorts", "YOUTUBE_SHORTS_FILL_24"),
+        toggle(t("settings.browsing.endScreens"), "enableHideEndScreenCards", "VISIBILITY_OFF"),
+        toggle(t("settings.browsing.longPress"), "enableLongPress", "TOUCH_APP"),
+        toggle(t("settings.browsing.stillWatching"), "enableYouThereRenderer"),
+      ],
+      heading(t("settings.browsing.title"), t("settings.browsing.subtitle")),
+    ),
+    submenu(
+      t("settings.home.title"),
+      "MENU",
+      [
+        submenu(
+          t("settings.home.startup.title"),
+          "TV",
+          STARTUP_PAGES.map((page) => ({
+            name: page.name,
+            icon: page.icon,
+            key: "launchToOnStartup",
+            value: page.value,
+          })),
+          heading(t("settings.home.startup.title"), t("settings.home.startup.subtitle")),
+        ),
+        toggle(t("settings.home.reloadHome"), "reloadHomeOnStartup"),
         {
-          name: t("settings.options.uiSettings.options.screenDimming.title"),
-          icon: "EYE_OFF",
-          value: null,
-          menuId: "axo-screen-dimming-settings",
-          options: [
-            {
-              name: t(
-                "settings.options.uiSettings.options.screenDimming.options.enableScreenDimming",
-              ),
-              icon: "EYE_OFF",
-              value: "enableScreenDimming",
-            },
-            {
-              name: t(
-                "settings.options.uiSettings.options.screenDimming.options.dimmingTimeout.title",
-              ),
-              icon: "TIMER",
-              value: null,
-              menuId: "axo-dimming-timeout",
-              menuHeader: {
-                title: t(
-                  "settings.options.uiSettings.options.screenDimming.options.dimmingTimeout.title",
-                ),
-                subtitle: t(
-                  "settings.options.uiSettings.options.screenDimming.options.dimmingTimeout.subtitle",
-                ),
-              },
-              options: [10, 20, 30, 60, 120, 180, 240, 300].map((seconds) => {
-                const title =
-                  seconds >= 60
-                    ? `${seconds / 60} minute${seconds / 60 > 1 ? "s" : ""}`
-                    : `${seconds} seconds`;
-                return {
-                  name: title,
-                  key: "dimmingTimeout",
-                  value: seconds,
-                };
-              }),
-            },
-            {
-              name: t(
-                "settings.options.uiSettings.options.screenDimming.options.dimmingOpacity.title",
-              ),
-              icon: "LENS_BLUE",
-              value: null,
-              menuId: "axo-dimming-opacity",
-              menuHeader: {
-                title: t(
-                  "settings.options.uiSettings.options.screenDimming.options.dimmingOpacity.title",
-                ),
-                subtitle: t(
-                  "settings.options.uiSettings.options.screenDimming.options.dimmingOpacity.subtitle",
-                ),
-              },
-              options: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0].map((opacity) => {
-                return {
-                  name: `${Math.round(opacity * 100)}%`,
-                  key: "dimmingOpacity",
-                  value: opacity,
-                };
-              }),
-            },
-          ],
-        },
-        {
-          name: t("settings.options.uiSettings.options.disableSidebarContents.title"),
+          name: t("settings.home.sidebarItems.title"),
           icon: "MENU",
           value: null,
           arrayToEdit: "disabledSidebarContents",
-          menuId: "axo-sidebar-contents",
-          menuHeader: {
-            title: t("settings.options.uiSettings.options.disableSidebarContents.title"),
-            subtitle: t("settings.options.uiSettings.options.disableSidebarContents.subtitle"),
-          },
-          options: [
-            {
-              name: "Search",
-              icon: "SEARCH",
-              value: "SEARCH",
-            },
-            {
-              name: "Home",
-              icon: "WHAT_TO_WATCH",
-              value: "WHAT_TO_WATCH",
-            },
-            {
-              name: "Sports",
-              icon: "TROPHY",
-              value: "TROPHY",
-            },
-            {
-              name: "News",
-              icon: "NEWS",
-              value: "NEWS",
-            },
-            {
-              name: "Music",
-              icon: "YOUTUBE_MUSIC",
-              value: "YOUTUBE_MUSIC",
-            },
-            {
-              name: "Podcasts",
-              icon: "BROADCAST",
-              value: "BROADCAST",
-            },
-            {
-              name: "Movies & TV",
-              icon: "CLAPPERBOARD",
-              value: "CLAPPERBOARD",
-            },
-            {
-              name: "Live",
-              icon: "LIVE",
-              value: "LIVE",
-            },
-            {
-              name: "Gaming",
-              icon: "GAMING",
-              value: "GAMING",
-            },
-            {
-              name: "Subscriptions",
-              icon: "SUBSCRIPTIONS",
-              value: "SUBSCRIPTIONS",
-            },
-            {
-              name: "Library",
-              icon: "TAB_LIBRARY",
-              value: "TAB_LIBRARY",
-            },
-            {
-              name: "More",
-              icon: "TAB_MORE",
-              value: "TAB_MORE",
-            },
-          ],
+          menuHeader: heading(
+            t("settings.home.sidebarItems.title"),
+            t("settings.home.sidebarItems.subtitle"),
+          ),
+          options: SIDEBAR_ITEMS.map((item) => ({
+            name: item.name,
+            icon: item.icon,
+            value: item.icon,
+          })),
         },
-        {
-          name: t("settings.options.uiSettings.options.launchToOnStartup.title"),
-          icon: "TV",
-          value: null,
-          menuId: "axo-launch-to-on-startup",
-          menuHeader: {
-            title: t("settings.options.uiSettings.options.launchToOnStartup.title"),
-            subtitle: t("settings.options.uiSettings.options.launchToOnStartup.subtitle"),
-          },
-          options: [
-            {
-              name: "Search",
-              icon: "SEARCH",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                searchEndpoint: { query: "" },
-              }),
-            },
-            {
-              name: "Home",
-              icon: "WHAT_TO_WATCH",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics" },
-              }),
-            },
-            {
-              name: "Sports",
-              icon: "TROPHY",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics_sports" },
-              }),
-            },
-            {
-              name: "News",
-              icon: "NEWS",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics_news" },
-              }),
-            },
-            {
-              name: "Music",
-              icon: "YOUTUBE_MUSIC",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics_music" },
-              }),
-            },
-            {
-              name: "Podcasts",
-              icon: "BROADCAST",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics_podcasts" },
-              }),
-            },
-            {
-              name: "Movies & TV",
-              icon: "CLAPPERBOARD",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics_movies" },
-              }),
-            },
-            {
-              name: "Gaming",
-              icon: "GAMING",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics_gaming" },
-              }),
-            },
-            {
-              name: "Live",
-              icon: "LIVE",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics_live" },
-              }),
-            },
-            {
-              name: "Subscriptions",
-              icon: "SUBSCRIPTIONS",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEsubscriptions" },
-              }),
-            },
-            {
-              name: "Library",
-              icon: "TAB_LIBRARY",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FElibrary" },
-              }),
-            },
-            {
-              name: "More",
-              icon: "TAB_MORE",
-              key: "launchToOnStartup",
-              value: JSON.stringify({
-                browseEndpoint: { browseId: "FEtopics_more" },
-              }),
-            },
-          ],
-        },
-        {
-          name: t("settings.options.uiSettings.options.sortSubscriptionsByAlphabet"),
-          icon: "SORT",
-          value: "sortSubscriptionsByAlphabet",
-        },
-        {
-          name: t("settings.options.uiSettings.options.disableChannelsOnSidebar"),
-          icon: "CANCEL",
-          value: "disableChannelsOnSidebar",
-        },
+        toggle(t("settings.home.hideChannels"), "disableChannelsOnSidebar"),
+        toggle(t("settings.home.sortSubscriptions"), "sortSubscriptionsByAlphabet"),
       ],
-    },
-    window.h5vcc && window.h5vcc.tizentube
-      ? {
-          name: t("settings.options.updater.title"),
-          icon: "SYSTEM_UPDATE",
-          value: null,
-          menuHeader: {
-            title: t("settings.options.updater.title"),
-            subtitle: t("settings.options.updater.menuSubtitle"),
-          },
-          subtitle: t("settings.options.updater.versionSubtitle", {
-            version:
-              typeof window.h5vcc.tizentube.GetVersion === "function"
-                ? window.h5vcc.tizentube.GetVersion()
-                : "unknown",
-          }),
-          options: [
+      heading(t("settings.home.title"), t("settings.home.subtitle")),
+    ),
+    submenu(
+      t("settings.appearance.title"),
+      "STYLE",
+      [
+        submenu(
+          t("settings.appearance.theme.title"),
+          "COLOR_LENS",
+          [
+            submenu(
+              t("settings.appearance.theme.presets.title"),
+              "COLOR_LENS",
+              PRESET_NAMES.map((name) =>
+                radio(t(`settings.appearance.colors.${name}`), "themePreset", name),
+              ),
+              heading(
+                t("settings.appearance.theme.presets.title"),
+                t("settings.appearance.theme.presets.subtitle"),
+              ),
+            ),
+            submenu(
+              t("settings.appearance.theme.background.title"),
+              "COLOR_LENS",
+              PRESET_NAMES.map((name) =>
+                radio(
+                  t(`settings.appearance.colors.${name}`),
+                  "routeColor",
+                  configSchema.themePresetColors[name],
+                ),
+              ),
+              heading(
+                t("settings.appearance.theme.background.title"),
+                t("settings.appearance.theme.background.subtitle"),
+              ),
+            ),
+            submenu(
+              t("settings.appearance.theme.text.title"),
+              "COLOR_LENS",
+              TEXT_THEMES.map((name) =>
+                radio(t(`settings.appearance.textColors.${name}`), "textTheme", name),
+              ),
+              heading(
+                t("settings.appearance.theme.text.title"),
+                t("settings.appearance.theme.text.subtitle"),
+              ),
+            ),
+          ],
+          heading(t("settings.appearance.theme.title"), t("settings.appearance.theme.subtitle")),
+        ),
+        submenu(
+          t("settings.appearance.dimming.title"),
+          "EYE_OFF",
+          [
+            toggle(t("settings.appearance.dimming.on"), "enableScreenDimming", "EYE_OFF"),
+            submenu(
+              t("settings.appearance.dimming.timeout.title"),
+              "TIMER",
+              DIM_TIMEOUTS.map((seconds) => radio(dimLabel(seconds), "dimmingTimeout", seconds)),
+              heading(
+                t("settings.appearance.dimming.timeout.title"),
+                t("settings.appearance.dimming.timeout.subtitle"),
+              ),
+            ),
+            submenu(
+              t("settings.appearance.dimming.opacity.title"),
+              "LENS_BLUE",
+              DIM_OPACITIES.map((opacity) =>
+                radio(`${Math.round(opacity * 100)}%`, "dimmingOpacity", opacity),
+              ),
+              heading(
+                t("settings.appearance.dimming.opacity.title"),
+                t("settings.appearance.dimming.opacity.subtitle"),
+              ),
+            ),
+          ],
+          heading(
+            t("settings.appearance.dimming.title"),
+            t("settings.appearance.dimming.subtitle"),
+          ),
+        ),
+        toggle(t("settings.appearance.reduceMotion"), "enableReducedMotion"),
+        toggle(t("settings.appearance.fullAnimations"), "enableFixedUI"),
+      ],
+      heading(t("settings.appearance.title"), t("settings.appearance.subtitle")),
+    ),
+    submenu(
+      t("settings.system.title"),
+      "SETTINGS",
+      [
+        toggle(t("settings.system.lowMemory"), "enableLowMemoryMode"),
+        submenu(
+          t("settings.system.whosWatching.title"),
+          "ACCOUNT_CIRCLE",
+          [
+            toggle(t("settings.system.whosWatching.on"), "enableWhoIsWatchingMenu"),
+            toggle(t("settings.system.whosWatching.always"), "permanentlyEnableWhoIsWatchingMenu"),
+            toggle(t("settings.system.whosWatching.onExit"), "enableWhosWatchingMenuOnAppExit"),
+          ],
+          heading(
+            t("settings.system.whosWatching.title"),
+            t("settings.system.whosWatching.subtitle"),
+          ),
+        ),
+        toggle(t("settings.system.signInReminder"), "enableSigninReminder"),
+        toggle(t("settings.system.welcome"), "showWelcomeToast"),
+        submenu(
+          t("settings.system.updates.title"),
+          "SYSTEM_UPDATE",
+          [
             {
-              name: t("settings.options.updater.options.checkForUpdates"),
+              name: t("settings.system.updates.checkNow"),
               icon: "SYSTEM_UPDATE",
               action: "CHECK_FOR_UPDATES",
             },
-            {
-              name: t("settings.options.updater.options.checkForUpdatesOnStartup"),
-              icon: "SYSTEM_UPDATE",
-              value: "enableUpdater",
-            },
+            toggle(t("settings.system.updates.onStartup"), "enableUpdater", "SYSTEM_UPDATE"),
           ],
-        }
-      : null,
-    {
-      name: t("settings.options.returnToAxobrew"),
-      icon: "OPEN_IN_NEW",
-      action: "RETURN_TO_AXOBREW",
-    },
+          heading(
+            t("settings.system.updates.title"),
+            t("settings.system.updates.subtitle", { version: AXOTUBE_VERSION }),
+          ),
+        ),
+        { name: t("settings.system.reload"), icon: "REFRESH", action: "AXO_RELOAD_PAGE" },
+      ],
+      heading(t("settings.system.title"), t("settings.system.subtitle")),
+    ),
+    submenu(
+      t("settings.about.title"),
+      "HELP",
+      [
+        aboutLink("GitHub", "https://github.com/TizenDroid/axotube"),
+        aboutLink("Discord", "https://discord.gg/UDb8nak5YD"),
+      ],
+      heading(t("settings.about.title"), t("settings.about.version", { version: AXOTUBE_VERSION })),
+    ),
   ];
 
   return settings;
+}
+
+function dimLabel(seconds) {
+  return seconds >= 60 ? t("settings.minutes", { count: seconds / 60 }) : secondsLabel(seconds);
 }
 
 // ── Native rendering ─────────────────────────────────────────────────────────
@@ -1096,6 +612,19 @@ function rowFor(node, id, arrayKey, panelId) {
     return buttonItem({ title: node.name }, { icon: node.icon }, [
       { customAction: { action: node.action } },
     ]);
+  }
+
+  if (node.segment !== undefined) {
+    const mode = segmentMode(node.segment);
+    return buttonItem(
+      { title: node.name, subtitle: t(`settings.segmentModes.${mode}`) },
+      { icon: node.icon },
+      settingCommand("SETTINGS_SEGMENT", {
+        category: node.segment,
+        panel: panelId,
+        index: idIndex(id),
+      }),
+    );
   }
 
   if (arrayKey !== undefined) {
@@ -1292,6 +821,13 @@ export function handleSettingsAction(action, parameters) {
       return;
     case "SETTINGS_SET":
       applyAndRefresh(() => writeClientSetting(p.key, p.valName, p.value), p.panel, p.index);
+      return;
+    case "SETTINGS_SEGMENT":
+      applyAndRefresh(
+        () => writeSegmentMode(p.category, SEGMENT_NEXT_MODE[segmentMode(p.category)]),
+        p.panel,
+        p.index,
+      );
       return;
     case "SETTINGS_STEP": {
       const range = configSchema.ranges && configSchema.ranges[p.key];

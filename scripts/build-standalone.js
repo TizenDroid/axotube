@@ -30,6 +30,14 @@ const builtEarly = path.join(ROOT, "dist", "early.js");
 if (!fs.existsSync(builtEarly)) throw new Error("Root build did not produce dist/early.js");
 fs.copyFileSync(builtEarly, path.join(STANDALONE, "userscript", "early.js"));
 console.log("copied fresh dist/early.js -> standalone/userscript/early.js");
+// The version the shipped bundles were built from. The proxy compares it with the
+// CDN's version to decide whether to use a newer cached bundle.
+const rootPkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+fs.writeFileSync(
+  path.join(STANDALONE, "userscript", "version.json"),
+  JSON.stringify({ version: rootPkg.version }, null, 2) + "\n",
+);
+console.log("wrote standalone/userscript/version.json (" + rootPkg.version + ")");
 
 const svcDir = path.join(STANDALONE, "service");
 // standalone/service intentionally has a tiny independent package. Versions are

@@ -29,7 +29,7 @@
         "use strict";
 
         // Samsung TV browser user agent, applied to the whole webview the way
-        // TizenBrew does it (tizen.websetting.setUserAgentString). It runs here,
+        // platform browser settings do it (tizen.websetting.setUserAgentString). It runs here,
         // on the first page, before anything navigates to YouTube, so the HTML,
         // scripts and API requests all carry it. No settings UI.
         var DEFAULT_USER_AGENT = "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) AppleWebKit/537.3 (KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3";
@@ -90,7 +90,7 @@
         var PROXY_URL = "http://localhost:8099";
         // The service listens on 127.0.0.1 only. Checking that address directly
         // avoids "localhost" resolving to IPv6 first and waiting out a timeout.
-        var HEALTH_URL = "http://127.0.0.1:8099/tizentube/health";
+        var HEALTH_URL = "http://127.0.0.1:8099/axotube/health";
         var DIAL_URL = "http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube";
         var HEALTH_REQUEST_TIMEOUT_MS = 2000;
         var LAUNCH_RETRY_LIMIT = 3;

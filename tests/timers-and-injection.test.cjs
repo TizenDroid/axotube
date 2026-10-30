@@ -45,3 +45,22 @@ test("rollup builds the main bundle and the early bundle, and the build copies e
   assert.ok(read("mods/early.js").includes("experimentalResolution.js"));
   assert.ok(read("scripts/build-standalone.js").includes("early.js"));
 });
+
+test("proxy reuses upstream connections and revalidates scripts with ETag/304", () => {
+  const src = read("standalone/service/index.js");
+  assert.ok(src.includes("new https.Agent({ keepAlive: true"), "keep-alive agent");
+  assert.ok(src.includes("agent: upstreamAgent"), "agent is used for upstream fetches");
+  assert.ok(src.includes("req.headers['if-none-match'] === etag"), "conditional request");
+  assert.ok(src.includes("res.status(304)"), "304 response");
+});
+
+test("the native-parser rescan is bounded", () => {
+  const src = read("mods/shared/responsePipeline.js");
+  assert.ok(src.includes("if (checks >= PARSER_RESCAN_LIMIT) return;"));
+});
+
+test("shared service guards its DIAL listen so a busy port cannot crash the process", () => {
+  const src = read("service/service.js");
+  assert.ok(src.includes('dialListener.on("error"'), "error handler on the 8085 listener");
+  assert.ok(src.includes("dialServer.start();"), "DIAL starts only after the port binds");
+});
