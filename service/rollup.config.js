@@ -6,6 +6,12 @@ import json from "@rollup/plugin-json";
 import terser from "@rollup/plugin-terser";
 import fs from "fs";
 
+// Two bundles come from one source tree:
+//   ../dist/service.js                       Tizen module (control server, 8085)
+//   ../standalone/service/dist/index.js      standalone app (content proxy, 8099,
+//                                            plus the same control server)
+// Both are built here, so they cannot drift apart.
+
 function injectXmlContent() {
   return {
     name: "inject-xml-content",
@@ -26,18 +32,24 @@ function injectXmlContent() {
   };
 }
 
-export default {
-  input: "service.js",
-  output: {
-    file: "../dist/service.js",
-    format: "cjs",
-  },
-  onwarn(warning) {
-    if (warning.code !== "CIRCULAR_DEPENDENCY") {
-      console.warn(warning.message);
-    }
-  },
-  plugins: [
+// The standalone bundle used to be produced by ncc, followed by two regex edits to
+// the output. Those edits now run here, with the same patterns and the same
+// first-match-only behaviour, so the standalone output is unchanged.
+function standaloneNodeFetchPatches() {
+  return {
+    name: "standalone-node-fetch-patches",
+    renderChunk(code) {
+      const relativeUrl =
+        /if\s*\(\/.*?\/i?\.exec\(urlStr\)\)\s*\{\s*urlStr\s*=\s*new\s+URL\(urlStr\)\.toString\(\);\s*\}/g;
+      const patched = code.replace(relativeUrl, "");
+      const headerLimit = /(method:\s*request\.method,)/;
+      return { code: patched.replace(headerLimit, "$1 maxHeaderSize: 5*1024*1024,") };
+    },
+  };
+}
+
+function sharedPlugins() {
+  return [
     injectXmlContent(),
     replace({
       "Gate.prototype.await = function await(callback)":
@@ -54,10 +66,32 @@ export default {
       babelHelpers: "bundled",
       presets: ["@babel/preset-env"],
     }),
-    terser({
-      ecma: 5,
-      mangle: { reserved: ["tizen"] },
-      compress: { passes: 1 },
-    }),
-  ],
+  ];
+}
+
+function minify() {
+  return terser({
+    ecma: 5,
+    mangle: { reserved: ["tizen"] },
+    compress: { passes: 1 },
+  });
+}
+
+const onwarn = (warning) => {
+  if (warning.code !== "CIRCULAR_DEPENDENCY") console.warn(warning.message);
 };
+
+export default [
+  {
+    input: "service.js",
+    output: { file: "../dist/service.js", format: "cjs" },
+    onwarn,
+    plugins: [...sharedPlugins(), minify()],
+  },
+  {
+    input: "standalone.js",
+    output: { file: "../standalone/service/dist/index.js", format: "cjs" },
+    onwarn,
+    plugins: [...sharedPlugins(), standaloneNodeFetchPatches(), minify()],
+  },
+];

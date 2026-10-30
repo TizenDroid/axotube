@@ -2,6 +2,9 @@ import { nativeHost } from "./shared/nativeHost.js";
 import { t } from "i18next";
 import { configWrite, configRead } from "./config.js";
 import { enablePip, cleanupPipStyles } from "./features/pictureInPicture.js";
+import { pauseForOpenedOverlay } from "./features/pauseOnBlur.js";
+import { applyDeArrowPeek } from "./features/deArrowPeek.js";
+import { restartCastReceiver } from "./features/castDiscovery.js";
 import modernUI, { handleSettingsAction } from "./ui/settings.js";
 import { writeClientSetting } from "./shared/clientSettings.js";
 import { speedSettings } from "./ui/speedUI.js";
@@ -37,6 +40,8 @@ function patchNativeResolverInstance(instance) {
   if (ogResolve.__axotubePatched) return true;
   const patchedResolve = function (cmd, _) {
     if (!cmd || typeof cmd !== "object") return ogResolve.call(this, cmd, _);
+    applyDeArrowPeek(cmd);
+    pauseForOpenedOverlay(cmd);
 
     if (cmd.setClientSettingEndpoint) {
       if (!Array.isArray(cmd.setClientSettingEndpoint.settingDatas)) {
@@ -244,6 +249,9 @@ function customAction(action, parameters) {
       break;
     case "CHECK_FOR_UPDATES":
       checkForUpdates(true);
+      break;
+    case "AXO_CAST_RESTART":
+      restartCastReceiver();
       break;
     case "AXO_RELOAD_PAGE":
       // Reloads the page, so the proxy serves the HTML and both bundles fresh.

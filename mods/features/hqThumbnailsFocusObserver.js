@@ -1,7 +1,8 @@
 // High-Quality Thumbnails for Focused Items
 // Fixes issue where focused thumbnails revert to default quality
 
-import { configRead, configChangeEmitter } from "../config.js";
+import { configChangeEmitter } from "../config.js";
+import { hqThumbnailMode } from "../shared/performanceMode.js";
 import {
   extractVideoIdFromThumbnailUrl,
   hqQualityCache,
@@ -9,7 +10,7 @@ import {
 } from "../shared/hqThumbnails.js";
 
 function upgradeThumbnailQuality(element) {
-  if (!configRead("enableHqThumbnails")) return;
+  if (hqThumbnailMode() === "off") return;
   if (!element || element.isConnected === false) return;
 
   let currentUrl = "";
@@ -229,12 +230,14 @@ function initFocusObserver() {
   };
 
   let syncWithConfig = function () {
-    if (configRead("enableHqThumbnails")) startObserver();
+    if (hqThumbnailMode() !== "off") startObserver();
     else stopObserver();
   };
 
+  // Performance-mode switches change the thumbnail mode, so they re-sync too.
+  let syncKeys = ["enableHqThumbnails", "enablePerformanceMode", "enableReducedMotion", "enableLowMemoryMode"];
   configChangeEmitter.addEventListener("configChange", function (event) {
-    if (event.detail && event.detail.key === "enableHqThumbnails") syncWithConfig();
+    if (event.detail && syncKeys.indexOf(event.detail.key) !== -1) syncWithConfig();
   });
 
   syncWithConfig();

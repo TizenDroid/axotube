@@ -39,15 +39,10 @@ fs.writeFileSync(
 );
 console.log("wrote standalone/userscript/version.json (" + rootPkg.version + ")");
 
-const svcDir = path.join(STANDALONE, "service");
-// standalone/service intentionally has a tiny independent package. Versions are
-// pinned exactly in its package.json, so npm install is deterministic at the
-// direct dependency layer even when this checkout has no node_modules yet.
-run("npm install --no-audit --no-fund", svcDir);
-run("npm run build", svcDir);
-
-const standaloneService = path.join(svcDir, "dist", "index.js");
+// The standalone service is built by the root build (service/rollup.config.js)
+// from the same source as the Tizen service, so it is already up to date here.
+const standaloneService = path.join(STANDALONE, "service", "dist", "index.js");
 if (!fs.existsSync(standaloneService)) {
-  throw new Error("Standalone service build did not produce dist/index.js");
+  throw new Error("Root build did not produce standalone/service/dist/index.js");
 }
-console.log("built standalone/service/dist/index.js from current source");
+console.log("standalone service is current: standalone/service/dist/index.js");

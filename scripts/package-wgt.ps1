@@ -35,14 +35,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "build-web failed" }
 
     # The widget output lives inside the project, so build-web also stages old
-    # packages from release/ (the .apk files are several megabytes each).
+    # packages from release/ and the stale standalone service files.
     $stagedRelease = Join-Path $standalone ".buildResult\release"
     if (Test-Path $stagedRelease) { Remove-Item -Recurse -Force $stagedRelease }
-
-    # service/dist/index.js is an ncc bundle with express and node-fetch inlined.
-    # Nothing else under service/ belongs in the widget: not the source files,
-    # not node_modules, and not the runtime config store (it holds the pairing
-    # token) that a local run may have left in service/dist.
     $stagedService = Join-Path $standalone ".buildResult\service"
     if (Test-Path $stagedService) {
         Get-ChildItem $stagedService -Force | Where-Object { $_.Name -ne "dist" } |

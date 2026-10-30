@@ -1,5 +1,6 @@
 // Enable features that aren't enabled by default due to YT seeing the TV as a low-end device
-import { configRead, configChangeEmitter } from "../config.js";
+import { configChangeEmitter } from "../config.js";
+import { previewsEnabled } from "../shared/performanceMode.js";
 
 let retryTimer = null;
 let retryAttempts = 0;
@@ -44,7 +45,7 @@ function enableFeatures(resetRetryBudget = false) {
   }
 
   retryAttempts = 0;
-  featureMap.set("ENABLE_PREVIEWS_WITH_SOUND", configRead("enablePreviews"));
+  featureMap.set("ENABLE_PREVIEWS_WITH_SOUND", previewsEnabled());
 }
 
 if (document.readyState === "complete") {

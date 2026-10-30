@@ -553,7 +553,70 @@ setInterval(() => {
   }
 }, 5000);
 
+// Cast presence. Phones can drop the TV from their cast menu after a Wi-Fi band
+// change or standby. Restarting the DIAL/SSDP advertiser makes the TV announce
+// itself again, so nobody has to unplug it.
+//
+// dialServer.stop() sends byebye and closes the SSDP sockets only after those
+// sends finish. Starting again before that close completes could let the old
+// close shut the new sockets, so start waits a short gap.
+const CAST_RESTART_MIN_INTERVAL_MS = 15000;
+const CAST_RESTART_GAP_MS = 2000;
+const WAKE_TICK_MS = 10000;
+const WAKE_GAP_MS = 30000;
+let dialStarted = false;
+let castRestartTimer = null;
+let lastCastRestartAt = 0;
+
+function restartCastDiscovery(reason) {
+  if (!dialStarted) return { restarted: false, reason: "discovery-not-running" };
+  if (castRestartTimer) return { restarted: false, reason: "in-progress" };
+  if (Date.now() - lastCastRestartAt < CAST_RESTART_MIN_INTERVAL_MS) {
+    return { restarted: false, reason: "too-soon" };
+  }
+  lastCastRestartAt = Date.now();
+  console.log(`[AxoTube:service] restarting cast discovery (${reason})`);
+  try {
+    dialServer.stop();
+  } catch (err) {
+    console.warn("[AxoTube:service] cast discovery stop failed:", err.message);
+  }
+  castRestartTimer = setTimeout(() => {
+    castRestartTimer = null;
+    try {
+      dialServer.start();
+    } catch (err) {
+      console.warn("[AxoTube:service] cast discovery start failed:", err.message);
+    }
+  }, CAST_RESTART_GAP_MS);
+  return { restarted: true, reason: "restarting" };
+}
+
+const CAST_RESTART_REASONS = ["wake", "focus", "manual"];
+
+app.post("/api/cast/restart", (req, res) => {
+  if (!isLoopback(req)) {
+    res.status(403).json({ ok: false, error: "Loopback only" });
+    return;
+  }
+  const requested = req.body && String(req.body.reason || "");
+  const reason = CAST_RESTART_REASONS.indexOf(requested) !== -1 ? requested : "manual";
+  const result = restartCastDiscovery(reason);
+  res.json({ ok: true, ...result });
+});
+
+// A timer that fires long after it was due means the machine was asleep (TV
+// standby). Re-announce then, even if the app is not in front.
+let lastWakeTick = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const gap = now - lastWakeTick;
+  lastWakeTick = now;
+  if (gap > WAKE_GAP_MS) restartCastDiscovery("wake");
+}, WAKE_TICK_MS);
+
 const dialListener = app.listen(PORT, () => {
+  dialStarted = true;
   dialServer.start();
 });
 // Without this, a busy port (for example an earlier instance still running) is an

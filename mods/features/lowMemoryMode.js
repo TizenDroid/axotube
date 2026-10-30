@@ -5,11 +5,11 @@
 //
 // The setting is read when YouTube assigns window.environment. If that happens
 // before the config has loaded, the change applies on the next page load.
-import { configRead } from "../config.js";
+import { isLowMemory } from "../shared/performanceMode.js";
 
 function applyLowMemory(environment) {
   if (!environment || typeof environment !== "object") return;
-  if (!configRead("enableLowMemoryMode")) return;
+  if (!isLowMemory()) return;
   if (!environment.feature_switches || typeof environment.feature_switches !== "object") {
     environment.feature_switches = {};
   }

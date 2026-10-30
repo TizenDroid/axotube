@@ -3,7 +3,7 @@
 //   node scripts/make-bundle-package.js
 //   npm publish bundle-pkg --access public
 //
-// The package name must match DEFAULT_PACKAGE in standalone/service/bundleUpdates.js.
+// The package name must match DEFAULT_PACKAGE in service/bundleUpdates.cjs.
 // The package version comes from the root package.json, so the CDN's @latest
 // always matches the release being shipped.
 const fs = require("fs");

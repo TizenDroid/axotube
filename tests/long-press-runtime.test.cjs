@@ -104,3 +104,41 @@ test("an existing long-press menu gets one Add to Queue entry, never a duplicate
   assert.equal(menu.length, 1);
   assert.equal(menu[0].menuServiceItemRenderer.text.runs[0].text, "Add to Queue");
 });
+
+test("a tile with YouTube's own long-press command keeps every native menu item", () => {
+  const addLongPress = loadLongPress();
+  const home = tile();
+  // Native command whose menu is not in a shape we can append to: it must not be replaced.
+  const nativeCommand = {
+    showMenuCommand: {
+      menu: { menuRenderer: { sections: [{ items: [{ text: "Not interested" }] }] } },
+    },
+  };
+  home.tileRenderer.onLongPressCommand = nativeCommand;
+  const before = JSON.stringify(home);
+  addLongPress([home]);
+  assert.equal(JSON.stringify(home), before);
+  assert.equal(home.tileRenderer.onLongPressCommand, nativeCommand);
+});
+
+test("a native menu that is readable gets Add to Queue appended, keeping Not interested", () => {
+  const addLongPress = loadLongPress();
+  const home = tile();
+  home.tileRenderer.onLongPressCommand = {
+    showMenuCommand: {
+      menu: {
+        menuRenderer: {
+          items: [
+            { menuServiceItemRenderer: { text: { runs: [{ text: "Not interested" }] } } },
+            { menuNavigationItemRenderer: { text: { runs: [{ text: "Go to channel" }] } } },
+          ],
+        },
+      },
+    },
+  };
+  addLongPress([home]);
+  const labels = home.tileRenderer.onLongPressCommand.showMenuCommand.menu.menuRenderer.items.map(
+    (i) => (i.menuServiceItemRenderer || i.menuNavigationItemRenderer).text.runs[0].text,
+  );
+  assert.deepEqual(labels, ["Not interested", "Go to channel", "Add to Queue"]);
+});

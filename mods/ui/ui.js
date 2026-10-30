@@ -9,6 +9,7 @@ import getCommandExecutor from "./customCommandExecution.js";
 import { t } from "i18next";
 import AXOTUBE_VERSION from "../version.js";
 import { watchNativeResolverPatches } from "../shared/nativeCommand.js";
+import { isReducedMotion, isLowMemory } from "../shared/performanceMode.js";
 
 let initialized = false;
 let keyTimeout = null;
@@ -18,7 +19,7 @@ function applyReducedMotionFlags() {
   try {
     if (!window.tectonicConfig?.featureSwitches) return;
     const flags = window.tectonicConfig.featureSwitches;
-    const reduced = !!configRead("enableReducedMotion");
+    const reduced = isReducedMotion();
     flags.enableAnimations = !reduced;
     flags.enableOnScrollLinearAnimation = !reduced;
     flags.enableListAnimations = !reduced;
@@ -35,7 +36,7 @@ function applyReducedMotionFlags() {
 function applyReducedMotionBody() {
   try {
     if (!document.body) return;
-    document.body.classList.toggle("axotube-reduced-motion", !!configRead("enableReducedMotion"));
+    document.body.classList.toggle("axotube-reduced-motion", isReducedMotion());
   } catch (e) {
     console.warn("[AxoTube:ui] Reduced motion apply failed:", e);
   }
@@ -110,7 +111,7 @@ function execute_once_dom_loaded() {
   //   3. Fix UI: turns full animations and quality on, only when neither of the
   //      two above is set. It no longer touches the memory flag at all.
   // Reduced motion is applied last so nothing can undo it.
-  if (configRead("enableFixedUI") && !configRead("enableLowMemoryMode") && !configRead("enableReducedMotion")) {
+  if (configRead("enableFixedUI") && !isLowMemory() && !isReducedMotion()) {
     try {
       if (window.tectonicConfig) {
         window.tectonicConfig.clientData.legacyApplicationQuality = "full-animation";
@@ -186,7 +187,7 @@ function execute_once_dom_loaded() {
     console.warn("[AxoTube:ui] Guide reload failed:", e);
   }
 
-  if (configRead("enableFixedUI") && !configRead("enableLowMemoryMode") && !configRead("enableReducedMotion")) {
+  if (configRead("enableFixedUI") && !isLowMemory() && !isReducedMotion()) {
     try {
       const observer = new MutationObserver(() => {
         const body = document.body;
@@ -240,7 +241,7 @@ configChangeEmitter.addEventListener("configChange", (e) => {
   const key = e.detail?.key;
   if (THEME_KEYS[key]) updateStyle();
 
-  if (key === "enableReducedMotion") {
+  if (key === "enableReducedMotion" || key === "enablePerformanceMode" || key === "enableLowMemoryMode") {
     applyReducedMotionBody();
     applyReducedMotionFlags();
   }

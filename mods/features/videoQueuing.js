@@ -1,10 +1,17 @@
+// Video queue. Plays the queued videos one after another when the current one ends.
+//
+// The state listener follows the live player. playerLifecycle reports each new
+// player element (YouTube can replace it during navigation), and the listener is
+// moved to the new element. The old element's listener is removed, so a dead
+// element is never left holding one.
+import resolveCommand from "../resolveCommand.js";
+import { watchPlayer } from "../shared/playerLifecycle.js";
+
 window.queuedVideos = {
   videos: [],
   lastVideoId: null,
   currentIndex: -1,
 };
-
-import resolveCommand from "../resolveCommand.js";
 
 function getVideoId(entry) {
   return entry && entry.tileRenderer && entry.tileRenderer.contentId;
@@ -26,57 +33,65 @@ function clearQueue() {
   resolveCommand({ customAction: { action: "CLEAR_QUEUE" } });
 }
 
-function addListener() {
-  const videoPlayer = document.querySelector(".html5-video-player");
-  if (!videoPlayer) return setTimeout(addListener, 250);
+function handleStateChange(player) {
+  const playerStateObject = player.getPlayerStateObject();
+  const videoData = player.getVideoData();
+  const queue = window.queuedVideos;
+  if (queue.videos.length === 0) {
+    queue.currentIndex = -1;
+    queue.lastVideoId = null;
+    return;
+  }
 
-  videoPlayer.addEventListener("onStateChange", () => {
-    const playerStateObject = videoPlayer.getPlayerStateObject();
-    const videoData = videoPlayer.getVideoData();
-    const queue = window.queuedVideos;
-    if (queue.videos.length === 0) {
-      queue.currentIndex = -1;
-      queue.lastVideoId = null;
-      return;
+  if (playerStateObject.isEnded) {
+    let index = queue.currentIndex;
+    if (index < 0 || index >= queue.videos.length) {
+      index = queue.videos.findIndex((v) => getVideoId(v) === videoData.video_id);
     }
 
-    if (playerStateObject.isEnded) {
-      let index = queue.currentIndex;
-      if (index < 0 || index >= queue.videos.length) {
-        index = queue.videos.findIndex((v) => getVideoId(v) === videoData.video_id);
-      }
-
-      if (index !== -1) {
-        const nextIndex = index + 1;
-        if (nextIndex < queue.videos.length && playQueueIndex(nextIndex)) return;
-        clearQueue();
-        return;
-      }
-
-      if (queue.currentIndex + 1 < queue.videos.length && playQueueIndex(queue.currentIndex + 1))
-        return;
-      if (playQueueIndex(0)) return;
+    if (index !== -1) {
+      const nextIndex = index + 1;
+      if (nextIndex < queue.videos.length && playQueueIndex(nextIndex)) return;
       clearQueue();
       return;
     }
 
-    if (playerStateObject.isPlaying) {
-      const container = document.getElementById("container");
-      if (container) container.style.setProperty("opacity", "1", "important");
+    if (queue.currentIndex + 1 < queue.videos.length && playQueueIndex(queue.currentIndex + 1))
+      return;
+    if (playQueueIndex(0)) return;
+    clearQueue();
+    return;
+  }
 
-      const current = queue.videos[queue.currentIndex];
-      if (getVideoId(current) === videoData.video_id) {
-        queue.lastVideoId = videoData.video_id;
-        return;
-      }
+  if (playerStateObject.isPlaying) {
+    const container = document.getElementById("container");
+    if (container) container.style.setProperty("opacity", "1", "important");
 
-      const match = queue.videos.findIndex((v) => getVideoId(v) === videoData.video_id);
-      if (match !== -1) {
-        queue.currentIndex = match;
-        queue.lastVideoId = videoData.video_id;
-      }
+    const current = queue.videos[queue.currentIndex];
+    if (getVideoId(current) === videoData.video_id) {
+      queue.lastVideoId = videoData.video_id;
+      return;
     }
-  });
+
+    const match = queue.videos.findIndex((v) => getVideoId(v) === videoData.video_id);
+    if (match !== -1) {
+      queue.currentIndex = match;
+      queue.lastVideoId = videoData.video_id;
+    }
+  }
 }
 
-addListener();
+let attached = null; // { player, listener } for the player that currently has the listener
+
+function attachTo(player) {
+  if (attached) {
+    attached.player.removeEventListener("onStateChange", attached.listener);
+    attached = null;
+  }
+  if (!player || typeof player.addEventListener !== "function") return;
+  const listener = () => handleStateChange(player);
+  player.addEventListener("onStateChange", listener);
+  attached = { player, listener };
+}
+
+watchPlayer(attachTo);

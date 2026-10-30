@@ -31,10 +31,13 @@ export function addLongPress(items) {
     if (item.tileRenderer.style !== "TILE_STYLE_YTLR_DEFAULT") continue;
     if (!item.tileRenderer.contentId || !item.tileRenderer.onSelectCommand?.watchEndpoint) continue;
 
-    const existingItems =
-      item.tileRenderer.onLongPressCommand?.showMenuCommand?.menu?.menuRenderer?.items;
-    if (Array.isArray(existingItems)) {
-      if (!hasQueueItem(existingItems)) {
+    // YouTube's own long-press command carries its menu ("Not interested",
+    // "Go to channel", ...). Never replace it: when we can read its item list,
+    // append Add to Queue to it; otherwise leave the tile exactly as YouTube sent it.
+    if (item.tileRenderer.onLongPressCommand) {
+      const existingItems =
+        item.tileRenderer.onLongPressCommand?.showMenuCommand?.menu?.menuRenderer?.items;
+      if (Array.isArray(existingItems) && !hasQueueItem(existingItems)) {
         existingItems.push(queueMenuItem(makeQueuePayload(item)));
       }
       continue;

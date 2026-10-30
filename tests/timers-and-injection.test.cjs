@@ -30,7 +30,7 @@ test("early-bundle features install once and reload only when the change matters
 });
 
 test("standalone proxy injects the early bundle right after <head>, before the main bundle", () => {
-  const src = read("standalone/service/index.js");
+  const src = read("service/proxy.js");
   assert.ok(src.includes("/<head(\\s[^>]*)?>/i"), "head regex is a real whitespace match");
   assert.ok(src.includes("'/axotube/early.js'"), "early bundle is served");
   const earlyAt = src.indexOf("var earlyTag");
@@ -47,7 +47,7 @@ test("rollup builds the main bundle and the early bundle, and the build copies e
 });
 
 test("proxy reuses upstream connections and revalidates scripts with ETag/304", () => {
-  const src = read("standalone/service/index.js");
+  const src = read("service/proxy.js");
   assert.ok(src.includes("new https.Agent({ keepAlive: true"), "keep-alive agent");
   assert.ok(src.includes("agent: upstreamAgent"), "agent is used for upstream fetches");
   assert.ok(src.includes("req.headers['if-none-match'] === etag"), "conditional request");

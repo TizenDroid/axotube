@@ -15,9 +15,9 @@ function between(src, start, end) {
   return src.slice(a, b);
 }
 
-test("1.25.0 metadata stays synchronized", () => {
+test("1.26.1 metadata stays synchronized", () => {
   const root = JSON.parse(read("package.json")).version;
-  assert.equal(root, "1.25.0");
+  assert.equal(root, "1.26.1");
   assert.equal(JSON.parse(read("standalone/service/package.json")).version, root);
   has(read("standalone/config.xml"), `version="${root}"`);
 });
@@ -106,7 +106,7 @@ test("PiP DOM observer and transition timers stop when PiP exits", () => {
 });
 
 test("standalone proxy has an upstream request deadline", () => {
-  const src = read("standalone/service/index.js");
+  const src = read("service/proxy.js");
   has(src, "UPSTREAM_TIMEOUT_MS");
   has(src, "timeout: UPSTREAM_TIMEOUT_MS");
 });

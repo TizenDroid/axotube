@@ -291,6 +291,30 @@ export function buildSettingsTree() {
             t("settings.playback.experimental.subtitle"),
           ),
         ),
+        submenu(
+          t("settings.playback.panelShrink.title"),
+          "PICTURE_IN_PICTURE",
+          [
+            toggle(t("settings.playback.panelShrink.on"), "enablePanelShrink"),
+            submenu(
+              t("settings.playback.panelShrink.size.title"),
+              "VIDEO_QUALITY",
+              [
+                radio("50%", "panelShrinkPercent", "50"),
+                radio("60%", "panelShrinkPercent", "60"),
+                radio("70%", "panelShrinkPercent", "70"),
+              ],
+              heading(
+                t("settings.playback.panelShrink.size.title"),
+                t("settings.playback.panelShrink.size.subtitle"),
+              ),
+            ),
+          ],
+          heading(
+            t("settings.playback.panelShrink.title"),
+            t("settings.playback.panelShrink.subtitle"),
+          ),
+        ),
         toggle(t("settings.playback.pauseInBackground"), "enablePauseOnBlur"),
         toggle(t("settings.playback.remainingTime"), "enableRemainingTime"),
       ],
@@ -329,6 +353,7 @@ export function buildSettingsTree() {
             toggle(t("settings.browsing.hqThumbnails"), "enableHqThumbnails"),
             toggle(t("settings.browsing.deArrowTitles"), "enableDeArrowTitles"),
             toggle(t("settings.browsing.deArrowThumbnails"), "enableDeArrowThumbnails"),
+            toggle(t("settings.browsing.deArrowPeek"), "enableDeArrowPeek"),
           ],
           heading(
             t("settings.browsing.thumbnails.title"),
@@ -511,7 +536,74 @@ export function buildSettingsTree() {
             t("settings.appearance.dimming.subtitle"),
           ),
         ),
-        toggle(t("settings.appearance.reduceMotion"), "enableReducedMotion"),
+        toggle(t("settings.appearance.performance"), "enablePerformanceMode", "SETTINGS"),
+        submenu(
+          t("settings.appearance.clock.title"),
+          "TIMER",
+          [
+            submenu(
+              t("settings.appearance.clock.show.title"),
+              "VISIBILITY",
+              [
+                radio(t("settings.appearance.clock.show.off"), "clockMode", "off"),
+                radio(t("settings.appearance.clock.show.always"), "clockMode", "always"),
+                radio(
+                  t("settings.appearance.clock.show.notPlaying"),
+                  "clockMode",
+                  "notPlaying",
+                ),
+              ],
+              heading(
+                t("settings.appearance.clock.show.title"),
+                t("settings.appearance.clock.show.subtitle"),
+              ),
+            ),
+            submenu(
+              t("settings.appearance.clock.format.title"),
+              "TIMER",
+              [
+                radio(t("settings.appearance.clock.format.h24"), "clockFormat", "24h"),
+                radio(t("settings.appearance.clock.format.h12"), "clockFormat", "12h"),
+                radio(
+                  t("settings.appearance.clock.format.h12NoAmPm"),
+                  "clockFormat",
+                  "12hNoAmPm",
+                ),
+              ],
+              heading(
+                t("settings.appearance.clock.format.title"),
+                t("settings.appearance.clock.format.subtitle"),
+              ),
+            ),
+            submenu(
+              t("settings.appearance.clock.position.title"),
+              "TV",
+              [
+                radio(t("settings.appearance.clock.position.topLeft"), "clockPosition", "topLeft"),
+                radio(t("settings.appearance.clock.position.topRight"), "clockPosition", "topRight"),
+                radio(
+                  t("settings.appearance.clock.position.bottomLeft"),
+                  "clockPosition",
+                  "bottomLeft",
+                ),
+                radio(
+                  t("settings.appearance.clock.position.bottomRight"),
+                  "clockPosition",
+                  "bottomRight",
+                ),
+              ],
+              heading(
+                t("settings.appearance.clock.position.title"),
+                t("settings.appearance.clock.position.subtitle"),
+              ),
+            ),
+            toggle(t("settings.appearance.clock.seconds"), "clockShowSeconds"),
+          ],
+          heading(
+            t("settings.appearance.clock.title"),
+            t("settings.appearance.clock.subtitle"),
+          ),
+        ),
         toggle(t("settings.appearance.fullAnimations"), "enableFixedUI"),
       ],
       heading(t("settings.appearance.title"), t("settings.appearance.subtitle")),
@@ -520,7 +612,6 @@ export function buildSettingsTree() {
       t("settings.system.title"),
       "SETTINGS",
       [
-        toggle(t("settings.system.lowMemory"), "enableLowMemoryMode"),
         submenu(
           t("settings.system.whosWatching.title"),
           "ACCOUNT_CIRCLE",
@@ -552,6 +643,7 @@ export function buildSettingsTree() {
             t("settings.system.updates.subtitle", { version: AXOTUBE_VERSION }),
           ),
         ),
+        { name: t("settings.system.restartCast"), icon: "REFRESH", action: "AXO_CAST_RESTART" },
         { name: t("settings.system.reload"), icon: "REFRESH", action: "AXO_RELOAD_PAGE" },
       ],
       heading(t("settings.system.title"), t("settings.system.subtitle")),

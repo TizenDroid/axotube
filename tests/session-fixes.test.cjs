@@ -101,7 +101,7 @@ test("one-press: a focused element outside the player leaves the key to leanback
 
 test("motion: Reduced motion is applied after Fix UI, and Fix UI yields to it and to low memory", () => {
   const ui = read("mods/ui/ui.js");
-  const fixUi = ui.indexOf('configRead("enableFixedUI") && !configRead("enableLowMemoryMode") && !configRead("enableReducedMotion")');
+  const fixUi = ui.indexOf('configRead("enableFixedUI") && !isLowMemory() && !isReducedMotion()');
   const lastReduced = ui.lastIndexOf("applyReducedMotionFlags();");
   assert.ok(fixUi !== -1, "Fix UI is gated on low memory and reduced motion");
   assert.ok(lastReduced > fixUi, "reduced motion runs after Fix UI, so it wins");
@@ -115,7 +115,7 @@ test("no upstream product names remain in the source (except the platform and Ti
     "mods/features/featureTweaks.js", // YouTube's own feature-flag names
   ]);
   const forbidden = /cobalt|tizenbrew|reisxd|foxreis|tizentube|axobrew/i;
-  const dirs = ["mods", "service", "standalone/service/index.js", "standalone/index.html", "scripts", "tests", "README.md", "docs", "package.json"];
+  const dirs = ["mods", "service", "standalone/index.html", "scripts", "tests", "README.md", "docs", "package.json"];
   const offenders = [];
   function scan(rel) {
     // Compare with forward slashes on every platform.

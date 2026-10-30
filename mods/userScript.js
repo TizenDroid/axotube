@@ -51,6 +51,9 @@ import "./features/videoQueuing.js";
 import "./features/enableFeatures.js";
 import "./features/webConfig.js";
 import "./features/castReceiver.js";
+import "./features/castDiscovery.js";
+import "./features/clock.js";
+import "./features/panelShrink.js";
 import "./ui/customUI.js";
 // Guide filtering is registered alongside AdBlock in the response pipeline.
 import "./features/autoFrameRate.js";

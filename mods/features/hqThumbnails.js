@@ -5,7 +5,6 @@
 // previews without waiting for the focus observer. The focus observer in
 // hqThumbnailsFocusObserver.js only handles tiles the response patch missed.
 
-import { configRead } from "../config.js";
 import {
   THUMBNAIL_URLS,
   THUMBNAIL_SIZES,
@@ -13,6 +12,7 @@ import {
   isVideoThumbnailArray,
 } from "../shared/hqThumbnails.js";
 import { createBoundedCache } from "../shared/boundedCache.js";
+import { hqThumbnailMode } from "../shared/performanceMode.js";
 
 const hqThumbnailsCache = createBoundedCache(MAX_HQ_CACHE_ENTRIES);
 
@@ -41,7 +41,8 @@ function deepSetThumbnails(obj, thumbnails) {
 }
 
 export function hqify(items) {
-  if (!configRead("enableHqThumbnails")) return;
+  // In performance mode the focus observer upgrades only the tile being focused.
+  if (hqThumbnailMode() !== "eager") return;
   for (const item of items) {
     if (!item.tileRenderer) continue;
 

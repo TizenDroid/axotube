@@ -1,4 +1,4 @@
-// Bundle updater: runs the real standalone/service/bundleUpdates.js against temp
+// Bundle updater: runs the real service/bundleUpdates.cjs against temp
 // directories and a fake jsDelivr.
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const mod = require("../standalone/service/bundleUpdates.js");
+const mod = require("../service/bundleUpdates.cjs");
 const { compareSemver, createBundleUpdater, CDN, DEFAULT_PACKAGE } = mod;
 
 const pad = (tag) => "AxoTube " + tag + " " + "x".repeat(2000);

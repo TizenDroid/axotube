@@ -67,6 +67,14 @@
     "enableSigninReminder": false,
     "sortSubscriptionsByAlphabet": false,
     "enableReducedMotion": false,
+    "enablePerformanceMode": false,
+    "enablePanelShrink": true,
+    "enableDeArrowPeek": true,
+    "panelShrinkPercent": "60",
+    "clockMode": "off",
+    "clockFormat": "24h",
+    "clockPosition": "topRight",
+    "clockShowSeconds": false,
     "enableOnePressMode": false,
     "enableExperimentalResolution": false,
     "experimentalMaxResolution": "1440p"
@@ -87,7 +95,11 @@
     "themePreset": ["default", "black", "darkGray", "charcoal", "navy", "darkRed", "darkGreen", "darkPurple"],
     "textTheme": ["default", "white", "gray", "red", "blue", "green", "purple", "yellow"],
     "experimentalMaxResolution": ["1440p", "2160p"],
-    "autoSubtitleLanguage": ["en", "hi", "es", "fr", "de", "pt", "ja", "ko", "ru"]
+    "autoSubtitleLanguage": ["en", "hi", "es", "fr", "de", "pt", "ja", "ko", "ru"],
+    "panelShrinkPercent": ["50", "60", "70"],
+    "clockMode": ["off", "always", "notPlaying"],
+    "clockFormat": ["24h", "12h", "12hNoAmPm"],
+    "clockPosition": ["topLeft", "topRight", "bottomLeft", "bottomRight"]
   },
   "themePresetColors": {
     "default": "#0f0f0f",

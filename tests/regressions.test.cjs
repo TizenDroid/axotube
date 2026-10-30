@@ -157,7 +157,7 @@ test("HQ probes fan out and cache is bounded", () => {
 
 test("DeArrow accepts timestamp zero and bounds cache", () => {
   const src = read("mods/features/deArrow.js");
-  has(src, "timestamp !== undefined");
+  has(src, "best.timestamp === undefined");
   has(src, "MAX_DEARROW_CACHE_ENTRIES = 256");
   has(src, "if (!res.ok)");
 });
@@ -301,7 +301,7 @@ test("web config pairs and avoids innerHTML sinks", () => {
 });
 
 test("standalone proxy has trusted-host/private-host checks and strips credentials", () => {
-  const src = read("standalone/service/index.js");
+  const src = read("service/proxy.js");
   for (const text of [
     "function isAllowedCorsTarget",
     "function isPrivateHostname",

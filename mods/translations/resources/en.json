@@ -65,7 +65,7 @@
           "subtitle": "Playback pauses for this long while the TV changes its refresh rate."
         }
       },
-      "pauseInBackground": "Pause when the app is in the background",
+      "pauseInBackground": "Out-of-focus pause (also when menus or panels open)",
       "remainingTime": "Show time remaining",
       "captions": {
         "title": "Captions",
@@ -97,6 +97,15 @@
         "max": {
           "title": "Maximum resolution",
           "subtitle": "Highest resolution YouTube may offer while the unlock is on."
+        }
+      },
+      "panelShrink": {
+        "title": "Video size while reading",
+        "subtitle": "Shrinks the video when the description or comments are open.",
+        "on": "Shrink video for description and comments",
+        "size": {
+          "title": "Video size",
+          "subtitle": "How large the video stays while a panel is open."
         }
       }
     },
@@ -143,7 +152,8 @@
       "shorts": "Show Shorts",
       "endScreens": "Hide end screen cards",
       "longPress": "Long press OK to add to queue",
-      "stillWatching": "Show \"Are you still watching?\" prompts"
+      "stillWatching": "Show \"Are you still watching?\" prompts",
+      "deArrowPeek": "Long press shows the other title and thumbnail"
     },
     "home": {
       "title": "Home & sidebar",
@@ -162,7 +172,7 @@
     },
     "appearance": {
       "title": "Appearance",
-      "subtitle": "Colours, dimming and motion",
+      "subtitle": "Colours, clock, dimming and performance",
       "theme": {
         "title": "Theme",
         "subtitle": "Colours used across the interface.",
@@ -212,13 +222,39 @@
           "subtitle": "How dark the screen gets."
         }
       },
-      "reduceMotion": "Reduce motion",
-      "fullAnimations": "Full-quality animations"
+      "fullAnimations": "Full-quality animations",
+      "performance": "Performance mode (memory part applies after reload)",
+      "clock": {
+        "title": "Clock",
+        "subtitle": "Show the time on screen.",
+        "show": {
+          "title": "When to show",
+          "subtitle": "Always, or only while no video is playing.",
+          "off": "Off",
+          "always": "Always",
+          "notPlaying": "When no video is playing"
+        },
+        "format": {
+          "title": "Time format",
+          "subtitle": "24-hour, or 12-hour with or without AM and PM.",
+          "h24": "24-hour (14:05)",
+          "h12": "12-hour with AM/PM (2:05 PM)",
+          "h12NoAmPm": "12-hour, no AM/PM (2:05)"
+        },
+        "position": {
+          "title": "Position",
+          "subtitle": "Corner of the screen for the clock.",
+          "topLeft": "Top left",
+          "topRight": "Top right",
+          "bottomLeft": "Bottom left",
+          "bottomRight": "Bottom right"
+        },
+        "seconds": "Show seconds"
+      }
     },
     "system": {
       "title": "System",
       "subtitle": "Memory, accounts and updates",
-      "lowMemory": "Low memory mode",
       "whosWatching": {
         "title": "Who's watching menu",
         "subtitle": "Choose a profile when the app starts.",
@@ -234,7 +270,8 @@
         "checkNow": "Check for updates now",
         "onStartup": "Check for updates on startup"
       },
-      "reload": "Reload AxoTube"
+      "reload": "Reload AxoTube",
+      "restartCast": "Restart cast receiver"
     },
     "about": {
       "title": "About AxoTube",
@@ -295,7 +332,11 @@
     "commandReceived": "Command received",
     "pairingWithUrl": "Open {{url}} on your phone · code {{code}}",
     "pairingCodeOnly": "Phone pairing code: {{code}}",
-    "updateApplyFailed": "The update could not be applied. Try again later."
+    "updateApplyFailed": "The update could not be applied. Try again later.",
+    "castRestarted": "Cast receiver restarted. Phones should see the TV again shortly.",
+    "castRestarting": "Restarting cast receiver…",
+    "castRestartWait": "Cast receiver was just restarted. Try again in a few seconds.",
+    "castRestartFailed": "Could not restart the cast receiver."
   },
   "updater": {
     "modalTitle": "Update Available",
