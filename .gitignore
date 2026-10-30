@@ -23,3 +23,5 @@ dist/axotube-config-store.json
 bundle-pkg/
 # Private Android release signing backup; GitHub Actions uses encrypted secrets.
 .android-signing/
+# CI output of both TV installers.
+release/

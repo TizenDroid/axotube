@@ -1,12 +1,11 @@
-name: Android TV APK
+name: TV installers (WGT + APK)
 
 on:
   push:
     branches:
       - main
     tags:
-      - '*'
-      - '!android-main-*'
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -64,6 +63,9 @@ jobs:
       - name: Stage fresh Android fallback bundles
         run: node android/copy-bundles.cjs
 
+      - name: Package Samsung TV WGT for Apps2Samsung
+        run: python3 scripts/package-wgt-unsigned.py --output release/axotube.wgt
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -116,48 +118,61 @@ jobs:
         run: |
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "v${version}" ]]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match package version v${version}"
+            exit 1
+          fi
           test -s "$ANDROID_APK_PATH"
+          test -s release/axotube.wgt
           mkdir -p release
           cp "$ANDROID_APK_PATH" "release/AxoTube-Android-${version}.apk"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-      - name: Upload APK artifact
+      - name: Upload WGT and APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: axotube-android-apk-${{ github.run_id }}-${{ github.run_attempt }}
-          path: release/*.apk
+          name: axotube-tv-installers-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            release/*.wgt
+            release/*.apk
           if-no-files-found: error
           retention-days: 30
 
-      # Every successful main push gets its own prerelease. Re-runs get distinct
-      # tags; this preserves unrelated releases and prevents asset collisions.
-      - name: Publish main-branch APK prerelease
+      # One prerelease per main build, with both TV formats attached together.
+      # Version tags publish the same assets in the stable versioned release.
+      - name: Publish main-branch combined prerelease
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: android-main-${{ github.run_id }}-${{ github.run_attempt }}
+          tag_name: build-v${{ steps.apk.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
           target_commitish: ${{ github.sha }}
-          name: AxoTube Android ${{ steps.apk.outputs.version }} (main build ${{ github.run_number }})
+          name: AxoTube ${{ steps.apk.outputs.version }} (main build ${{ github.run_number }})
           prerelease: true
           make_latest: false
-          files: release/*.apk
+          files: |
+            release/*.wgt
+            release/*.apk
           fail_on_unmatched_files: true
           body: |
-            Automated Android TV build from `${{ github.sha }}`.
-            Signing mode: `${{ env.ANDROID_SIGNING_MODE }}`.
-            Debug-signed builds may require uninstalling the previous APK before installing
-            another CI build. Add the Android release signing secrets for stable upgrade signing.
+            Automated build from `${{ github.sha }}` for both Samsung Tizen and Android TV.
 
-      - name: Attach APK to pushed tag release
+            - `axotube.wgt`: unsigned Samsung TV package. Install with Apps2Samsung,
+              which signs it for your TV, or sign it yourself using Tizen Studio.
+            - `AxoTube-Android-${{ steps.apk.outputs.version }}.apk`: Android TV package.
+              Signing mode: `${{ env.ANDROID_SIGNING_MODE }}`.
+
+            Debug-signed APK builds may require uninstalling an older build before upgrading.
+            Add persistent Android signing secrets to enable in-place updates.
+
+      - name: Attach both installers to version release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: AxoTube ${{ github.ref_name }}
           prerelease: false
-          files: release/*.apk
+          files: |
+            release/*.wgt
+            release/*.apk
           fail_on_unmatched_files: true
-          body: |
-            Android TV APK for `${{ github.ref_name }}`.
-            Signing mode: `${{ env.ANDROID_SIGNING_MODE }}`.
-            The app loads jsDelivr bundle updates at runtime and has packaged fallback bundles.
+          generate_release_notes: true

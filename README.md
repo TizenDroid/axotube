@@ -23,7 +23,8 @@ A TizenBrew module is included for people already running TizenBrew. The WGT,
 installed with Apps2Samsung, is the recommended path and the one this README
 covers first.
 
-An experimental **Android TV APK** is also available from GitHub Releases.
+An experimental **Android TV APK** is also available alongside the Samsung WGT
+in each new [versioned release](https://github.com/TizenDroid/axotube/releases).
 
 > [!NOTE]
 > AxoTube is a client for YouTube TV, not a replacement service. You still sign
@@ -99,7 +100,9 @@ If you already have Tizen Studio and a signing profile, the CLI is quicker:
 1. Download `axotube.wgt` from the [latest release](https://github.com/TizenDroid/axotube/releases/latest).
 2. Put the TV in developer mode: open **Apps**, enter `12345`, and set the host
    PC address to the machine running Tizen Studio.
-3. Install over the network:
+3. WGT files from automated releases are unsigned. Repackage the WGT with your
+   Tizen Studio signing profile (or run `npm run package:wgt` from source), then
+   install the signed WGT over the network:
 
    ```sh
    tizen install -n axotube.wgt -t <tv-name>
@@ -119,10 +122,15 @@ can lag behind the GitHub source; the WGT is built from the same tree.
 
 Download `AxoTube-Android-<version>.apk` from [GitHub Releases](https://github.com/TizenDroid/axotube/releases)
 and sideload it on your Android TV, for example with `adb install`. The
-[`Android TV APK`](https://github.com/TizenDroid/axotube/actions/workflows/android-apk.yml)
-workflow builds on every push to `main`, on pushed tags, and when run manually.
-Each successful `main` build is published as a separate prerelease with an APK
-also downloadable from the workflow artifacts.
+[TV installers workflow](https://github.com/TizenDroid/axotube/actions/workflows/android-apk.yml)
+builds both the Android APK and Samsung `axotube.wgt` on every push to `main`,
+on `vX.Y.Z` tags, and when run manually. Both files appear together in the
+same prerelease for `main` builds or the same stable release for version tags.
+Both are also available from workflow artifacts.
+
+The automated WGT is **unsigned** and intended for Apps2Samsung, which signs
+it for the selected TV during installation. Installing it directly with Tizen
+Studio requires signing with a compatible certificate profile first.
 
 The Android app starts a loopback proxy on port 8099 and checks for script updates
 through jsDelivr's GitHub CDN. It pins both downloaded scripts to the same Git
@@ -157,6 +165,7 @@ npm test
 npm run build              # dist/userScript.js, dist/early.js, dist/service.js
 npm run build:standalone   # standalone/service/dist/index.js
 npm run package:wgt        # runs tests, rebuilds, signs the WGT
+python scripts/package-wgt-unsigned.py   # unsigned WGT for Apps2Samsung
 ```
 
 `package:wgt` writes `standalone/release/axotube.wgt`. It runs the tests first
