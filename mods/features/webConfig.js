@@ -29,8 +29,12 @@ let pairingCodeShown = false;
 let lastExecutedCommandId = null;
 let lastExecutedCommandNeedsReload = false;
 
+// True when the service is reachable from this page: the native host (the Tizen
+// module) or the Tizen web API (the standalone WGT, which has no native host).
+// Phone commands, config sync and service toasts are gated on this.
 function isTizen() {
-  return typeof window !== "undefined" && nativeHost();
+  if (typeof window === "undefined") return false;
+  return !!nativeHost() || typeof window.tizen !== "undefined";
 }
 
 const hasResolver = hasNativeResolver;
@@ -255,6 +259,16 @@ function consumeCommand() {
       const id = data.id;
 
       if (data.id === lastExecutedCommandId) {
+        return acknowledgeExecutedCommand(id);
+      }
+
+      // Service messages (update check, startup). They never reload or navigate.
+      if (data.command.action === "toast") {
+        lastExecutedCommandId = id;
+        lastExecutedCommandNeedsReload = false;
+        try {
+          showToast(t("app.name"), String(data.command.text || "").slice(0, 200));
+        } catch (err) {}
         return acknowledgeExecutedCommand(id);
       }
 

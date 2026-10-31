@@ -9,6 +9,7 @@
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
         android:label="AxoTube"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:banner="@drawable/tv_banner">
         <activity

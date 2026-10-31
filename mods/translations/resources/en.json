@@ -337,6 +337,7 @@
     "castRestarting": "Restarting cast receiver…",
     "castRestartWait": "Cast receiver was just restarted. Try again in a few seconds.",
     "castRestartFailed": "Could not restart the cast receiver.",
+    "castRestartNotRunning": "Cast discovery is not running. Restart the app to bring it back.",
     "castRestartUnsupported": "Restarting cast is not available on this device."
   },
   "updater": {

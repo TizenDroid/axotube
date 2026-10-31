@@ -274,6 +274,19 @@ final class ControlServer {
         return json(409, "{\"ok\":false,\"error\":\"Command is no longer pending\"}");
     }
 
+    /**
+     * Service-side message for the page's toast. It shares the phone command queue,
+     * but normalizeCommand() never accepts "toast", so phones cannot send one.
+     */
+    void queueToast(String text) {
+        String shown = text.length() > 200 ? text.substring(0, 200) : text;
+        synchronized (commandQueue) {
+            if (commandQueue.size() >= MAX_COMMAND_QUEUE) return;
+            commandQueue.add(obj("id", Long.valueOf(nextCommandId++),
+                    "command", obj("action", "toast", "text", shown)));
+        }
+    }
+
     /** Same accepted shapes as normalizeCommand() in service/service.js. */
     static Map<String, Object> normalizeCommand(Object body) {
         if (!(body instanceof Map)) return null;

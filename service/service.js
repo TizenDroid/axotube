@@ -367,6 +367,14 @@ let commandQueue = [];
 let nextCommandId = 1;
 let nowPlaying = null;
 
+// Service-side messages for the page's toast. They share the phone command queue,
+// but only this code can add them: normalizeCommand() never accepts "toast".
+function queueToast(text) {
+  if (commandQueue.length >= MAX_COMMAND_QUEUE) return;
+  const shown = String(text).slice(0, 200);
+  commandQueue.push({ id: nextCommandId++, command: { action: "toast", text: shown } });
+}
+
 function normalizeCommand(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return null;
   const { action, videoId, playlistId, query, browseId } = body;
@@ -625,3 +633,10 @@ const dialListener = app.listen(PORT, () => {
 dialListener.on("error", (err) => {
   console.error(`[AxoTube:service] could not listen on port ${PORT}: ${err.code}`);
 });
+
+// Only the standalone app has a page to show toasts. The proxy reaches the queue
+// through this hook, and the startup message tells the user the service is up.
+if (global.isAxoTubeStandalone) {
+  global.axotubeNotify = queueToast;
+  queueToast("AxoTube service is running");
+}

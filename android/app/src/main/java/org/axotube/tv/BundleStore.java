@@ -35,6 +35,7 @@ final class BundleStore {
     private final Object updateLock = new Object();
     private String latest;
     private String error;
+    private volatile Notifier notifier;
 
     BundleStore(Context context) throws Exception {
         this.context = context.getApplicationContext();
@@ -45,15 +46,44 @@ final class BundleStore {
         if (!validVersion(packagedVersion)) throw new Exception("Bad packaged bundle version");
     }
 
+    /** Receives short user-facing messages, such as a failed update check. */
+    interface Notifier {
+        void notice(String text);
+    }
+
+    void setNotifier(Notifier target) {
+        notifier = target;
+    }
+
     void start() {
         executor.execute(() -> {
             try {
-                check(false);
+                checkWithRetry(0);
             } finally {
                 initialCheck.countDown();
             }
         });
         executor.scheduleWithFixedDelay(() -> check(false), 6, 6, TimeUnit.HOURS);
+    }
+
+    // A boot-time check often fails because Wi-Fi is not up yet. Retry on a short
+    // backoff; if every retry fails, tell the user once.
+    private static final long[] RETRY_DELAYS_SECONDS = { 30, 120, 600 };
+
+    private void checkWithRetry(int attempt) {
+        check(false);
+        if (currentError() == null) return;
+        if (attempt < RETRY_DELAYS_SECONDS.length) {
+            executor.schedule(() -> checkWithRetry(attempt + 1), RETRY_DELAYS_SECONDS[attempt], TimeUnit.SECONDS);
+        } else if (notifier != null) {
+            notifier.notice("Could not check for AxoTube updates. Restart the app to try again.");
+        }
+    }
+
+    private String currentError() {
+        synchronized (lock) {
+            return error;
+        }
     }
 
     void waitForFirstCheck() {

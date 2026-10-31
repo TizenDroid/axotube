@@ -26,6 +26,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.InflaterInputStream;
 
 /** A loopback-only HTTP origin equivalent to standalone/service/index.js. */
 final class LocalProxy {
@@ -34,6 +36,9 @@ final class LocalProxy {
     private static final String ORIGIN = "http://localhost:" + PORT;
     private static final int HEADER_LIMIT = 32768;
     private static final int BODY_LIMIT = 8 * 1024 * 1024;
+    // One line per upstream response (path, status, content type, encoding). Turn off
+    // once the APK's icon issue is resolved.
+    private static final boolean LOG_REQUESTS = true;
     private static final Set<String> CORS_HOSTS = new HashSet<>(Arrays.asList(
             "www.gstatic.com", "yt3.ggpht.com", "clients1.google.com", "s.youtube.com",
             "jnn-pa.googleapis.com", "yt3.googleusercontent.com", "redirector.googlevideo.com"));
@@ -238,6 +243,7 @@ final class LocalProxy {
              OutputStream output = new BufferedOutputStream(client.getOutputStream())) {
             Request req = readRequest(input);
             if (req == null) return;
+            req.target = encodeTarget(req.target);
             if ("OPTIONS".equals(req.method)) {
                 send(output, 200, "text/plain", new byte[0], null);
                 return;
@@ -255,6 +261,12 @@ final class LocalProxy {
             }
             if ("/axotube/update/apply".equals(path) && "POST".equals(req.method)) {
                 bundles.apply();
+                send(output, 200, "application/json; charset=utf-8",
+                        bundles.status().toString().getBytes(StandardCharsets.UTF_8), null);
+                return;
+            }
+            if ("/axotube/update/check".equals(path) && "POST".equals(req.method)) {
+                bundles.check(false);
                 send(output, 200, "application/json; charset=utf-8",
                         bundles.status().toString().getBytes(StandardCharsets.UTF_8), null);
                 return;
@@ -322,6 +334,29 @@ final class LocalProxy {
         }
     }
 
+    /**
+     * Percent-encodes what a browser can send raw but java.net.URI rejects: | ^ [ ] { }
+     * " &lt; &gt; backslash, backtick, spaces and control characters. Without this,
+     * URI.create() throws before routing and the request fails with a 502, so the
+     * asset silently disappears. Existing %XX escapes are left alone.
+     */
+    static String encodeTarget(String raw) {
+        StringBuilder out = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); ) {
+            int cp = raw.codePointAt(i);
+            int length = Character.charCount(cp);
+            boolean bad = cp <= 0x20 || cp >= 0x7f || "|^[]{}\"<>\\`".indexOf(cp) >= 0;
+            if (!bad) {
+                out.append(raw, i, i + length);
+            } else {
+                byte[] bytes = raw.substring(i, i + length).getBytes(StandardCharsets.UTF_8);
+                for (byte b : bytes) out.append('%').append(String.format(Locale.ROOT, "%02X", b & 0xff));
+            }
+            i += length;
+        }
+        return out.toString();
+    }
+
     private static boolean allowedCors(URI uri) {
         String host = uri.getHost();
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getRawUserInfo() != null
@@ -375,7 +410,8 @@ final class LocalProxy {
                 "Set([\"www.youtube.com\", \"accounts.google.com\", \"localhost\"]);");
         text = text.replace(":document.location.toString()",
                 ":document.location.toString().replace(\"" + ORIGIN + "\", \"https://www.youtube.com\")");
-        text = replace(text, "euri:[^,]+,",
+        // Same rule as proxy.js: never rewrite a value that spans an argument list.
+        text = replace(text, "euri:(?:[^,(){}]+|[\\w$.]+\\(\\)),",
                 Matcher.quoteReplacement("euri:document.location.toString().replace(\"" + ORIGIN
                         + "\", \"https://www.youtube.com\"),"));
         text = text.replace("this.scheme=\"https\"", "this.scheme=\"http\"")
@@ -449,6 +485,21 @@ final class LocalProxy {
             }
             boolean hasBody = !"HEAD".equals(req.method) && code != 204 && code != 304;
             InputStream stream = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            String encoding = conn.getHeaderField("Content-Encoding");
+            if (stream != null && hasBody && encoding != null) {
+                // identity is requested, but an upstream may compress anyway. DROP_RESPONSE
+                // removes Content-Encoding, so an undecoded body would reach the WebView as
+                // bytes labelled image or script. Decode here, as the Node proxy does.
+                String enc = encoding.trim().toLowerCase(Locale.ROOT);
+                if ("gzip".equals(enc) || "x-gzip".equals(enc)) stream = new GZIPInputStream(stream);
+                else if ("deflate".equals(enc)) stream = new InflaterInputStream(stream);
+                else if (!"identity".equals(enc)) throw new IOException("Unsupported Content-Encoding: " + enc);
+            }
+            if (LOG_REQUESTS) {
+                Log.d(TAG, req.method + " " + path + " -> " + code + " " + contentType
+                        + (encoding == null ? "" : " enc=" + encoding));
+            }
+            if (code >= 400) Log.w(TAG, "Upstream " + code + " for " + upstream);
             if (textLike && hasBody && stream != null) {
                 // A bounded text response avoids buffering video/media segments.
                 ByteArrayOutputStream buffer = new ByteArrayOutputStream();

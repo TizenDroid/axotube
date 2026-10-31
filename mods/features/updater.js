@@ -59,12 +59,15 @@ function showUpdatePopup(status) {
 // Asks the proxy whether a newer bundle exists. Manual checks always report a
 // result; the automatic check on load stays quiet unless an update is available.
 function checkForUpdates(showNoUpdateToast) {
-  fetch(proxyUrl("/axotube/update"), { cache: "no-store" })
+  // POST runs a fresh CDN check. The old GET only returned the last cached result.
+  fetch(proxyUrl("/axotube/update/check"), { method: "POST", cache: "no-store" })
     .then((response) => {
-      if (!response.ok) throw new Error("update status HTTP " + response.status);
+      if (!response.ok) throw new Error("update check HTTP " + response.status);
       return response.json();
     })
     .then((status) => {
+      // A failed check must not look like "up to date".
+      if (status.error) throw new Error(status.error);
       if (status.available) {
         showUpdatePopup(status);
         return;

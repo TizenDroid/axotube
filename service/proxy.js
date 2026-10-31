@@ -137,6 +137,14 @@ app.post('/axotube/update/apply', function (req, res) {
     });
 });
 
+// Runs a fresh CDN check. GET /axotube/update only reports the last cached result,
+// so "Check for updates" needs this to learn about a release published since boot.
+app.post('/axotube/update/check', function (req, res) {
+    bundleUpdater.check().then(function () {
+        res.json(bundleUpdater.status());
+    });
+});
+
 function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
     var headers = {};
     var blocked = {
@@ -190,9 +198,18 @@ function rewriteTrustedText(text) {
     text = text.replace(/"\/\/clients1\.google\.com/g, '"' + proxyPrefix + 'https://clients1.google.com');
     text = text.replace('Set(["www.youtube.com","accounts.google.com"]);', 'Set(["www.youtube.com", "accounts.google.com", "localhost"]);');
     text = text.replace(/:document\.location\.toString\(\)/g, ':document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com")');
-    text = text.replace(/euri:[^,]+,/g, 'euri:document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com"),');
+    // Only rewrite a value that cannot span an argument list: no commas, parens or
+    // braces, or a plain name() call. A call such as f(x,y) is left alone rather
+    // than cut at its inner comma, which used to produce invalid JavaScript.
+    text = text.replace(/euri:(?:[^,(){}]+|[\w$.]+\(\)),/g, 'euri:document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com"),');
     text = text.replace(/https:\/\/s\.youtube\.com/g, proxyPrefix + 'https://s.youtube.com');
-    text = text.replace(/redirector\.googlevideo\.com/g, proxyPrefix + 'https://redirector.googlevideo.com');
+    // A bare hostname only: skip one already preceded by a URL character. The
+    // googlevideo rules above have already prefixed "https://redirector...", and
+    // matching it again produced a double proxy prefix. No lookbehind, so this
+    // runs on the older JS engine the Tizen service uses.
+    text = text.replace(/(^|[^\/.A-Za-z0-9])redirector\.googlevideo\.com/g, function (match, before) {
+        return before + proxyPrefix + 'https://redirector.googlevideo.com';
+    });
     text = text.replace(/this\.scheme="https"/, 'this.scheme="http"');
     text = text.replace(/https\:\/\/jnn-pa\.googleapis\.com/g, proxyPrefix + 'https://jnn-pa.googleapis.com');
     text = text.replace(/https:\/\/yt3\.googleusercontent\.com/g, proxyPrefix + 'https://yt3.googleusercontent.com');
@@ -202,9 +219,28 @@ function rewriteTrustedText(text) {
     return text;
 }
 
+// Messages for the TV's toast queue. standalone service.js registers the queue;
+// until then (and in the Tizen-only build) messages are dropped.
+function notify(text) {
+    if (typeof global.axotubeNotify === 'function') global.axotubeNotify(text);
+}
+
+// A failed check is usually a network that is not up yet when the TV boots, so it
+// is retried on a short backoff. If every retry fails, the user hears about it once.
+var CHECK_RETRY_DELAYS_MS = [30 * 1000, 2 * 60 * 1000, 10 * 60 * 1000];
+function checkWithRetry(attempt) {
+    return bundleUpdater.check().then(function () {
+        if (!bundleUpdater.status().error) return;
+        if (attempt < CHECK_RETRY_DELAYS_MS.length) {
+            setTimeout(function () { checkWithRetry(attempt + 1); }, CHECK_RETRY_DELAYS_MS[attempt]);
+        } else {
+            notify('Could not check for AxoTube updates. Restart the app to try again.');
+        }
+    });
+}
 // Start the first check now. The /tv page waits briefly for it, so the first load
 // after an update already gets the new bundle, and the wait never exceeds the cap.
-var firstBundleCheck = bundleUpdater.check();
+var firstBundleCheck = checkWithRetry(0);
 var firstBundleCheckDone = false;
 firstBundleCheck.then(function () { firstBundleCheckDone = true; });
 setInterval(function () { bundleUpdater.check(); }, BUNDLE_CHECK_INTERVAL_MS);
@@ -268,6 +304,16 @@ app.all('*', function (req, res) {
                                 .replace(/;\s*;/g, ';')
                                 .replace(/;\s*$/, '');
                         }));
+                    }
+                    return;
+                }
+                if (lower === 'location' && !isCorsBypass) {
+                    // Redirects to youtube.com must stay on the proxy. Otherwise the
+                    // WebView follows them out of the proxy and loses every rewrite.
+                    // LocalProxy.java does the same rewrite.
+                    var location = response.headers.get(key);
+                    if (location !== null) {
+                        res.setHeader(key, location.replace('https://www.youtube.com/', 'http://localhost:' + PORT + '/'));
                     }
                     return;
                 }

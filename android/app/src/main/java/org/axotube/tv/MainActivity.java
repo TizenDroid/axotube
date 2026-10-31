@@ -12,6 +12,9 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -41,7 +44,12 @@ public final class MainActivity extends Activity {
             BundleStore bundles = new BundleStore(this);
             server = new LocalProxy(bundles);
             server.start();
+            // Same messages the WGT shows: a toast on the next page poll.
+            bundles.setNotifier(text -> {
+                if (control != null) control.queueToast(text);
+            });
             bundles.start();
+            if (control != null) control.queueToast("AxoTube service is running");
             startBrowser();
         } catch (Exception e) {
             Log.e(TAG, "Unable to start local AxoTube service", e);
@@ -110,6 +118,20 @@ public final class MainActivity extends Activity {
             @Override public void onReceivedError(WebView view, int errorCode,
                     String description, String failingUrl) {
                 Log.w(TAG, "WebView error " + errorCode + ": " + description + " at " + failingUrl);
+            }
+
+            // Sub-resources (icons, fonts, scripts) do not reach the main-frame callback
+            // above. These report them, with the URL and status, to logcat.
+            @Override public void onReceivedHttpError(WebView view, WebResourceRequest request,
+                    WebResourceResponse response) {
+                Log.w(TAG, "HTTP " + response.getStatusCode() + " for " + request.getUrl());
+            }
+
+            @Override public void onReceivedError(WebView view, WebResourceRequest request,
+                    WebResourceError error) {
+                if (request.isForMainFrame()) return; // already logged above
+                Log.w(TAG, "Resource error " + error.getErrorCode() + ": " + error.getDescription()
+                        + " at " + request.getUrl());
             }
         });
         webview.setWebChromeClient(new WebChromeClient());

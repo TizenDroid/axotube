@@ -31,10 +31,12 @@ export function restartCastReceiver() {
       showToast(t("app.name"), t("toasts.castRestartFailed"));
       return;
     }
+    // Reasons come from restartCastDiscovery() in service/service.js.
     if (body.restarted) showToast(t("app.name"), t("toasts.castRestarted"));
     else if (body.reason === "too-soon") showToast(t("app.name"), t("toasts.castRestartWait"));
-    else if (body.reason === "unsupported") showToast(t("app.name"), t("toasts.castRestartUnsupported"));
-    else showToast(t("app.name"), t("toasts.castRestarting"));
+    else if (body.reason === "discovery-not-running") showToast(t("app.name"), t("toasts.castRestartNotRunning"));
+    else if (body.reason === "in-progress") showToast(t("app.name"), t("toasts.castRestarting"));
+    else showToast(t("app.name"), t("toasts.castRestartFailed"));
   });
 }
 
