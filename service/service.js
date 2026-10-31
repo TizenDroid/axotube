@@ -1,0 +1,627 @@
+const dial = require("@patrickkfkan/peer-dial");
+const express = require("express");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
+const crypto = require("crypto");
+const uuid = require("uuid");
+const { validateConfigValue } = require("../shared/configPolicy.js");
+const { webConfigPage } = require("./webConfigPage.js");
+const app = express();
+
+function tizenGetCapability(capability) {
+  try {
+    return tizen.systeminfo.getCapability(capability);
+  } catch (err) {
+    console.warn("tizen.systeminfo.getCapability failed:", err.message);
+    return "";
+  }
+}
+
+function tizenGetPackageId() {
+  try {
+    return tizen.application.getAppInfo().packageId;
+  } catch (err) {
+    console.warn("tizen.application.getAppInfo failed:", err.message);
+    return null;
+  }
+}
+
+function tizenLaunchAppControl(appControl, appId) {
+  try {
+    tizen.application.launchAppControl(appControl, appId);
+    return true;
+  } catch (err) {
+    console.warn("tizen.application.launchAppControl failed:", err.message);
+    return false;
+  }
+}
+
+function buildYouTubeAppControl(launchData) {
+  try {
+    return new tizen.ApplicationControl(
+      "http://tizen.org/appcontrol/operation/view",
+      null,
+      null,
+      null,
+      [
+        new tizen.ApplicationControlData("module", [
+          JSON.stringify({
+            moduleName: "@foxreis/tizentube",
+            moduleType: "npm",
+            args: launchData,
+          }),
+        ]),
+      ],
+    );
+  } catch (err) {
+    console.warn("Could not build Tizen app control:", err.message);
+    return null;
+  }
+}
+
+app.use(
+  cors({
+    origin: "*",
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    credentials: false,
+    optionsSuccessStatus: 204,
+  }),
+);
+app.use(express.json({ limit: "64kb" }));
+
+const PORT = 8085;
+const STORE_DIR = (() => {
+  try {
+    fs.accessSync(__dirname, fs.constants.W_OK);
+    return __dirname;
+  } catch (err) {
+    return os.tmpdir();
+  }
+})();
+const STORE_PATH = path.join(STORE_DIR, "axotube-config-store.json");
+const STORE_TMP_PATH = `${STORE_PATH}.tmp`;
+
+function newToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function newPairingCode() {
+  const n = crypto.randomBytes(4).readUInt32BE(0) % 1000000;
+  return String(n).padStart(6, "0");
+}
+
+function sanitizeConfig(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const out = {};
+  for (const key of Object.keys(value)) {
+    if (!validateConfigValue(key, value[key])) return null;
+    out[key] = value[key];
+  }
+  return out;
+}
+
+function migrateStoredConfig(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out = {};
+  for (const key of Object.keys(value)) {
+    let candidate = value[key];
+
+    if (
+      key === "launchToOnStartup" &&
+      candidate &&
+      typeof candidate === "object" &&
+      !Array.isArray(candidate)
+    ) {
+      try {
+        candidate = JSON.stringify(candidate);
+      } catch (err) {
+        continue;
+      }
+    }
+
+    if (!validateConfigValue(key, candidate)) continue;
+    out[key] = candidate;
+  }
+  return out;
+}
+
+function loadStore() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(STORE_PATH, "utf8"));
+    if (parsed && typeof parsed === "object") {
+      return {
+        config: migrateStoredConfig(parsed.config),
+        revision:
+          Number.isSafeInteger(parsed.revision) && parsed.revision >= 0 ? parsed.revision : 0,
+        authToken:
+          typeof parsed.authToken === "string" && parsed.authToken.length >= 32
+            ? parsed.authToken
+            : newToken(),
+      };
+    }
+  } catch (err) {}
+  return { config: {}, revision: 0, authToken: newToken() };
+}
+
+const initialStore = loadStore();
+let storedConfig = initialStore.config;
+let configRevision = initialStore.revision;
+let authToken = initialStore.authToken;
+let pairingCode = newPairingCode();
+
+function saveStore(config = storedConfig, revision = configRevision) {
+  try {
+    const body = JSON.stringify({
+      config,
+      revision,
+      authToken,
+    });
+    fs.writeFileSync(STORE_TMP_PATH, body, { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(STORE_TMP_PATH, STORE_PATH);
+    return true;
+  } catch (err) {
+    try {
+      if (fs.existsSync(STORE_TMP_PATH)) fs.unlinkSync(STORE_TMP_PATH);
+    } catch (e) {}
+    console.warn("Failed to persist config store:", err.message);
+    return false;
+  }
+}
+let storePersisted = saveStore();
+
+function configEquals(a, b) {
+  const keysA = Object.keys(a).sort();
+  const keysB = Object.keys(b).sort();
+  return (
+    keysA.length === keysB.length &&
+    keysA.every(
+      (key, index) => key === keysB[index] && JSON.stringify(a[key]) === JSON.stringify(b[key]),
+    )
+  );
+}
+
+// Persist the next complete state before publishing its new revision to readers.
+// Both writers share this commit path; a failed disk write never gets an ACK.
+function commitConfig(clean) {
+  const changed = !configEquals(storedConfig, clean);
+  if (!changed && storePersisted) return { ok: true, changed: false };
+  const revision = changed ? configRevision + 1 : configRevision;
+  if (!Number.isSafeInteger(revision) || !saveStore(clean, revision)) {
+    return { ok: false };
+  }
+  storedConfig = clean;
+  configRevision = revision;
+  storePersisted = true;
+  return { ok: true, changed };
+}
+
+function remoteAddress(req) {
+  return String(req.socket?.remoteAddress || req.connection?.remoteAddress || "");
+}
+
+function isLoopback(req) {
+  const addr = remoteAddress(req).toLowerCase();
+  return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
+}
+
+function safeTokenEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch (err) {
+    return false;
+  }
+}
+
+function suppliedToken(req) {
+  const auth = String(req.get("authorization") || "");
+  if (auth.indexOf("Bearer ") === 0) return auth.slice(7).trim();
+  return String(req.get("x-axotube-token") || "").trim();
+}
+
+function requireApiAuth(req, res, next) {
+  if (isLoopback(req) || safeTokenEqual(suppliedToken(req), authToken)) return next();
+  res.status(401).json({ ok: false, error: "Pairing required" });
+}
+
+function getLanWebConfigUrls() {
+  const urls = [];
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      const entries = interfaces[name] || [];
+      for (const entry of entries) {
+        const family = entry && entry.family;
+        if (!entry || entry.internal || (family !== "IPv4" && family !== 4)) continue;
+        if (!entry.address) continue;
+        const url = `http://${entry.address}:${PORT}`;
+        if (!urls.includes(url)) urls.push(url);
+      }
+    }
+  } catch (err) {}
+  return urls;
+}
+
+const pairAttemptsByAddress = new Map();
+function pairAttemptKey(req) {
+  return remoteAddress(req).toLowerCase() || "unknown";
+}
+
+function allowPairAttempt(req) {
+  const now = Date.now();
+  const key = pairAttemptKey(req);
+  let state = pairAttemptsByAddress.get(key);
+  if (!state || now - state.startedAt > 60 * 1000) {
+    state = { startedAt: now, attempts: 0 };
+  }
+  state.attempts += 1;
+  pairAttemptsByAddress.set(key, state);
+
+  if (pairAttemptsByAddress.size > 256) {
+    for (const [address, value] of pairAttemptsByAddress) {
+      if (now - value.startedAt > 60 * 1000) pairAttemptsByAddress.delete(address);
+    }
+  }
+
+  return state.attempts <= 10;
+}
+
+function resetPairAttempts(req) {
+  pairAttemptsByAddress.delete(pairAttemptKey(req));
+}
+
+app.get("/", (req, res) => {
+  res.type("html").send(webConfigPage);
+});
+
+app.get("/api/pairing-code", (req, res) => {
+  if (!isLoopback(req)) {
+    res.status(403).json({ ok: false, error: "Loopback only" });
+    return;
+  }
+  res.json({ ok: true, code: pairingCode, urls: getLanWebConfigUrls() });
+});
+
+app.post("/api/pair", (req, res) => {
+  if (!allowPairAttempt(req)) {
+    res.status(429).json({ ok: false, error: "Too many pairing attempts" });
+    return;
+  }
+  const code = req.body && String(req.body.code || "").trim();
+  if (!code || code !== pairingCode) {
+    res.status(403).json({ ok: false, error: "Invalid pairing code" });
+    return;
+  }
+  resetPairAttempts(req);
+  res.json({ ok: true, token: authToken });
+});
+
+app.use("/api", requireApiAuth);
+
+app.get("/api/config", (req, res) => {
+  res.json({ revision: configRevision, config: storedConfig });
+});
+
+app.post("/api/config", (req, res) => {
+  // Revision-aware phone clients supply an envelope. Legacy clients may still
+  // send a plain config object and retain their previous last-write behavior.
+  const envelope = req.body && Object.prototype.hasOwnProperty.call(req.body, "config");
+  const clean = sanitizeConfig(envelope ? req.body.config : req.body);
+  if (!clean) {
+    res.status(400).json({ ok: false, error: "Invalid config payload" });
+    return;
+  }
+  if (envelope && (!Number.isSafeInteger(req.body.revision) || req.body.revision < 0)) {
+    res.status(400).json({ ok: false, error: "Invalid config revision" });
+    return;
+  }
+  if (envelope && req.body.revision !== configRevision) {
+    res
+      .status(409)
+      .json({
+        ok: false,
+        error: "Settings changed on TV; reload before saving",
+        revision: configRevision,
+      });
+    return;
+  }
+  const result = commitConfig(clean);
+  if (!result.ok) {
+    res.status(503).json({ ok: false, error: "Unable to save settings" });
+    return;
+  }
+  res.json({ ok: true, applied: true, changed: result.changed, revision: configRevision });
+});
+
+app.post("/api/config/push", (req, res) => {
+  const body = req.body;
+  const rev = body && Number.isSafeInteger(body.revision) ? body.revision : -1;
+  const clean = body ? sanitizeConfig(body.config) : null;
+  if (!clean) {
+    res.status(400).json({ ok: false, error: "Invalid config push" });
+    return;
+  }
+  if (rev !== configRevision) {
+    res
+      .status(409)
+      .json({
+        ok: false,
+        applied: false,
+        error: "Stale config revision",
+        revision: configRevision,
+      });
+    return;
+  }
+  const result = commitConfig(clean);
+  if (!result.ok) {
+    res.status(503).json({ ok: false, applied: false, error: "Unable to save settings" });
+    return;
+  }
+  res.json({ ok: true, applied: true, changed: result.changed, revision: configRevision });
+});
+
+const MAX_COMMAND_QUEUE = 50;
+let commandQueue = [];
+let nextCommandId = 1;
+let nowPlaying = null;
+
+function normalizeCommand(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const { action, videoId, playlistId, query, browseId } = body;
+  if (action === "play" && typeof videoId === "string" && videoId.trim()) {
+    return {
+      action: "play",
+      videoId: videoId.trim(),
+      playlistId: typeof playlistId === "string" && playlistId ? playlistId : undefined,
+    };
+  }
+  if (action === "search" && typeof query === "string" && query.trim()) {
+    return { action: "search", query: query.trim() };
+  }
+  if (action === "browse" && typeof browseId === "string" && browseId.trim()) {
+    return { action: "browse", browseId: browseId.trim() };
+  }
+  if (action === "reload") return { action: "reload" };
+  return null;
+}
+
+app.post("/api/command", (req, res) => {
+  const command = normalizeCommand(req.body);
+  if (!command) {
+    res.status(400).json({ ok: false, error: "Unsupported command" });
+    return;
+  }
+  if (commandQueue.length >= MAX_COMMAND_QUEUE) {
+    res.status(429).json({ ok: false, error: "Command queue full" });
+    return;
+  }
+  const queued = { id: nextCommandId++, command };
+  commandQueue.push(queued);
+  res.json({ ok: true, id: queued.id, command: queued.command });
+});
+
+app.get("/api/command", (req, res) => {
+  const queued = commandQueue[0] || null;
+  res.json(queued || { id: null, command: null });
+});
+
+app.post("/api/command/ack", (req, res) => {
+  const id = req.body && Number(req.body.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ ok: false, error: "Invalid command id" });
+    return;
+  }
+  if (commandQueue.length && commandQueue[0].id === id) {
+    commandQueue.shift();
+    res.json({ ok: true });
+    return;
+  }
+  res.status(409).json({ ok: false, error: "Command is no longer pending" });
+});
+
+app.post("/api/nowplaying", (req, res) => {
+  const body = req.body;
+  nowPlaying = body && typeof body === "object" && !Array.isArray(body) ? body : null;
+  res.json({ ok: true });
+});
+
+app.get("/api/nowplaying", (req, res) => {
+  res.json({ nowPlaying });
+});
+
+app.use((err, req, res, next) => {
+  res.status(err.status || 400).json({ ok: false, error: err.message || "Bad request" });
+});
+
+const apps = {
+  YouTube: {
+    name: "YouTube",
+    state: "stopped",
+    allowStop: true,
+    pid: null,
+    additionalData: {},
+    launch(launchData) {
+      const tbPackageId = tizenGetPackageId();
+      if (!tbPackageId) return;
+      const control = buildYouTubeAppControl(launchData);
+      if (!control) return;
+      tizenLaunchAppControl(
+        control,
+        `${tbPackageId}.${global.isAxoTubeStandalone ? "AxoTubeStandalone" : "TizenBrewStandalone"}`,
+      );
+    },
+  },
+};
+
+const deviceUuid = (() => {
+  try {
+    const tizenid = tizen.systeminfo.getCapability("http://tizen.org/system/tizenid");
+    if (tizenid) return uuid.v5(tizenid, "4bcbc514-bdd6-4163-8215-316526fd1d9b");
+  } catch (err) {
+    console.warn("Could not read tizenid for stable uuid:", err.message);
+  }
+  return uuid.v4();
+})();
+
+const modelName = tizenGetCapability("http://tizen.org/system/model_name");
+
+function parseLaunchData(launchData) {
+  const out = {};
+  String(launchData || "")
+    .split("&")
+    .forEach((part) => {
+      if (!part) return;
+      const eq = part.indexOf("=");
+      const rawKey = eq === -1 ? part : part.slice(0, eq);
+      const rawValue = eq === -1 ? "" : part.slice(eq + 1);
+      try {
+        out[decodeURIComponent(rawKey.replace(/\+/g, " "))] = decodeURIComponent(
+          rawValue.replace(/\+/g, " "),
+        );
+      } catch (err) {
+        out[rawKey] = rawValue;
+      }
+    });
+  return out;
+}
+
+const dialServer = new dial.Server({
+  expressApp: app,
+  port: PORT,
+  prefix: "/dial",
+  manufacturer: "Reis Can",
+  modelName: "AxoTube",
+  friendlyName: modelName ? `axotube (${modelName})` : "axotube",
+  uuid: deviceUuid,
+  delegate: {
+    getApp(appName) {
+      return apps[appName];
+    },
+    launchApp(appName, launchData, callback) {
+      console.log(`Got request to launch ${appName} with launch data: ${launchData}`);
+      const appEntry = apps[appName];
+      if (!appEntry) {
+        callback(null);
+        return;
+      }
+      const parsedData = parseLaunchData(launchData);
+      if (typeof parsedData.yumi !== "undefined") {
+        appEntry.additionalData = parsedData;
+        appEntry.state = "running";
+        callback("");
+        return;
+      }
+      appEntry.pid = "run";
+      appEntry.state = "starting";
+      appEntry.launch(launchData);
+      appEntry.state = "running";
+      callback(appEntry.pid);
+    },
+    stopApp(appName, pid, callback) {
+      const appEntry = apps[appName];
+      if (appEntry && appEntry.pid === pid) {
+        appEntry.pid = null;
+        appEntry.state = "stopped";
+        callback(true);
+      } else {
+        callback(false);
+      }
+    },
+  },
+});
+
+setInterval(() => {
+  try {
+    tizen.application.getAppsContext((appsContext) => {
+      const tbPackageId = tizenGetPackageId();
+      if (!tbPackageId) return;
+      const running = appsContext.find(
+        (entry) =>
+          entry.appId ===
+          `${tbPackageId}.${global.isAxoTubeStandalone ? "AxoTubeStandalone" : "TizenBrewStandalone"}`,
+      );
+      if (!running) {
+        apps.YouTube.state = "stopped";
+        apps.YouTube.pid = null;
+        apps.YouTube.additionalData = {};
+      }
+    });
+  } catch (err) {
+    console.warn("App context check failed:", err.message);
+  }
+}, 5000);
+
+// Cast presence. Phones can drop the TV from their cast menu after a Wi-Fi band
+// change or standby. Restarting the DIAL/SSDP advertiser makes the TV announce
+// itself again, so nobody has to unplug it.
+//
+// dialServer.stop() sends byebye and closes the SSDP sockets only after those
+// sends finish. Starting again before that close completes could let the old
+// close shut the new sockets, so start waits a short gap.
+const CAST_RESTART_MIN_INTERVAL_MS = 15000;
+const CAST_RESTART_GAP_MS = 2000;
+const WAKE_TICK_MS = 10000;
+const WAKE_GAP_MS = 30000;
+let dialStarted = false;
+let castRestartTimer = null;
+let lastCastRestartAt = 0;
+
+function restartCastDiscovery(reason) {
+  if (!dialStarted) return { restarted: false, reason: "discovery-not-running" };
+  if (castRestartTimer) return { restarted: false, reason: "in-progress" };
+  if (Date.now() - lastCastRestartAt < CAST_RESTART_MIN_INTERVAL_MS) {
+    return { restarted: false, reason: "too-soon" };
+  }
+  lastCastRestartAt = Date.now();
+  console.log(`[AxoTube:service] restarting cast discovery (${reason})`);
+  try {
+    dialServer.stop();
+  } catch (err) {
+    console.warn("[AxoTube:service] cast discovery stop failed:", err.message);
+  }
+  castRestartTimer = setTimeout(() => {
+    castRestartTimer = null;
+    try {
+      dialServer.start();
+    } catch (err) {
+      console.warn("[AxoTube:service] cast discovery start failed:", err.message);
+    }
+  }, CAST_RESTART_GAP_MS);
+  return { restarted: true, reason: "restarting" };
+}
+
+const CAST_RESTART_REASONS = ["wake", "focus", "manual"];
+
+app.post("/api/cast/restart", (req, res) => {
+  if (!isLoopback(req)) {
+    res.status(403).json({ ok: false, error: "Loopback only" });
+    return;
+  }
+  const requested = req.body && String(req.body.reason || "");
+  const reason = CAST_RESTART_REASONS.indexOf(requested) !== -1 ? requested : "manual";
+  const result = restartCastDiscovery(reason);
+  res.json({ ok: true, ...result });
+});
+
+// A timer that fires long after it was due means the machine was asleep (TV
+// standby). Re-announce then, even if the app is not in front.
+let lastWakeTick = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  const gap = now - lastWakeTick;
+  lastWakeTick = now;
+  if (gap > WAKE_GAP_MS) restartCastDiscovery("wake");
+}, WAKE_TICK_MS);
+
+const dialListener = app.listen(PORT, () => {
+  dialStarted = true;
+  dialServer.start();
+});
+// Without this, a busy port (for example an earlier instance still running) is an
+// unhandled 'error' event and takes the whole service down. Logging keeps the
+// content proxy on 8099 alive; DIAL and phone pairing simply stay off.
+dialListener.on("error", (err) => {
+  console.error(`[AxoTube:service] could not listen on port ${PORT}: ${err.code}`);
+});

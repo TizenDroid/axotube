@@ -1,0 +1,153 @@
+/* Fixes transparency effect for the video player */
+
+.ytLrWatchDefaultShadow,
+div[idomkey="shadow"] {
+  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.8) 90%) !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  display: block !important;
+  height: 100% !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  width: 100% !important;
+}
+
+/* https://github.com/webosbrew/youtube-webos/commit/4fbe38a18df31ddd62b6cf15f141dd58e1d1a71d */
+.ytLrWatchDefault2025Shadow {
+  background-color: rgba(11, 11, 11, 0.5) !important;
+}
+
+/* Fixes shorts having a black background */
+
+.ytLrTileHeaderRendererShorts {
+  background-image: none !important;
+}
+
+/* Multiline support for strings in the UI */
+
+.ytLrOverlayPanelHeaderRendererSubtitle {
+  white-space: pre-wrap !important;
+}
+
+/* Fixes SponsorBlock segments overlapping with the playhead */
+
+.ytLrProgressBarPlayhead {
+  z-index: 1 !important;
+}
+
+.ytLrProgressBarPlayed {
+  z-index: 1 !important;
+}
+
+.ytLrSearchBarSearchVoice {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: auto
+}
+
+.ytLrSearchVoiceHost {
+  font-size: 3rem;
+}
+
+.ytLrSearchVoiceMicButtonHost {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ytLrSearchVoiceMicButtonHost {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  color: #f1f1f1;
+  display: block;
+  text-align: center;
+  width: 1em;
+  height: 1em;
+}
+
+.ytLrSearchVoiceMicButtonIcon {
+  display: inline-block;
+  font-size: .5em;
+  height: .5em;
+  width: .5em;
+  height: 1em;
+  width: 1em;
+  margin-top: .5em;
+  vertical-align: top !important;
+}
+
+.ytContribIconHost {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.ytContribIconTvArrowLeft::before {
+  content: "\e822";
+}
+
+.ytContribIconHost::before {
+  font-family: "YouTube Icons Outlined";
+}
+
+/* Make toasts match the YouTube TV look and font */
+
+ytlr-toast,
+paper-toast {
+  font-family: "YouTube Sans", Roboto, "Noto Sans", Arial, sans-serif !important;
+  font-size: 1.4rem !important;
+  line-height: 1.4 !important;
+  border-radius: 4px !important;
+  background-color: rgba(0, 0, 0, 0.85) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+ytlr-toast .title,
+ytlr-toast .subtitle,
+ytlr-toast #text,
+ytlr-toast iron-p {
+  font-family: "YouTube Sans", Roboto, "Noto Sans", Arial, sans-serif !important;
+}
+
+ytlr-toast .subtitle,
+ytlr-toast iron-p {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+ytlr-toast img,
+ytlr-toast iron-image,
+ytlr-toast .thumbnail {
+  border-radius: 4px !important;
+}
+
+/* Hide promo shelves (also stripped at the response level in adblock.js) */
+
+ytlr-promo-shelf-renderer {
+  display: none !important;
+}
+
+/* Reduced motion mode: disable all animations/transitions for performance */
+
+body.axotube-reduced-motion,
+body.axotube-reduced-motion *,
+body.axotube-reduced-motion *::before,
+body.axotube-reduced-motion *::after {
+  animation: none !important;
+  animation-delay: 0s !important;
+  animation-duration: 0s !important;
+  transition: none !important;
+  transition-delay: 0s !important;
+  transition-duration: 0s !important;
+  scroll-behavior: auto !important;
+  will-change: auto !important;
+  backdrop-filter: none !important;
+}
+
+body.axotube-reduced-motion ytlr-swipeable-overlay,
+body.axotube-reduced-motion .ytLrWatchDefaultShadow,
+body.axotube-reduced-motion div[idomkey="shadow"] {
+  opacity: 1 !important;
+}
+
+body.axotube-reduced-motion ytlr-player,
+body.axotube-reduced-motion .html5-video-player {
+  will-change: auto !important;
+}

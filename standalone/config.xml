@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets"
+    id="https://axotube.github.io" version="1.26.1" viewmodes="maximized">
+    <access origin="*" subdomains="true"></access>
+    <tizen:allow-navigation>*</tizen:allow-navigation>
+    <tizen:application
+        id="axotubeapp.AxoTubeStandalone" package="axotubeapp" required_version="3.0" />
+    <author
+        href="https://github.com/TizenDroid/axotube">Aayu5h, Reis Can</author>
+    <content
+        src="index.html" />
+    <feature name="http://tizen.org/feature/screen.size.all" />
+    <tizen:feature
+        name="http://tizen.org/feature/web.service" />
+    <icon src="icon_16b9.png" width="1920"
+        height="1080" />
+    <icon src="icon.png" width="1024" height="1024" />
+    <tizen:metadata
+        key="http://samsung.com/tv/metadata/prelaunch.support" value="true" />
+    <tizen:metadata
+        key="http://samsung.com/tv/metadata/floating.navigation" value="false" />
+    <tizen:metadata
+        key="http://samsung.com/tv/metadata/use.game.mode" value="true" />
+    <tizen:metadata
+        key="http://samsung.com/tv/metadata/use.uwe" value="true" />
+    <tizen:metadata
+        key="http://samsung.com/tv/metadata/no_use_process_pool" value="true" />
+    <tizen:metadata
+        key="multiview_support" value="true" />
+    <tizen:metadata key="multiview_min_resource"
+        value="FHD+" />
+    <tizen:metadata key="http://samsung.com/tv/metadata/html5.4k.support"
+        value="true" />
+    <tizen:metadata key="http://samsung.com/tv/metadata/microphone.support"
+        value="1" />
+    <tizen:metadata key="http://samsung.com/tv/metadata/microphone.area"
+        value="open" />
+    <name>axotube</name>
+    <tizen:privilege
+        name="http://tizen.org/privilege/internet" />
+    <tizen:privilege
+        name="http://developer.samsung.com/privilege/network.public" />
+    <tizen:privilege
+        name="http://tizen.org/privilege/tv.inputdevice" />
+    <tizen:privilege
+        name="http://tizen.org/privilege/recorder" />
+    <tizen:privilege
+        name="http://tizen.org/privilege/mediacapture" />
+    <tizen:privilege
+        name="http://tizen.org/privilege/unlimitedstorage" />
+    <tizen:privilege
+        name="http://tizen.org/privilege/application.launch" />
+    <tizen:profile name="tv-samsung" />
+    <tizen:service
+        id="axotubeapp.StandaloneService">
+        <tizen:content src="service/dist/index.js" />
+        <tizen:name>StandaloneService</tizen:name>
+        <tizen:description>StandaloneService</tizen:description>
+    </tizen:service>
+    <tizen:setting
+        screen-orientation="landscape" context-menu="enable" background-support="enable"
+        encryption="disable" install-location="auto" hwkey-event="enable" />
+</widget>

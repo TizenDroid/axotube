@@ -1,0 +1,353 @@
+{
+  "settings": {
+    "ttSettings": {
+      "title": "AxoTube Settings",
+      "summary": "Open AxoTube Settings",
+      "madeByText": "Made by Aayush with ❤️"
+    },
+    "seconds": "{{count}} s",
+    "minutes": "{{count}} min",
+    "hintBack": "◀ Back",
+    "hintClose": "◀ Close",
+    "common": {
+      "auto": "Auto",
+      "any": "Any"
+    },
+    "segmentModes": {
+      "skip": "Skip automatically",
+      "show": "Show skip button",
+      "off": "Off"
+    },
+    "ads": {
+      "title": "Ads & sponsors",
+      "subtitle": "Ad blocking and SponsorBlock",
+      "blockAds": "Block ads",
+      "paidPromotion": "Show paid promotion notices",
+      "sponsorBlock": "Enable SponsorBlock",
+      "segmentTypes": {
+        "title": "Segment types",
+        "subtitle": "Press OK to change a type. It cycles through: skip automatically, show a skip button, off."
+      },
+      "segments": {
+        "sponsor": "Sponsors",
+        "intro": "Intros",
+        "outro": "Outros",
+        "interaction": "Interaction reminders",
+        "selfpromo": "Self-promotion",
+        "preview": "Previews and recaps",
+        "filler": "Tangents and jokes",
+        "music_offtopic": "Off-topic music"
+      },
+      "highlightButton": "Show highlight button",
+      "notices": "Show SponsorBlock notices"
+    },
+    "playback": {
+      "title": "Playback",
+      "subtitle": "Quality, speed and captions",
+      "quality": {
+        "title": "Video quality",
+        "subtitle": "Quality used when a video starts. The closest available one is used if needed."
+      },
+      "codec": {
+        "title": "Video codec",
+        "subtitle": "Preferred codec. Any lets YouTube choose."
+      },
+      "speedStep": {
+        "title": "Speed step",
+        "subtitle": "How much each speed button press changes the playback speed."
+      },
+      "frameRate": {
+        "title": "Frame rate",
+        "subtitle": "Switch the TV's refresh rate to match the video.",
+        "match": "Match video frame rate",
+        "pause": {
+          "title": "Pause during switch",
+          "subtitle": "Playback pauses for this long while the TV changes its refresh rate."
+        }
+      },
+      "pauseInBackground": "Out-of-focus pause (also when menus or panels open)",
+      "remainingTime": "Show time remaining",
+      "captions": {
+        "title": "Captions",
+        "subtitle": "Turn captions on by default, and choose the language they use.",
+        "onByDefault": "Subtitles on by default",
+        "language": {
+          "title": "Subtitle language",
+          "subtitle": "Preferred language for automatic captions."
+        },
+        "allowAuto": "Allow auto-generated captions",
+        "myLanguage": "Show captions in my language",
+        "otherLanguages": "Show other languages"
+      },
+      "languages": {
+        "en": "English",
+        "hi": "Hindi",
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "pt": "Portuguese",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "ru": "Russian"
+      },
+      "experimental": {
+        "title": "Higher resolutions (experimental)",
+        "subtitle": "Lets YouTube offer resolutions above the TV screen size. Can stutter on limited TVs. Restarts the app when changed.",
+        "unlock": "Unlock 1440p and 4K",
+        "max": {
+          "title": "Maximum resolution",
+          "subtitle": "Highest resolution YouTube may offer while the unlock is on."
+        }
+      },
+      "panelShrink": {
+        "title": "Video size while reading",
+        "subtitle": "Shrinks the video when the description or comments are open.",
+        "on": "Shrink video for description and comments",
+        "size": {
+          "title": "Video size",
+          "subtitle": "How large the video stays while a panel is open."
+        }
+      }
+    },
+    "playerControls": {
+      "title": "Player controls",
+      "subtitle": "Extra buttons in the player. Turn on the first option to use the others.",
+      "customize": "Customize player buttons",
+      "previousNext": "Previous and next",
+      "speed": "Speed button",
+      "superThanks": "Super Thanks button",
+      "miniPlayer": "Mini player button",
+      "pipInsteadOfMini": "Use picture-in-picture instead of mini player",
+      "onePress": "One-press remote mode (OK plays or pauses, left and right skip 10 s)"
+    },
+    "browsing": {
+      "title": "Browsing",
+      "subtitle": "Thumbnails, previews and what appears on screen",
+      "thumbnails": {
+        "title": "Thumbnails and titles",
+        "subtitle": "DeArrow shows community titles and thumbnails in place of clickbait. Service: dearrow.ajay.app"
+      },
+      "hqThumbnails": "High-quality thumbnails",
+      "deArrowTitles": "DeArrow titles",
+      "deArrowThumbnails": "DeArrow thumbnails",
+      "previews": {
+        "title": "Video previews",
+        "subtitle": "Plays a short preview when a video is focused.",
+        "on": "Show video previews",
+        "length": "Preview length"
+      },
+      "hideWatched": {
+        "title": "Hide watched videos",
+        "subtitle": "Hides videos you have mostly watched.",
+        "on": "Hide watched videos",
+        "threshold": {
+          "title": "Watched threshold",
+          "subtitle": "Videos watched past this percentage are hidden."
+        },
+        "pages": {
+          "title": "Hide on these pages",
+          "subtitle": "Pages where watched videos are hidden."
+        }
+      },
+      "shorts": "Show Shorts",
+      "endScreens": "Hide end screen cards",
+      "longPress": "Long press OK to add to queue",
+      "stillWatching": "Show \"Are you still watching?\" prompts",
+      "deArrowPeek": "Long press shows the other title and thumbnail"
+    },
+    "home": {
+      "title": "Home & sidebar",
+      "subtitle": "Startup page and sidebar items",
+      "startup": {
+        "title": "Startup page",
+        "subtitle": "The page AxoTube opens at launch."
+      },
+      "reloadHome": "Reload home on startup",
+      "sidebarItems": {
+        "title": "Hide sidebar items",
+        "subtitle": "Selected items are hidden from the sidebar."
+      },
+      "hideChannels": "Hide channels from the sidebar",
+      "sortSubscriptions": "Sort subscriptions A to Z"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "subtitle": "Colours, clock, dimming and performance",
+      "theme": {
+        "title": "Theme",
+        "subtitle": "Colours used across the interface.",
+        "presets": {
+          "title": "Preset",
+          "subtitle": "A ready-made colour set."
+        },
+        "background": {
+          "title": "Background colour",
+          "subtitle": "Colour behind the main content."
+        },
+        "text": {
+          "title": "Text colour",
+          "subtitle": "Colour of the text in the interface."
+        }
+      },
+      "colors": {
+        "default": "Default (dark)",
+        "black": "Black",
+        "darkGray": "Dark gray",
+        "charcoal": "Charcoal",
+        "navy": "Navy blue",
+        "darkRed": "Dark red",
+        "darkGreen": "Dark green",
+        "darkPurple": "Dark purple"
+      },
+      "textColors": {
+        "default": "Default",
+        "white": "White",
+        "gray": "Gray",
+        "red": "Red",
+        "blue": "Blue",
+        "green": "Green",
+        "purple": "Purple",
+        "yellow": "Yellow"
+      },
+      "dimming": {
+        "title": "Screen dimming",
+        "subtitle": "Dims the screen when you stop interacting.",
+        "on": "Dim the screen when idle",
+        "timeout": {
+          "title": "Dim after",
+          "subtitle": "How long to wait before the screen dims."
+        },
+        "opacity": {
+          "title": "Dimming strength",
+          "subtitle": "How dark the screen gets."
+        }
+      },
+      "fullAnimations": "Full-quality animations",
+      "performance": "Performance mode (memory part applies after reload)",
+      "clock": {
+        "title": "Clock",
+        "subtitle": "Show the time on screen.",
+        "show": {
+          "title": "When to show",
+          "subtitle": "Always, or only while no video is playing.",
+          "off": "Off",
+          "always": "Always",
+          "notPlaying": "When no video is playing"
+        },
+        "format": {
+          "title": "Time format",
+          "subtitle": "24-hour, or 12-hour with or without AM and PM.",
+          "h24": "24-hour (14:05)",
+          "h12": "12-hour with AM/PM (2:05 PM)",
+          "h12NoAmPm": "12-hour, no AM/PM (2:05)"
+        },
+        "position": {
+          "title": "Position",
+          "subtitle": "Corner of the screen for the clock.",
+          "topLeft": "Top left",
+          "topRight": "Top right",
+          "bottomLeft": "Bottom left",
+          "bottomRight": "Bottom right"
+        },
+        "seconds": "Show seconds"
+      }
+    },
+    "system": {
+      "title": "System",
+      "subtitle": "Memory, accounts and updates",
+      "whosWatching": {
+        "title": "Who's watching menu",
+        "subtitle": "Choose a profile when the app starts.",
+        "on": "Show who's watching menu",
+        "always": "Always show it",
+        "onExit": "Show when leaving the app"
+      },
+      "signInReminder": "Sign-in reminder for guests",
+      "welcome": "Welcome message",
+      "updates": {
+        "title": "Updates",
+        "subtitle": "Version {{version}}. Checks for new releases.",
+        "checkNow": "Check for updates now",
+        "onStartup": "Check for updates on startup"
+      },
+      "reload": "Reload AxoTube",
+      "restartCast": "Restart cast receiver"
+    },
+    "about": {
+      "title": "About AxoTube",
+      "version": "Version {{version}}",
+      "scanMessage": "Scan the QR code to open {{name}}."
+    }
+  },
+  "welcomeMsg": {
+    "title": "Welcome to AxoTube",
+    "subtitle": "Go to settings and click on AxoTube Settings for settings."
+  },
+  "sponsorblock": {
+    "segments": {
+      "sponsor": "sponsored segment",
+      "intro": "intro",
+      "outro": "outro",
+      "interaction": "interaction reminder",
+      "selfpromo": "self-promotion",
+      "preview": "recap or preview",
+      "filler": "tangents",
+      "music_offtopic": "non-music part",
+      "poi_highlight": "highlight"
+    },
+    "toasts": {
+      "skipping": "Skipping {{segment}}",
+      "notSkipping": "Not skipping {{segment}} (was skipped {{count}} times)",
+      "skip": "Skip {{segment}}",
+      "skipToHighlight": "Skip to highlight",
+      "undone": "Skip undone: {{segment}}"
+    }
+  },
+  "app": {
+    "name": "axotube"
+  },
+  "menu": {
+    "play": "Play",
+    "saveWatchLater": "Save to Watch Later",
+    "saveToPlaylist": "Save to Playlist",
+    "addToQueue": "Add to Queue"
+  },
+  "player": {
+    "miniPlayer": "Mini Player",
+    "pictureInPicture": "Picture in Picture",
+    "speedControls": "Speed Controls",
+    "previous": "Previous",
+    "next": "Next",
+    "withAxotube": "with axotube"
+  },
+  "toasts": {
+    "queueAdded": "Video added to queue.",
+    "queueAddFailed": "Nothing to add to the queue.",
+    "queueCleared": "Video queue cleared.",
+    "updateDownloading": "Downloading update, please wait...",
+    "upToDate": "You are on the latest version ({{version}}).",
+    "updateNoApk": "Version {{version}} is available, but no compatible APK was found in the release.",
+    "updateCheckFailed": "Could not check for updates.",
+    "serviceConnected": "Service connected",
+    "commandReceived": "Command received",
+    "pairingWithUrl": "Open {{url}} on your phone · code {{code}}",
+    "pairingCodeOnly": "Phone pairing code: {{code}}",
+    "updateApplyFailed": "The update could not be applied. Try again later.",
+    "castRestarted": "Cast receiver restarted. Phones should see the TV again shortly.",
+    "castRestarting": "Restarting cast receiver…",
+    "castRestartWait": "Cast receiver was just restarted. Try again in a few seconds.",
+    "castRestartFailed": "Could not restart the cast receiver.",
+    "castRestartUnsupported": "Restarting cast is not available on this device."
+  },
+  "updater": {
+    "modalTitle": "Update Available",
+    "modalBody": "A new version of axotube is available: {{latest}}\nCurrent version: {{current}}\nRelease date: {{date}}\nRelease notes:",
+    "unknownDate": "Unknown",
+    "updateNow": "Update Now",
+    "updateNowSubtitle": "Click to download the latest version.",
+    "remindLater": "Remind Me Later",
+    "remindLaterSubtitle": "Check for updates later.",
+    "modalBodyNew": "Version {{latest}} is available. You are on {{current}}. Update now and the page will reload.",
+    "applying": "Updating…"
+  }
+}

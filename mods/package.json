@@ -1,0 +1,39 @@
+{
+  "name": "@axotube/mods",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c rollup.config.js"
+  },
+  "keywords": [],
+  "author": "Aayu5h (fork by Aayu5h, original by Reis Can)",
+  "license": "GPL-3.0-only",
+  "dependencies": {
+    "@babel/preset-env": "^7.22.9",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-terser": "^0.4.3",
+    "esprima": "^4.0.1",
+    "estraverse": "^5.3.0",
+    "i18next": "^25.8.18",
+    "qrcode-npm": "^0.0.3",
+    "rollup": "^3.26.2",
+    "rollup-plugin-string": "^3.0.0",
+    "whatwg-fetch": "^3.6.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.0",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-replace": "^6.0.3",
+    "@babel/plugin-transform-optional-chaining": "^7.22.0",
+    "@babel/plugin-transform-nullish-coalescing-operator": "^7.22.0",
+    "@babel/plugin-transform-async-to-generator": "^7.22.0",
+    "@babel/plugin-transform-class-properties": "^7.22.0",
+    "@babel/plugin-transform-for-of": "^7.22.0",
+    "@babel/plugin-transform-object-rest-spread": "^7.22.0",
+    "@babel/plugin-transform-logical-assignment-operators": "^7.22.0",
+    "@babel/plugin-transform-numeric-separator": "^7.22.0"
+  }
+}
