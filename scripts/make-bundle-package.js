@@ -47,4 +47,10 @@ fs.writeFileSync(
     2,
   ) + "\n",
 );
+// npm renders this on the package page. Without it the page says the package
+// has no README, which reads like an abandoned package.
+fs.copyFileSync(
+  path.join(__dirname, "bundle-package-README.md"),
+  path.join(OUT, "README.md"),
+);
 console.log("bundle package ready at bundle-pkg/ (" + NAME + "@" + rootPkg.version + ")");
