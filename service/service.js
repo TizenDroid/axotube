@@ -10,7 +10,14 @@ const { validateConfigValue } = require("../shared/configPolicy.js");
 const { webConfigPage } = require("./webConfigPage.js");
 const app = express();
 
+// The Tizen APIs exist only on a Tizen TV. Elsewhere (plain node on a PC, or an
+// Android host) these helpers return their fallback quietly instead of warning.
+function hasTizen() {
+  return typeof tizen !== "undefined";
+}
+
 function tizenGetCapability(capability) {
+  if (!hasTizen()) return "";
   try {
     return tizen.systeminfo.getCapability(capability);
   } catch (err) {
@@ -20,6 +27,7 @@ function tizenGetCapability(capability) {
 }
 
 function tizenGetPackageId() {
+  if (!hasTizen()) return null;
   try {
     return tizen.application.getAppInfo().packageId;
   } catch (err) {
@@ -29,6 +37,7 @@ function tizenGetPackageId() {
 }
 
 function tizenLaunchAppControl(appControl, appId) {
+  if (!hasTizen()) return false;
   try {
     tizen.application.launchAppControl(appControl, appId);
     return true;
@@ -39,6 +48,7 @@ function tizenLaunchAppControl(appControl, appId) {
 }
 
 function buildYouTubeAppControl(launchData) {
+  if (!hasTizen()) return null;
   try {
     return new tizen.ApplicationControl(
       "http://tizen.org/appcontrol/operation/view",

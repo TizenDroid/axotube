@@ -351,7 +351,11 @@ app.all('*', function (req, res) {
                 if (!isCorsBypass && req.url.indexOf('/tv') === 0 && req.url.indexOf('/tv_config') === -1) {
                     // Early bundle first, right after <head>, so its overrides exist
                     // before YouTube reads them. The main bundle stays at the end.
-                    var earlyTag = '<script src="http://localhost:' + PORT + '/axotube/early.js"></script>';
+                    // The marker tells the page that this AxoTube service answers on
+                    // 8085. The page checks it, not the user agent, so the APK and the
+                    // WGT both get the control features whatever their UA string is.
+                    var earlyTag = '<script>window.__axotubeServiceUrl="http://127.0.0.1:8085";</script>'
+                        + '<script src="http://localhost:' + PORT + '/axotube/early.js"></script>';
                     text = /<head(\s[^>]*)?>/i.test(text)
                         ? text.replace(/<head(\s[^>]*)?>/i, function (m) { return m + earlyTag; })
                         : earlyTag + text;

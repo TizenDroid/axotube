@@ -533,7 +533,10 @@ final class LocalProxy {
                 String text = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
                 if (!cors && path.startsWith("/tv") && !path.startsWith("/tv_config")) {
                     String version = bundles.activeVersion();
-                    String early = "<script src=\"" + ORIGIN + "/axotube/early.js?v=" + version + "\"></script>";
+                    // Marker first: the page uses it to find the control server (8085),
+                    // independent of the user agent. Same as proxy.js.
+                    String early = "<script>window.__axotubeServiceUrl=\"http://127.0.0.1:8085\";</script>"
+                            + "<script src=\"" + ORIGIN + "/axotube/early.js?v=" + version + "\"></script>";
                     Matcher head = Pattern.compile("<head(\\s[^>]*)?>", Pattern.CASE_INSENSITIVE).matcher(text);
                     text = head.find() ? head.replaceFirst(Matcher.quoteReplacement(head.group() + early)) : early + text;
                     text += "<script src=\"" + ORIGIN + "/axotube/userScript.js?v=" + version + "\"></script>";

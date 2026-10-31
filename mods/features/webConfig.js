@@ -29,12 +29,13 @@ let pairingCodeShown = false;
 let lastExecutedCommandId = null;
 let lastExecutedCommandNeedsReload = false;
 
-// True when the service is reachable from this page: the native host (the Tizen
-// module) or the Tizen web API (the standalone WGT, which has no native host).
-// Phone commands, config sync and service toasts are gated on this.
-function isTizen() {
+// True when the AxoTube service answers from this page. Decided by what the
+// environment provides, not by the user agent: the proxy marks every page it
+// serves (APK and WGT alike); the native host and the Tizen web API cover the
+// Tizen module. Youtube.com with Tampermonkey has none of these, so it stays off.
+function serviceHost() {
   if (typeof window === "undefined") return false;
-  return !!nativeHost() || typeof window.tizen !== "undefined";
+  return typeof window.__axotubeServiceUrl === "string" || !!nativeHost() || typeof window.tizen !== "undefined";
 }
 
 const hasResolver = hasNativeResolver;
@@ -64,7 +65,7 @@ function showPairingCode() {
 }
 
 function showServiceToast() {
-  if (serviceToastShown || !isTizen() || !hasResolver()) return;
+  if (serviceToastShown || !serviceHost() || !hasResolver()) return;
   try {
     showToast(t("app.name"), t("toasts.serviceConnected"));
     serviceToastShown = true;
@@ -96,7 +97,7 @@ function differsFromServer(snapshot) {
 }
 
 function pushIfChanged() {
-  if (!isTizen() || configSyncing || appliedRevision < 0 || !serverConfig) return;
+  if (!serviceHost() || configSyncing || appliedRevision < 0 || !serverConfig) return;
   const snapshot = configSnapshot();
   if (!differsFromServer(snapshot)) {
     dirtyKeys.clear();
@@ -136,7 +137,7 @@ function pushIfChanged() {
 }
 
 function schedulePush() {
-  if (!isTizen()) return;
+  if (!serviceHost()) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(pushIfChanged, 250);
 }
@@ -147,7 +148,7 @@ configChangeEmitter.addEventListener("configChange", (event) => {
 });
 
 function pullAndApply() {
-  if (!isTizen() || configSyncing) return;
+  if (!serviceHost() || configSyncing) return;
   configSyncing = true;
   fetchWithTimeout(`${WEB_CONFIG_URL}/api/config`)
     .then((res) => {
@@ -247,7 +248,7 @@ function acknowledgeExecutedCommand(id) {
 }
 
 function consumeCommand() {
-  if (!isTizen() || commandPolling) return;
+  if (!serviceHost() || commandPolling) return;
   commandPolling = true;
   fetchWithTimeout(`${WEB_CONFIG_URL}/api/command`)
     .then((res) => {
@@ -297,7 +298,7 @@ function consumeCommand() {
 }
 
 function pushNowPlaying() {
-  if (!isTizen() || nowPlayingPushing) return;
+  if (!serviceHost() || nowPlayingPushing) return;
   let info = null;
   try {
     const video = document.querySelector("video");
