@@ -431,7 +431,10 @@ app.post("/api/command/ack", (req, res) => {
 
 app.post("/api/nowplaying", (req, res) => {
   const body = req.body;
-  nowPlaying = body && typeof body === "object" && !Array.isArray(body) ? body : null;
+  // {} means nothing is playing. The client sends {} rather than null, because
+  // the strict JSON parser rejects a bare null body with a 400 on every poll.
+  const hasFields = body && typeof body === "object" && !Array.isArray(body) && Object.keys(body).length > 0;
+  nowPlaying = hasFields ? body : null;
   res.json({ ok: true });
 });
 

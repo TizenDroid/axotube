@@ -91,7 +91,12 @@ function parseCorsTarget(rawTarget) {
 app.use(function (req, res, next) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range, Accept, Origin, Referer');
+    // Echo the headers the browser asks for (for example x-goog-api-key) so a
+    // preflight passes. Only plain header-name characters are echoed.
+    var allowHeaders = 'Content-Type, Range, Accept, Origin, Referer';
+    var requested = req.get('Access-Control-Request-Headers');
+    if (requested && /^[A-Za-z0-9,\- ]{1,512}$/.test(requested)) allowHeaders += ', ' + requested;
+    res.setHeader('Access-Control-Allow-Headers', allowHeaders);
     if (req.method === 'OPTIONS') return res.status(200).end();
     next();
 });

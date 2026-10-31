@@ -7,8 +7,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -195,11 +193,18 @@ final class ConfigStore {
             } finally {
                 out.close();
             }
-            // Files.move replaces the old file atomically on Linux and Android, and
-            // also overwrites on Windows, where renameTo() fails once the file exists.
-            Files.move(tmp.toPath(), file.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            return true;
+            // java.nio.file needs API 26, and minSdk is 23, so use File.renameTo.
+            // It replaces the target atomically on Linux and Android. Windows (host
+            // JVM tests) refuses to rename over an existing file, so delete the old
+            // one and try once more there.
+            if (tmp.renameTo(file)) return true;
+            if (file.exists() && !file.delete()) {
+                tmp.delete();
+                return false;
+            }
+            if (tmp.renameTo(file)) return true;
+            tmp.delete();
+            return false;
         } catch (IOException e) {
             tmp.delete();
             return false;

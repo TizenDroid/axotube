@@ -206,6 +206,23 @@ final class LocalProxy {
         out.write(text.toString().getBytes(StandardCharsets.ISO_8859_1));
     }
 
+    /**
+     * Answers a CORS preflight. The headers the browser asks for are echoed back
+     * (for example x-goog-api-key), so custom headers pass. Only plain header-name
+     * characters are echoed, so a request cannot inject a header line.
+     */
+    private static void sendPreflight(OutputStream out, String requested) throws Exception {
+        String allow = "Content-Type, Range, Accept, Origin, Referer";
+        if (requested != null && requested.matches("[A-Za-z0-9,\\- ]{1,512}")) allow += ", " + requested;
+        String head = "HTTP/1.1 200 OK\r\n"
+                + "Connection: close\r\n"
+                + "Access-Control-Allow-Origin: *\r\n"
+                + "Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, PATCH, DELETE\r\n"
+                + "Access-Control-Allow-Headers: " + allow + "\r\n"
+                + "Content-Length: 0\r\n\r\n";
+        out.write(head.getBytes(StandardCharsets.ISO_8859_1));
+    }
+
     private static void send(OutputStream out, int status, String type, byte[] body, String extra) throws Exception {
         String head = "HTTP/1.1 " + status + " " + reason(status) + "\r\n"
                 + "Connection: close\r\n"
@@ -245,7 +262,7 @@ final class LocalProxy {
             if (req == null) return;
             req.target = encodeTarget(req.target);
             if ("OPTIONS".equals(req.method)) {
-                send(output, 200, "text/plain", new byte[0], null);
+                sendPreflight(output, req.headers.get("access-control-request-headers"));
                 return;
             }
             URI target = URI.create(req.target);

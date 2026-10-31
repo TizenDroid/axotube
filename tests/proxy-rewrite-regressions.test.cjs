@@ -15,7 +15,9 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 // Load rewriteTrustedText from the real proxy source, so the test exercises the
 // code that ships rather than a copy of it.
 function loadRewriteTrustedText() {
-  const code = read("service/proxy.js");
+  // Normalize line endings: a Windows checkout gives CRLF, and the function
+  // boundary below is found by searching for "\n}\n".
+  const code = read("service/proxy.js").replace(/\r\n/g, "\n");
   const start = code.indexOf("function rewriteTrustedText(text)");
   assert.ok(start >= 0, "rewriteTrustedText exists");
   const end = code.indexOf("\n}\n", start) + 3;

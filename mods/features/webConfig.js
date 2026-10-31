@@ -322,7 +322,7 @@ function pushNowPlaying() {
   fetchWithTimeout(`${WEB_CONFIG_URL}/api/nowplaying`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: serialized === "none" ? "null" : serialized,
+    body: serialized === "none" ? "{}" : serialized,
   })
     .then((res) => {
       if (!res.ok) throw new Error(`now playing HTTP ${res.status}`);
