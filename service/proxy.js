@@ -1,7 +1,7 @@
 "use strict";
 
 // axotube standalone content proxy (127.0.0.1:8099). Built into the standalone
-// bundle together with service.js by service/rollup.config.mjs.
+// bundle together with service.js by service/rollup.config.js.
 var express = require('express');
 var app = express();
 var PORT = 8099;

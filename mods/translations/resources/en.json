@@ -336,8 +336,7 @@
     "castRestarted": "Cast receiver restarted. Phones should see the TV again shortly.",
     "castRestarting": "Restarting cast receiver…",
     "castRestartWait": "Cast receiver was just restarted. Try again in a few seconds.",
-    "castRestartFailed": "Could not restart the cast receiver.",
-    "castRestartUnsupported": "Restarting cast is not available on this device."
+    "castRestartFailed": "Could not restart the cast receiver."
   },
   "updater": {
     "modalTitle": "Update Available",

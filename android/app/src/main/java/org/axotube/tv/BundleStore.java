@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 /** Same update protocol as WGT, with a published jsDelivr GitHub CDN fallback. */
 final class BundleStore {
     private static final String TAG = "AxoTubeBundles";
-    private static final String NPM_CDN = "https://cdn.jsdelivr.net/npm/axotube";
+    private static final String NPM_CDN = "https://cdn.jsdelivr.net/npm/axotube-bundle";
     private static final String GH_CDN = "https://cdn.jsdelivr.net/gh/TizenDroid/axotube@";
     private static final String GH_COMMIT_API = "https://api.github.com/repos/TizenDroid/axotube/commits/main";
     private static final String[] FILES = { "early.js", "userScript.js" };
@@ -245,7 +245,7 @@ final class BundleStore {
         } catch (Exception exception) {
             githubFailure = exception;
         }
-        // Preserve the WGT npm channel in case the axotube npm package is published.
+        // Preserve the WGT npm channel in case axotube-bundle is published.
         try {
             byte[] manifest = download(NPM_CDN + "@latest/package.json", 128 * 1024);
             String version = new JSONObject(new String(manifest, StandardCharsets.UTF_8)).getString("version");

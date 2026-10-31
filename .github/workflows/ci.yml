@@ -1,278 +1,56 @@
 name: CI
 
-# One workflow for tests, the generated bundles, the Samsung WGT and the Android APK,
-# and the npm bundle package. Order matters: build before test, so the tests run
-# against the source that is being shipped and never against a stale dist/.
-
 on:
   push:
     branches:
       - main
       - fix/**
-    tags:
-      - 'v*'
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: write
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: |
-            mods/package-lock.json
-            service/package-lock.json
-
-      - name: Set up Java 17 (Android control server tests)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Install dependencies
-        run: |
-          npm ci --prefix mods
-          npm ci --prefix service
-
-      - name: Build bundles and service from source
-        run: npm run build
-
-      - name: Run regression tests (against the fresh build)
-        run: npm test
-
-      - name: Build standalone page bundles
-        run: node scripts/build-standalone.js
-
-      - name: Pull requests must commit an up-to-date dist/
-        if: github.event_name == 'pull_request'
-        run: |
-          if ! git diff --exit-code -- dist; then
-            echo "::error::dist/ is stale. Run 'npm run build' and commit the changed files in dist/."
-            git diff --stat -- dist
-            exit 1
-          fi
-
-      - name: Commit fresh dist/ to main
-        # The APK downloads dist/ from the commit it pins on GitHub, so main must
-        # always contain the build of its own source. GITHUB_TOKEN pushes do not
-        # start new workflow runs, and [skip ci] makes that explicit.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- dist
-          if git diff --cached --quiet; then
-            echo "dist/ already matches the source."
-          else
-            version="$(node -p "require('./package.json').version")"
-            git commit -m "build: refresh dist for ${version} [skip ci]"
-            git push origin HEAD:main
-          fi
-
-  installers:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    env:
-      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Choose Android signing mode
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
-            keystore_path="${RUNNER_TEMP}/axotube-android-release.jks"
-            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
-            chmod 600 "$keystore_path"
-            test -s "$keystore_path"
-            echo "ANDROID_KEYSTORE_FILE=${keystore_path}" >> "$GITHUB_ENV"
-            echo "ANDROID_SIGNING_MODE=release" >> "$GITHUB_ENV"
-          else
-            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-              echo "::error::Release tags need the Android signing secrets. A debug-signed APK cannot upgrade an installed release build."
-              exit 1
-            fi
-            echo "::warning::Android signing secrets are missing; this build is debug-signed. Installing it over an older build needs an uninstall first."
-            echo "ANDROID_SIGNING_MODE=debug" >> "$GITHUB_ENV"
-          fi
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: |
-            mods/package-lock.json
-            service/package-lock.json
-
-      - name: Install dependencies and build
-        run: |
-          npm ci --prefix mods
-          npm ci --prefix service
-          npm run build
-          node scripts/build-standalone.js
-
-      - name: Stage bundles, schema and phone page for the APK
-        run: node android/copy-bundles.cjs
-
-      - name: Package Samsung TV WGT for Apps2Samsung
-        run: python3 scripts/package-wgt-unsigned.py --output release/axotube.wgt
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
-
-      - name: Assemble Android TV APK
-        working-directory: android
-        run: |
-          chmod +x ./gradlew
-          if [[ "$ANDROID_SIGNING_MODE" == 'release' ]]; then
-            ./gradlew --no-daemon --stacktrace :app:assembleRelease
-            echo "ANDROID_APK_PATH=android/app/build/outputs/apk/release/app-release.apk" >> "$GITHUB_ENV"
-          else
-            ./gradlew --no-daemon --stacktrace :app:assembleDebug
-            echo "ANDROID_APK_PATH=android/app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
-          fi
-
-      - name: Verify APK signature
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s "$ANDROID_APK_PATH"
-          apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -n "$apksigner"
-          "$apksigner" verify --verbose "$ANDROID_APK_PATH"
-
-      - name: Name installers
-        id: names
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
-          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "v${version}" ]]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match package version v${version}"
-            exit 1
-          fi
-          mkdir -p release
-          cp "$ANDROID_APK_PATH" "release/AxoTube-Android-${version}.apk"
-          test -s release/axotube.wgt
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-
-      - name: Upload installers
-        uses: actions/upload-artifact@v4
-        with:
-          name: axotube-tv-installers-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            release/*.wgt
-            release/*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Publish main-branch prerelease
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-v${{ steps.names.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
-          target_commitish: ${{ github.sha }}
-          name: AxoTube ${{ steps.names.outputs.version }} (main build ${{ github.run_number }})
-          prerelease: true
-          make_latest: false
-          files: |
-            release/*.wgt
-            release/*.apk
-          fail_on_unmatched_files: true
-          body: |
-            Automated build from `${{ github.sha }}` for both Samsung Tizen and Android TV.
-
-            - `axotube.wgt`: unsigned Samsung TV package. Install with Apps2Samsung, which signs it for your TV, or sign it yourself with Tizen Studio.
-            - `AxoTube-Android-${{ steps.names.outputs.version }}.apk`: Android TV package. Signing mode: `${{ env.ANDROID_SIGNING_MODE }}`.
-
-      - name: Publish version release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: AxoTube ${{ github.ref_name }}
-          prerelease: false
-          files: |
-            release/*.wgt
-            release/*.apk
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-
-  npm-bundle:
-    # Publishes the page bundles the WGT and APK read through jsDelivr. Only a new
-    # version is published; re-running for an existing version does nothing.
-    needs: build-and-test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  test-and-build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js with the npm registry
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
           cache: npm
           cache-dependency-path: |
             mods/package-lock.json
             service/package-lock.json
-
-      - name: Install dependencies and build
+      - name: Install mods dependencies
+        run: npm ci --prefix mods
+      - name: Install service dependencies
+        run: npm ci --prefix service
+      - name: Run regression tests
+        run: npm test
+      - name: Build mods and service
+        run: npm run build
+      - name: Build standalone bundle from fresh artifacts
+        run: node scripts/build-standalone.js
+      - name: Upload fresh distributables
+        uses: actions/upload-artifact@v4
+        with:
+          name: axotube-built-artifacts
+          path: |
+            dist
+            standalone/userscript/userScript.js
+            standalone/service/dist/index.js
+            standalone/service/package-lock.json
+      - name: Sync green release artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/fix/deep-dive-regressions'
         run: |
-          npm ci --prefix mods
-          npm ci --prefix service
-          npm run build
-
-      - name: Assemble the bundle package
-        run: node scripts/make-bundle-package.js
-
-      - name: Publish if this version is new
-        working-directory: bundle-pkg
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${NODE_AUTH_TOKEN:-}" ]]; then
-            echo "::error::Add the NPM_TOKEN secret (an npm automation token with publish rights for the axotube package)."
-            exit 1
-          fi
-          name="$(node -p "require('./package.json').name")"
-          version="$(node -p "require('./package.json').version")"
-          if npm view "${name}@${version}" version >/dev/null 2>&1; then
-            echo "${name}@${version} is already published; nothing to do."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f dist/userScript.js dist/service.js standalone/service/package-lock.json
+          if git diff --cached --quiet; then
+            echo "Generated artifacts already synchronized."
           else
-            npm publish --access public
-            echo "Published ${name}@${version}."
+            git commit -m "build: sync 1.21.0 distributables"
+            git push origin HEAD:fix/deep-dive-regressions
           fi

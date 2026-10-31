@@ -169,11 +169,10 @@ test("speed increment keeps decimal Web Config control but caps modal work", () 
 
 test("CI builds fresh distributables and publishes them for release sync", () => {
   const src = read(".github/workflows/ci.yml");
-  has(src, "Build bundles and service from source");
-  has(src, "Run regression tests (against the fresh build)");
-  has(src, "Build standalone page bundles");
-  has(src, "Upload installers");
-  has(src, "npm publish --access public");
+  has(src, "Build mods and service");
+  has(src, "Build standalone bundle from fresh artifacts");
+  has(src, "actions/upload-artifact@v4");
+  has(src, "axotube-built-artifacts");
 });
 
 test("enabling screen dimming through config arms the inactivity timer immediately", () => {

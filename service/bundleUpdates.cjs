@@ -13,7 +13,7 @@ var path = require('path');
 
 var CDN = 'https://cdn.jsdelivr.net/npm/';
 // Name of the published npm package. Change this to match the package you publish.
-var DEFAULT_PACKAGE = 'axotube';
+var DEFAULT_PACKAGE = 'axotube-bundle';
 var FILES = ['userScript.js', 'early.js'];
 var MAX_BUNDLE_BYTES = 5 * 1024 * 1024;
 var MIN_BUNDLE_BYTES = 1000;
