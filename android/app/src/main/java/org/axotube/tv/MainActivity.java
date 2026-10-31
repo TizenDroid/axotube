@@ -1,6 +1,11 @@
 package org.axotube.tv;
 
 import android.app.Activity;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.KeyEvent;
@@ -17,19 +22,21 @@ import android.util.Log;
 /** Android TV WebView shell; local service lives only while this app is running. */
 public final class MainActivity extends Activity {
     private static final String TAG = "AxoTube";
-    // Android currently does not implement the WGT's separate 8085 DIAL service.
-    // Loading an unreachable additionalDataUrl would advertise broken pairing.
+    // The 8085 control server (pairing, settings sync, phone commands) runs here
+    // too. DIAL casting is still WGT-only: see ControlServer's header.
     private static final String URL = "http://localhost:8099/tv";
     private static final String TV_USER_AGENT =
             "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) AppleWebKit/537.3 "
                     + "(KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3";
     private LocalProxy server;
+    private ControlServer control;
     private WebView webview;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         immersive();
+        startControlServer();
         try {
             BundleStore bundles = new BundleStore(this);
             server = new LocalProxy(bundles);
@@ -46,6 +53,43 @@ public final class MainActivity extends Activity {
             message.setPadding(36, 36, 36, 36);
             setContentView(message);
         }
+    }
+
+    /**
+     * Starts the 8085 control server. A failure here is logged and does not stop
+     * the proxy or the browser: the video page still works, only phone pairing and
+     * settings sync are unavailable.
+     */
+    private void startControlServer() {
+        try {
+            Map<String, Object> schema = castMap(Json.parse(readAsset("bundles/config-schema.json")));
+            ConfigStore store = new ConfigStore(new File(getFilesDir(), "axotube-config-store.json"), schema);
+            String page = readAsset("bundles/webConfigPage.html");
+            control = new ControlServer("0.0.0.0", ControlServer.DEFAULT_PORT, store, page);
+            control.start();
+        } catch (Exception e) {
+            Log.w(TAG, "Control server not started; phone settings sync is unavailable", e);
+            control = null;
+        }
+    }
+
+    private String readAsset(String name) throws IOException {
+        InputStream in = getAssets().open(name);
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) >= 0) bytes.write(buf, 0, n);
+            return new String(bytes.toByteArray(), "UTF-8");
+        } finally {
+            in.close();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> castMap(Object value) throws IOException {
+        if (!(value instanceof Map)) throw new IOException("config-schema.json is not an object");
+        return (Map<String, Object>) value;
     }
 
     private void immersive() {
@@ -132,6 +176,7 @@ public final class MainActivity extends Activity {
             webview = null;
         }
         if (server != null) server.stop();
+        if (control != null) control.stop();
         super.onDestroy();
     }
 }

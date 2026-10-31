@@ -9,9 +9,13 @@ android {
     defaultConfig {
         applicationId 'org.axotube.tv'
         minSdk 23
-        targetSdk 28
+        targetSdk 35
         def rootVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
-        versionCode 1260100 + (System.getenv('GITHUB_RUN_NUMBER') ?: '0').toInteger()
+        // major*1e8 + minor*1e6 + patch*1e4 + CI run number: every release outranks the
+        // previous one, so an installed APK can always be upgraded in place.
+        def v = rootVersion.tokenize('.').collect { it.toInteger() }
+        versionCode v[0] * 100000000 + (v.size() > 1 ? v[1] : 0) * 1000000 \
+                + (v.size() > 2 ? v[2] : 0) * 10000 + (System.getenv('GITHUB_RUN_NUMBER') ?: '0').toInteger()
         versionName rootVersion
     }
 
@@ -48,7 +52,8 @@ android {
 tasks.register('copyWebBundles', Exec) {
     workingDir rootProject.projectDir
     commandLine 'node', 'copy-bundles.cjs'
-    inputs.files(file('../../dist/early.js'), file('../../dist/userScript.js'), file('../../package.json'))
+    inputs.files(file('../../dist/early.js'), file('../../dist/userScript.js'), file('../../package.json'),
+            file('../../config-schema.json'), file('../../service/webConfigPage.js'))
     outputs.dir(file('src/main/assets/bundles'))
 }
 tasks.configureEach {

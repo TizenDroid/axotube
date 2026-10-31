@@ -34,6 +34,23 @@ shipping stale dist files. The copy is shared with the app's runtime fallback.
 
 ## Runtime
 
+Two local servers run while the app is open:
+
+* **Port 8099** (`LocalProxy.java`): serves the YouTube TV page through
+  `http://localhost:8099/tv` and injects the page scripts. Listens on 127.0.0.1 only.
+* **Port 8085** (`ControlServer.java`): the same control API as the WGT service
+  (pairing, settings sync, phone commands, now-playing, and the phone web page).
+  Listens on all interfaces so phones can pair, and every request except pairing
+  needs the token. DIAL casting (SSDP discovery) is not implemented on Android yet,
+  so cast restart replies `"unsupported"`.
+
+Both servers are re-implementations of the Node code in `service/`. The
+`tests/proxy-parity.test.cjs` test fails when their routes, host allowlists, ports,
+or bundle package name drift apart. `tests/android-control.test.cjs` compiles and
+runs the control server on a host JVM.
+
+Release signing and npm setup: see `docs/release-setup.md`.
+
 * The application binds port 8099 on **127.0.0.1 only** and opens
   `http://localhost:8099/tv` in a WebView with a TV user agent.
 * `GET /axotube/health`, `GET /axotube/early.js`,
@@ -50,7 +67,7 @@ shipping stale dist files. The copy is shared with the app's runtime fallback.
   `cdn.jsdelivr.net/gh/TizenDroid/axotube`. It resolves the current main
   commit through the GitHub API and pins the CDN download to that commit; if
   commit lookup is unavailable it tries the CDN's `@main` alias. The npm
-  `axotube-bundle@latest` channel is a fallback if published later.
+  `axotube@latest` channel is a fallback if published later.
 * An update is downloaded completely into a new private cache folder. After
   both files pass length/content verification, a small atomic active pointer
   switch activates the pair. If offline, malformed, or interrupted, the
