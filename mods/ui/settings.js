@@ -168,11 +168,11 @@ export function buildSettingsTree() {
   const settings = [
     submenu(
       t("settings.ads.title"),
-      "MONEY_HAND",
+      "SLASH_CIRCLE_LEFT",
       [
-        toggle(t("settings.ads.blockAds"), "enableAdBlock", "DOLLAR_SIGN"),
-        toggle(t("settings.ads.paidPromotion"), "enablePaidPromotionOverlay"),
-        toggle(t("settings.ads.sponsorBlock"), "enableSponsorBlock", "MONEY_HAND"),
+        toggle(t("settings.ads.blockAds"), "enableAdBlock", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.ads.paidPromotion"), "enablePaidPromotionOverlay", "PAID"),
+        toggle(t("settings.ads.sponsorBlock"), "enableSponsorBlock", "SPONSORSHIP_STAR"),
         submenu(
           t("settings.ads.segmentTypes.title"),
           "SETTINGS",
@@ -183,8 +183,8 @@ export function buildSettingsTree() {
           })),
           heading(t("settings.ads.segmentTypes.title"), t("settings.ads.segmentTypes.subtitle")),
         ),
-        toggle(t("settings.ads.highlightButton"), "enableSponsorBlockHighlight"),
-        toggle(t("settings.ads.notices"), "enableSponsorBlockToasts"),
+        toggle(t("settings.ads.highlightButton"), "enableSponsorBlockHighlight", "STAR"),
+        toggle(t("settings.ads.notices"), "enableSponsorBlockToasts", "INFO"),
       ],
       heading(t("settings.ads.title"), t("settings.ads.subtitle")),
     ),
@@ -228,9 +228,9 @@ export function buildSettingsTree() {
         frameRateSupported()
           ? submenu(
               t("settings.playback.frameRate.title"),
-              "SLOW_MOTION_VIDEO",
+              "SYNC",
               [
-                toggle(t("settings.playback.frameRate.match"), "autoFrameRate"),
+                toggle(t("settings.playback.frameRate.match"), "autoFrameRate", "SCREEN_SWITCH"),
                 submenu(
                   t("settings.playback.frameRate.pause.title"),
                   "TIMER",
@@ -251,9 +251,9 @@ export function buildSettingsTree() {
           : null,
         submenu(
           t("settings.playback.captions.title"),
-          "TRANSLATE",
+          "CAPTIONS",
           [
-            toggle(t("settings.playback.captions.onByDefault"), "enableAutoSubtitles"),
+            toggle(t("settings.playback.captions.onByDefault"), "enableAutoSubtitles", "CLOSED_CAPTION_SELECTED"),
             submenu(
               t("settings.playback.captions.language.title"),
               "TRANSLATE",
@@ -265,17 +265,17 @@ export function buildSettingsTree() {
                 t("settings.playback.captions.language.subtitle"),
               ),
             ),
-            toggle(t("settings.playback.captions.allowAuto"), "autoSubtitleAllowAuto"),
-            toggle(t("settings.playback.captions.myLanguage"), "enableShowUserLanguage"),
-            toggle(t("settings.playback.captions.otherLanguages"), "enableShowOtherLanguages"),
+            toggle(t("settings.playback.captions.allowAuto"), "autoSubtitleAllowAuto", "SPARKLE"),
+            toggle(t("settings.playback.captions.myLanguage"), "enableShowUserLanguage", "LANGUAGE"),
+            toggle(t("settings.playback.captions.otherLanguages"), "enableShowOtherLanguages", "TRANSLATE"),
           ],
           heading(t("settings.playback.captions.title"), t("settings.playback.captions.subtitle")),
         ),
         submenu(
           t("settings.playback.experimental.title"),
-          "VIDEO_QUALITY",
+          "VIDEO_QUALITY_4K",
           [
-            toggle(t("settings.playback.experimental.unlock"), "enableExperimentalResolution"),
+            toggle(t("settings.playback.experimental.unlock"), "enableExperimentalResolution", "VIDEO_QUALITY_8K"),
             submenu(
               t("settings.playback.experimental.max.title"),
               "VIDEO_QUALITY",
@@ -293,9 +293,9 @@ export function buildSettingsTree() {
         ),
         submenu(
           t("settings.playback.panelShrink.title"),
-          "PICTURE_IN_PICTURE",
+          "COMMENT",
           [
-            toggle(t("settings.playback.panelShrink.on"), "enablePanelShrink"),
+            toggle(t("settings.playback.panelShrink.on"), "enablePanelShrink", "COMMENT"),
             submenu(
               t("settings.playback.panelShrink.size.title"),
               "VIDEO_QUALITY",
@@ -315,45 +315,45 @@ export function buildSettingsTree() {
             t("settings.playback.panelShrink.subtitle"),
           ),
         ),
-        toggle(t("settings.playback.pauseInBackground"), "enablePauseOnBlur"),
-        toggle(t("settings.playback.remainingTime"), "enableRemainingTime"),
+        toggle(t("settings.playback.pauseInBackground"), "enablePauseOnBlur", "PAUSE"),
+        toggle(t("settings.playback.remainingTime"), "enableRemainingTime", "TIMER"),
       ],
       heading(t("settings.playback.title"), t("settings.playback.subtitle")),
     ),
     submenu(
       t("settings.playerControls.title"),
-      "VIDEO_YOUTUBE",
+      "SETTINGS_REMOTE",
       [
-        toggle(t("settings.playerControls.customize"), "enablePatchingVideoPlayer"),
+        toggle(t("settings.playerControls.customize"), "enablePatchingVideoPlayer", "EDIT"),
         toggle(t("settings.playerControls.previousNext"), "enablePreviousNextButtons", "SKIP_NEXT"),
         toggle(
           t("settings.playerControls.speed"),
           "enableSpeedControlsButton",
           "SLOW_MOTION_VIDEO",
         ),
-        toggle(t("settings.playerControls.superThanks"), "enableSuperThanksButton", "MONEY_HEART"),
-        toggle(t("settings.playerControls.miniPlayer"), "enableMPButton"),
+        toggle(t("settings.playerControls.superThanks"), "enableSuperThanksButton", "HANDS_HEART"),
+        toggle(t("settings.playerControls.miniPlayer"), "enableMPButton", "MULTIVIEW"),
         toggle(
           t("settings.playerControls.pipInsteadOfMini"),
           "enableSwapMPWithPIP",
           "PICTURE_IN_PICTURE",
         ),
-        toggle(t("settings.playerControls.onePress"), "enableOnePressMode"),
+        toggle(t("settings.playerControls.onePress"), "enableOnePressMode", "SPACE_BAR"),
       ],
       heading(t("settings.playerControls.title"), t("settings.playerControls.subtitle")),
     ),
     submenu(
       t("settings.browsing.title"),
-      "TV",
+      "EXPLORE",
       [
         submenu(
           t("settings.browsing.thumbnails.title"),
-          "VIDEO_QUALITY",
+          "EYE",
           [
-            toggle(t("settings.browsing.hqThumbnails"), "enableHqThumbnails"),
-            toggle(t("settings.browsing.deArrowTitles"), "enableDeArrowTitles"),
-            toggle(t("settings.browsing.deArrowThumbnails"), "enableDeArrowThumbnails"),
-            toggle(t("settings.browsing.deArrowPeek"), "enableDeArrowPeek"),
+            toggle(t("settings.browsing.hqThumbnails"), "enableHqThumbnails", "VIDEO_QUALITY"),
+            toggle(t("settings.browsing.deArrowTitles"), "enableDeArrowTitles", "TEXT_BOX"),
+            toggle(t("settings.browsing.deArrowThumbnails"), "enableDeArrowThumbnails", "EYE"),
+            toggle(t("settings.browsing.deArrowPeek"), "enableDeArrowPeek", "TOUCH_APP"),
           ],
           heading(
             t("settings.browsing.thumbnails.title"),
@@ -364,7 +364,7 @@ export function buildSettingsTree() {
           t("settings.browsing.previews.title"),
           "PREVIEW",
           [
-            toggle(t("settings.browsing.previews.on"), "enablePreviews"),
+            toggle(t("settings.browsing.previews.on"), "enablePreviews", "PLAY_ARROW_CIRCLE"),
             {
               name: t("settings.browsing.previews.length"),
               icon: "TIMER",
@@ -378,7 +378,7 @@ export function buildSettingsTree() {
           t("settings.browsing.hideWatched.title"),
           "VISIBILITY_OFF",
           [
-            toggle(t("settings.browsing.hideWatched.on"), "enableHideWatchedVideos"),
+            toggle(t("settings.browsing.hideWatched.on"), "enableHideWatchedVideos", "VISIBILITY_OFF"),
             submenu(
               t("settings.browsing.hideWatched.threshold.title"),
               "TIMER",
@@ -417,13 +417,13 @@ export function buildSettingsTree() {
         toggle(t("settings.browsing.shorts"), "enableShorts", "YOUTUBE_SHORTS_FILL_24"),
         toggle(t("settings.browsing.endScreens"), "enableHideEndScreenCards", "VISIBILITY_OFF"),
         toggle(t("settings.browsing.longPress"), "enableLongPress", "TOUCH_APP"),
-        toggle(t("settings.browsing.stillWatching"), "enableYouThereRenderer"),
+        toggle(t("settings.browsing.stillWatching"), "enableYouThereRenderer", "PERSON"),
       ],
       heading(t("settings.browsing.title"), t("settings.browsing.subtitle")),
     ),
     submenu(
       t("settings.home.title"),
-      "MENU",
+      "HOME",
       [
         submenu(
           t("settings.home.startup.title"),
@@ -436,7 +436,7 @@ export function buildSettingsTree() {
           })),
           heading(t("settings.home.startup.title"), t("settings.home.startup.subtitle")),
         ),
-        toggle(t("settings.home.reloadHome"), "reloadHomeOnStartup"),
+        toggle(t("settings.home.reloadHome"), "reloadHomeOnStartup", "REFRESH"),
         {
           name: t("settings.home.sidebarItems.title"),
           icon: "MENU",
@@ -452,8 +452,8 @@ export function buildSettingsTree() {
             value: item.icon,
           })),
         },
-        toggle(t("settings.home.hideChannels"), "disableChannelsOnSidebar"),
-        toggle(t("settings.home.sortSubscriptions"), "sortSubscriptionsByAlphabet"),
+        toggle(t("settings.home.hideChannels"), "disableChannelsOnSidebar", "PERSON_MINUS"),
+        toggle(t("settings.home.sortSubscriptions"), "sortSubscriptionsByAlphabet", "SORT"),
       ],
       heading(t("settings.home.title"), t("settings.home.subtitle")),
     ),
@@ -536,10 +536,10 @@ export function buildSettingsTree() {
             t("settings.appearance.dimming.subtitle"),
           ),
         ),
-        toggle(t("settings.appearance.performance"), "enablePerformanceMode", "SETTINGS"),
+        toggle(t("settings.appearance.performance"), "enablePerformanceMode", "SPEED_RUN"),
         submenu(
           t("settings.appearance.clock.title"),
-          "TIMER",
+          "SCHEDULE",
           [
             submenu(
               t("settings.appearance.clock.show.title"),
@@ -560,7 +560,7 @@ export function buildSettingsTree() {
             ),
             submenu(
               t("settings.appearance.clock.format.title"),
-              "TIMER",
+              "TEXT_BOX",
               [
                 radio(t("settings.appearance.clock.format.h24"), "clockFormat", "24h"),
                 radio(t("settings.appearance.clock.format.h12"), "clockFormat", "12h"),
@@ -577,7 +577,7 @@ export function buildSettingsTree() {
             ),
             submenu(
               t("settings.appearance.clock.position.title"),
-              "TV",
+              "LOCATION_POINT",
               [
                 radio(t("settings.appearance.clock.position.topLeft"), "clockPosition", "topLeft"),
                 radio(t("settings.appearance.clock.position.topRight"), "clockPosition", "topRight"),
@@ -597,14 +597,14 @@ export function buildSettingsTree() {
                 t("settings.appearance.clock.position.subtitle"),
               ),
             ),
-            toggle(t("settings.appearance.clock.seconds"), "clockShowSeconds"),
+            toggle(t("settings.appearance.clock.seconds"), "clockShowSeconds", "TIMER"),
           ],
           heading(
             t("settings.appearance.clock.title"),
             t("settings.appearance.clock.subtitle"),
           ),
         ),
-        toggle(t("settings.appearance.fullAnimations"), "enableFixedUI"),
+        toggle(t("settings.appearance.fullAnimations"), "enableFixedUI", "PROGRESS_ACTIVITY"),
       ],
       heading(t("settings.appearance.title"), t("settings.appearance.subtitle")),
     ),
@@ -616,17 +616,17 @@ export function buildSettingsTree() {
           t("settings.system.whosWatching.title"),
           "ACCOUNT_CIRCLE",
           [
-            toggle(t("settings.system.whosWatching.on"), "enableWhoIsWatchingMenu"),
-            toggle(t("settings.system.whosWatching.always"), "permanentlyEnableWhoIsWatchingMenu"),
-            toggle(t("settings.system.whosWatching.onExit"), "enableWhosWatchingMenuOnAppExit"),
+            toggle(t("settings.system.whosWatching.on"), "enableWhoIsWatchingMenu", "PEOPLE"),
+            toggle(t("settings.system.whosWatching.always"), "permanentlyEnableWhoIsWatchingMenu", "PERSON"),
+            toggle(t("settings.system.whosWatching.onExit"), "enableWhosWatchingMenuOnAppExit", "EXIT_APP"),
           ],
           heading(
             t("settings.system.whosWatching.title"),
             t("settings.system.whosWatching.subtitle"),
           ),
         ),
-        toggle(t("settings.system.signInReminder"), "enableSigninReminder"),
-        toggle(t("settings.system.welcome"), "showWelcomeToast"),
+        toggle(t("settings.system.signInReminder"), "enableSigninReminder", "SIGN_IN"),
+        toggle(t("settings.system.welcome"), "showWelcomeToast", "SPARKLE"),
         submenu(
           t("settings.system.updates.title"),
           "SYSTEM_UPDATE",
@@ -643,7 +643,7 @@ export function buildSettingsTree() {
             t("settings.system.updates.subtitle", { version: AXOTUBE_VERSION }),
           ),
         ),
-        { name: t("settings.system.restartCast"), icon: "REFRESH", action: "AXO_CAST_RESTART" },
+        { name: t("settings.system.restartCast"), icon: "CAST_ICON", action: "AXO_CAST_RESTART" },
         { name: t("settings.system.reload"), icon: "REFRESH", action: "AXO_RELOAD_PAGE" },
       ],
       heading(t("settings.system.title"), t("settings.system.subtitle")),
