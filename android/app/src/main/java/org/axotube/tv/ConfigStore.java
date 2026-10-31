@@ -7,6 +7,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -193,8 +195,11 @@ final class ConfigStore {
             } finally {
                 out.close();
             }
-            // rename replaces the old file atomically on Linux and Android.
-            return tmp.renameTo(file);
+            // Files.move replaces the old file atomically on Linux and Android, and
+            // also overwrites on Windows, where renameTo() fails once the file exists.
+            Files.move(tmp.toPath(), file.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            return true;
         } catch (IOException e) {
             tmp.delete();
             return false;
