@@ -544,6 +544,9 @@ const dialServer = new dial.Server({
 });
 
 setInterval(() => {
+  // No Tizen runtime (the service run with plain node on a PC): there are no
+  // apps to check, so skip instead of logging the same error every 5 seconds.
+  if (typeof tizen === "undefined") return;
   try {
     tizen.application.getAppsContext((appsContext) => {
       const tbPackageId = tizenGetPackageId();
