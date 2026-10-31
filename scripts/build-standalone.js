@@ -44,4 +44,15 @@ const standaloneService = path.join(STANDALONE, "service", "dist", "index.js");
 if (!fs.existsSync(standaloneService)) {
   throw new Error("Root build did not produce standalone/service/dist/index.js");
 }
+// A missing service/node_modules leaves node-fetch external. The bundle then
+// keeps require("node-fetch") (the packager rejects it), and the proxy's
+// maxHeaderSize patch is never applied, so YouTube's large headers fail with
+// "Header overflow". Fail the build instead of shipping that.
+const standaloneCode = fs.readFileSync(standaloneService, "utf8");
+if (/require\(['"]node-fetch['"]\)/.test(standaloneCode)) {
+  throw new Error("standalone service still requires node-fetch; run: npm ci --prefix service");
+}
+if (!standaloneCode.includes("maxHeaderSize:5242880")) {
+  throw new Error("standalone service is missing the maxHeaderSize patch; rebuild with npm ci --prefix service");
+}
 console.log("standalone service is current: standalone/service/dist/index.js");

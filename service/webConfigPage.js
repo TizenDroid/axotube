@@ -235,7 +235,7 @@ module.exports.webConfigPage = `<!DOCTYPE html>
       if (group !== lastGroup) { addText(main,"div","group",group); lastGroup=group; }
       var row=document.createElement("div"); row.className="row"; main.appendChild(row); addText(row,"div","key",key); makeInputFor(key,row); shown++;
     });
-    if (!shown) addText(main,"div","hint","No settings match \"" + q + "\".");
+    if (!shown) addText(main,"div","hint",'No settings match "' + q + '".');
   }
 
   function save(reload) {

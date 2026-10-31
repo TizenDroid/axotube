@@ -41,7 +41,8 @@ final class LocalProxy {
     private static final boolean LOG_REQUESTS = true;
     private static final Set<String> CORS_HOSTS = new HashSet<>(Arrays.asList(
             "www.gstatic.com", "yt3.ggpht.com", "clients1.google.com", "s.youtube.com",
-            "jnn-pa.googleapis.com", "yt3.googleusercontent.com", "redirector.googlevideo.com"));
+            "jnn-pa.googleapis.com", "yt3.googleusercontent.com", "redirector.googlevideo.com",
+            "www.youtube.com"));
     private static final Set<String> DROP_RESPONSE = new HashSet<>(Arrays.asList(
             "content-encoding", "content-length", "transfer-encoding",
             "content-security-policy", "alt-svc", "connection",
@@ -419,6 +420,9 @@ final class LocalProxy {
                 "yt3.googleusercontent.com")) {
             text = text.replace("https://" + host, proxy + "https://" + host);
         }
+        // TV lounge pairing (see proxy.js): route www.youtube.com/api/lounge through cors-bypass.
+        text = replace(text, "(?<![/:.A-Za-z0-9])(?:https?:)?//www\\.youtube\\.com/api/lounge",
+                Matcher.quoteReplacement(proxy + "https://www.youtube.com/api/lounge"));
         text = text.replace("http://www.gstatic.com", proxy + "https://www.gstatic.com")
                 .replace("http://clients1.google.com", proxy + "https://clients1.google.com")
                 .replace("\"//clients1.google.com", "\"" + proxy + "https://clients1.google.com")

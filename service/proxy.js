@@ -54,7 +54,8 @@ var EXACT_CORS_HOSTS = {
     's.youtube.com': true,
     'jnn-pa.googleapis.com': true,
     'yt3.googleusercontent.com': true,
-    'redirector.googlevideo.com': true
+    'redirector.googlevideo.com': true,
+    'www.youtube.com': true
 };
 
 function isPrivateHostname(hostname) {
@@ -197,6 +198,13 @@ function rewriteTrustedText(text) {
     text = text.replace(/http:\/\/www\.gstatic\.com/g, proxyPrefix + 'https://www.gstatic.com');
     text = text.replace(/"\/\/www\.gstatic\.com/g, '"' + proxyPrefix + 'https://www.gstatic.com');
     text = text.replace(/\(\/\/www\.gstatic\.com/g, '(' + proxyPrefix + 'https://www.gstatic.com');
+    // TV lounge pairing calls www.youtube.com/api/lounge from the page origin
+    // (localhost), which YouTube does not allow. Route those through cors-bypass.
+    // The lookahead-style guard keeps an already prefixed URL from being
+    // prefixed again.
+    text = text.replace(/(^|[^\/.:A-Za-z0-9])(?:https?:)?\/\/www\.youtube\.com\/api\/lounge/g, function (match, before) {
+        return before + proxyPrefix + 'https://www.youtube.com/api/lounge';
+    });
     text = text.replace(/https:\/\/yt3\.ggpht\.com/g, proxyPrefix + 'https://yt3.ggpht.com');
     text = text.replace(/https:\/\/clients1\.google\.com/g, proxyPrefix + 'https://clients1.google.com');
     text = text.replace(/http:\/\/clients1\.google\.com/g, proxyPrefix + 'https://clients1.google.com');
