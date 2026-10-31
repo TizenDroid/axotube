@@ -105,6 +105,13 @@ function createBundleUpdater(options) {
         return path.join(bundledDir, name);
     }
 
+    // Node 4 (the TV service runtime) has no mkdirSync({ recursive: true }).
+    function mkdirp(dir) {
+        if (fs.existsSync(dir)) return;
+        mkdirp(path.dirname(dir));
+        fs.mkdirSync(dir);
+    }
+
     function writeAtomic(file, text) {
         var tmp = file + '.tmp';
         fs.writeFileSync(tmp, text, 'utf8');
@@ -126,7 +133,7 @@ function createBundleUpdater(options) {
     }
 
     function swapIn(remoteVersion, parts) {
-        fs.mkdirSync(cacheDir, { recursive: true });
+        mkdirp(cacheDir);
         parts.forEach(function (part) {
             writeAtomic(path.join(cacheDir, part.name), part.text);
         });

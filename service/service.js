@@ -99,7 +99,8 @@ function newToken() {
 
 function newPairingCode() {
   const n = crypto.randomBytes(4).readUInt32BE(0) % 1000000;
-  return String(n).padStart(6, "0");
+  // Node 4 (the TV service runtime) has no String.padStart.
+  return ("000000" + n).slice(-6);
 }
 
 function sanitizeConfig(value) {
@@ -218,11 +219,10 @@ function isLoopback(req) {
 
 function safeTokenEqual(a, b) {
   if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
-  } catch (err) {
-    return false;
-  }
+  // Constant-time compare without crypto.timingSafeEqual (Node 6.6+).
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 function suppliedToken(req) {
@@ -247,7 +247,7 @@ function getLanWebConfigUrls() {
         if (!entry || entry.internal || (family !== "IPv4" && family !== 4)) continue;
         if (!entry.address) continue;
         const url = `http://${entry.address}:${PORT}`;
-        if (!urls.includes(url)) urls.push(url);
+        if (urls.indexOf(url) === -1) urls.push(url);
       }
     }
   } catch (err) {}
@@ -464,6 +464,10 @@ const apps = {
     pid: null,
     additionalData: {},
     launch(launchData) {
+      // In standalone mode AxoTube is already the running app, so launching
+      // itself through an app-control is pointless. launchApp still sets the
+      // state and returns a pid, so the DIAL handshake keeps working.
+      if (global.isAxoTubeStandalone) return;
       const tbPackageId = tizenGetPackageId();
       if (!tbPackageId) return;
       const control = buildYouTubeAppControl(launchData);
@@ -476,6 +480,16 @@ const apps = {
   },
 };
 
+// Random UUID v4 from crypto.randomBytes, which exists on Node 4. uuid.v4()
+// needs crypto.getRandomValues / randomFillSync, which Node 4 lacks.
+function randomUuidV4() {
+  const b = crypto.randomBytes(16);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = b.toString("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 const deviceUuid = (() => {
   try {
     const tizenid = tizen.systeminfo.getCapability("http://tizen.org/system/tizenid");
@@ -483,7 +497,7 @@ const deviceUuid = (() => {
   } catch (err) {
     console.warn("Could not read tizenid for stable uuid:", err.message);
   }
-  return uuid.v4();
+  return randomUuidV4();
 })();
 
 const modelName = tizenGetCapability("http://tizen.org/system/model_name");

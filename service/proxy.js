@@ -20,10 +20,15 @@ var bundleUpdates = require('./bundleUpdates.cjs');
 // Shipped bundles, read-only inside the WGT. Newer bundles from the CDN are cached
 // in a writable folder and preferred once they are newer than the shipped ones.
 var BUNDLED_DIR = path.join(__dirname, '..', '..', 'userscript');
+function mkdirp(dir) {
+    if (fs.existsSync(dir)) return;
+    mkdirp(path.dirname(dir));
+    fs.mkdirSync(dir);
+}
 var BUNDLE_CACHE_DIR = (function () {
     var preferred = path.join(__dirname, 'bundle-cache');
     try {
-        fs.mkdirSync(preferred, { recursive: true });
+        mkdirp(preferred);
         fs.accessSync(preferred, fs.constants.W_OK);
         return preferred;
     } catch (e) {
