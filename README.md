@@ -57,7 +57,7 @@ in each new [versioned release](https://github.com/TizenDroid/axotube/releases).
 - **Phone configuration.** Pair a phone with a six-digit code and change settings
   from the web page the TV serves on your network.
 - **Updates without reinstalling.** The WGT can fetch newer page bundles through
-  jsDelivr when the `axotube-bundle` npm package is published; the WGT only needs
+  jsDelivr when the `axotube` npm package is published; the WGT only needs
   replacing when the service changes. The Android build uses the GitHub-backed
   jsDelivr channel instead.
 

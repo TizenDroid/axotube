@@ -10,9 +10,8 @@ function run(cmd, cwd) {
   execSync(cmd, { cwd, stdio: "inherit" });
 }
 
-// Never trust an existing dist/ bundle here. This script is also used directly
-// by CI/developers, so it must produce standalone artifacts from current source.
-run("npm run build", ROOT);
+// Expects a fresh root build (`npm run build`). The root script `build:standalone`
+// runs the build first; CI runs it once in that order.
 
 const builtUserScript = path.join(ROOT, "dist", "userScript.js");
 const builtService = path.join(ROOT, "dist", "service.js");

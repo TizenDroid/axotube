@@ -1,10 +1,9 @@
 {
   "name": "service",
   "version": "1.0.0",
-  "type": "module",
   "main": "service.js",
   "scripts": {
-    "build": "rollup -c rollup.config.js"
+    "build": "rollup -c rollup.config.mjs"
   },
   "keywords": [],
   "author": "",

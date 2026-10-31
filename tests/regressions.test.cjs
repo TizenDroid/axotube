@@ -325,8 +325,9 @@ test("standalone startup guards Tizen APIs and bounds health retries", () => {
 test("release scripts force tests and fresh builds", () => {
   const root = JSON.parse(read("package.json"));
   assert.equal(root.scripts.test, "node --test tests/*.test.cjs");
-  assert.equal(root.scripts["build:standalone"], "node scripts/build-standalone.js");
-  has(read("scripts/build-standalone.js"), 'run("npm run build", ROOT)');
+  assert.equal(root.scripts["build:standalone"], "npm run build && node scripts/build-standalone.js");
+  // The standalone script expects a fresh root build and must not build twice.
+  assert.equal(read("scripts/build-standalone.js").includes('run("npm run build", ROOT)'), false);
   const pkg = read("scripts/package-wgt.ps1");
   has(pkg, "npm run test");
   has(pkg, "npm run build:standalone");

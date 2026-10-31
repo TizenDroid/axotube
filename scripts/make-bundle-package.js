@@ -1,18 +1,21 @@
-// Assembles the npm package the WGT reads through jsDelivr. Run after the root
-// build (npm run build), then publish:
-//   node scripts/make-bundle-package.js
-//   npm publish bundle-pkg --access public
+// Assembles the npm package the WGT and APK read through jsDelivr. Run after the
+// root build. CI publishes it (see .github/workflows/ci.yml); publishing by hand
+// is `npm publish bundle-pkg --access public` after this script.
 //
-// The package name must match DEFAULT_PACKAGE in service/bundleUpdates.cjs.
-// The package version comes from the root package.json, so the CDN's @latest
-// always matches the release being shipped.
+// The name comes from the root package.json "bundlePackage" field. The WGT
+// (service/bundleUpdates.cjs) and the APK (BundleStore.java) must use the same
+// name; tests/proxy-parity.test.cjs checks that.
+// The version comes from the root package.json, so the CDN's @latest always
+// matches the release being shipped.
 const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const OUT = path.join(ROOT, "bundle-pkg");
 const DIST = path.join(ROOT, "dist");
-const NAME = "axotube-bundle";
+const rootManifest = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+const NAME = rootManifest.bundlePackage;
+if (!NAME) throw new Error("Root package.json has no bundlePackage field");
 
 const files = ["userScript.js", "early.js"];
 for (const f of files) {
@@ -38,6 +41,7 @@ fs.writeFileSync(
       files: ["dist"],
       license: rootPkg.license || "UNLICENSED",
       repository: rootPkg.repository,
+      publishConfig: { access: "public" },
     },
     null,
     2,

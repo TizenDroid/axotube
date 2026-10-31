@@ -33,6 +33,7 @@ export function restartCastReceiver() {
     }
     if (body.restarted) showToast(t("app.name"), t("toasts.castRestarted"));
     else if (body.reason === "too-soon") showToast(t("app.name"), t("toasts.castRestartWait"));
+    else if (body.reason === "unsupported") showToast(t("app.name"), t("toasts.castRestartUnsupported"));
     else showToast(t("app.name"), t("toasts.castRestarting"));
   });
 }

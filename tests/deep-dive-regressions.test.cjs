@@ -15,9 +15,9 @@ function between(src, start, end) {
   return src.slice(a, b);
 }
 
-test("1.26.1 metadata stays synchronized", () => {
+test("release metadata stays synchronized with the root version", () => {
   const root = JSON.parse(read("package.json")).version;
-  assert.equal(root, "1.26.1");
+  assert.match(root, /^\d+(\.\d+)+$/);
   assert.equal(JSON.parse(read("standalone/service/package.json")).version, root);
   has(read("standalone/config.xml"), `version="${root}"`);
 });
@@ -169,10 +169,11 @@ test("speed increment keeps decimal Web Config control but caps modal work", () 
 
 test("CI builds fresh distributables and publishes them for release sync", () => {
   const src = read(".github/workflows/ci.yml");
-  has(src, "Build mods and service");
-  has(src, "Build standalone bundle from fresh artifacts");
-  has(src, "actions/upload-artifact@v4");
-  has(src, "axotube-built-artifacts");
+  has(src, "Build bundles and service from source");
+  has(src, "Run regression tests (against the fresh build)");
+  has(src, "Build standalone page bundles");
+  has(src, "Upload installers");
+  has(src, "npm publish --access public");
 });
 
 test("enabling screen dimming through config arms the inactivity timer immediately", () => {
