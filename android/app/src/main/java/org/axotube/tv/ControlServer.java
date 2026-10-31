@@ -42,6 +42,12 @@ final class ControlServer {
     private final Map<String, long[]> pairAttempts = new HashMap<String, long[]>();
     private final List<Map<String, Object>> commandQueue = new ArrayList<Map<String, Object>>();
     private long nextCommandId = 1;
+    private volatile Runnable onConfigSaved;
+
+    /** Called on a worker thread after a config save that changed something. */
+    void setOnConfigSaved(Runnable callback) {
+        this.onConfigSaved = callback;
+    }
     private Object nowPlaying = Json.NULL;
 
     /** A parsed request. */
@@ -242,6 +248,8 @@ final class ControlServer {
         if (!result.ok) {
             return json(503, "{\"ok\":false,\"applied\":false,\"error\":\"Unable to save settings\"}");
         }
+        // Runs before the response, so the phone's follow-up reload sees the new user agent.
+        if (result.changed && onConfigSaved != null) onConfigSaved.run();
         return json(200, Json.write(obj("ok", Boolean.TRUE, "applied", Boolean.TRUE,
                 "changed", Boolean.valueOf(result.changed),
                 "revision", Long.valueOf(store.revision()))));

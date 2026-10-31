@@ -79,7 +79,7 @@ module.exports.webConfigPage = `<!DOCTYPE html>
     dimmingTimeout:"Interface", dimmingOpacity:"Interface", enablePaidPromotionOverlay:"Interface",
     enableWhoIsWatchingMenu:"Interface", permanentlyEnableWhoIsWatchingMenu:"Interface", enableWhosWatchingMenuOnAppExit:"Interface",
     enableShowUserLanguage:"Interface", enableShowOtherLanguages:"Interface", showWelcomeToast:"Interface",
-    launchToOnStartup:"Interface", reloadHomeOnStartup:"Interface", disabledSidebarContents:"Interface", disableChannelsOnSidebar:"Interface",
+    launchToOnStartup:"Interface", reloadHomeOnStartup:"Interface", userAgentProfile:"System", disabledSidebarContents:"Interface", disableChannelsOnSidebar:"Interface",
     dontCheckUpdateUntil:"System", enableUpdater:"System", enableSigninReminder:"System", sortSubscriptionsByAlphabet:"System"
   };
   var ARRAY_KEYS = { sponsorBlockManualSkips:true, hideWatchedVideosPages:true, disabledSidebarContents:true };

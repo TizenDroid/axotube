@@ -6,6 +6,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.KeyEvent;
@@ -33,6 +35,7 @@ public final class MainActivity extends Activity {
                     + "(KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3";
     private LocalProxy server;
     private ControlServer control;
+    private ConfigStore store;
     private WebView webview;
 
     @Override public void onCreate(Bundle savedInstanceState) {
@@ -71,13 +74,61 @@ public final class MainActivity extends Activity {
     private void startControlServer() {
         try {
             Map<String, Object> schema = castMap(Json.parse(readAsset("bundles/config-schema.json")));
-            ConfigStore store = new ConfigStore(new File(getFilesDir(), "axotube-config-store.json"), schema);
+            store = new ConfigStore(new File(getFilesDir(), "axotube-config-store.json"), schema);
             String page = readAsset("bundles/webConfigPage.html");
             control = new ControlServer("0.0.0.0", ControlServer.DEFAULT_PORT, store, page);
+            control.setOnConfigSaved(() -> applyUserAgentFromSave());
             control.start();
         } catch (Exception e) {
             Log.w(TAG, "Control server not started; phone settings sync is unavailable", e);
             control = null;
+            store = null;
+        }
+    }
+
+    /** The saved user agent profile, or "auto" when the config store is unavailable. */
+    private String currentUserAgentProfile() {
+        if (store == null) return "auto";
+        Object value = store.config().get("userAgentProfile");
+        return value instanceof String ? (String) value : "auto";
+    }
+
+    /**
+     * Maps a profile to the agent string the WebView sends. "samsung" keeps the
+     * Tizen TV string. "auto" and "android" use the WebView's own Android agent
+     * with its "; wv" embedded-WebView marker removed. null resets to the default.
+     */
+    static String resolveUserAgent(String profile, String webViewDefault) {
+        if ("samsung".equals(profile)) return TV_USER_AGENT;
+        if (webViewDefault == null) return null;
+        return webViewDefault.replace("; wv", "");
+    }
+
+    /** Applies the saved profile. Must run on the UI thread; takes effect on the next navigation. */
+    private void applyUserAgent() {
+        if (webview == null) return;
+        webview.getSettings().setUserAgentString(
+                resolveUserAgent(currentUserAgentProfile(), WebSettings.getDefaultUserAgent(this)));
+    }
+
+    /**
+     * Called on the control server's worker thread after a config save that changed
+     * something. Waits up to a second for the UI thread, so the new agent is in
+     * place before the phone's follow-up reload command arrives.
+     */
+    private void applyUserAgentFromSave() {
+        final CountDownLatch done = new CountDownLatch(1);
+        runOnUiThread(() -> {
+            try {
+                applyUserAgent();
+            } finally {
+                done.countDown();
+            }
+        });
+        try {
+            done.await(1, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -143,7 +194,7 @@ public final class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setSupportMultipleWindows(false);
-        settings.setUserAgentString(TV_USER_AGENT);
+        applyUserAgent();
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         FrameLayout screen = new FrameLayout(this);
