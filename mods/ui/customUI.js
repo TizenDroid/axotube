@@ -23,6 +23,16 @@ function safeRead(node, key) {
   }
 }
 
+// Returns the Map/Set iterator, or null when the value only looks like one.
+// A Proxy over a Map passes instanceof but throws on the native methods.
+function safeIterator(node, method) {
+  try {
+    return node[method]();
+  } catch (e) {
+    return null;
+  }
+}
+
 function findPlayer() {
   return document.querySelector(".html5-video-player") || document.querySelector("ytlr-player");
 }
@@ -88,20 +98,29 @@ function deepFindContainer(maxNodes, strict) {
 
     if (typeof node !== "object") return null;
 
+    // The page wraps some of these in Proxies. A proxied Map/Set still passes
+    // instanceof, but its iterator throws "incompatible receiver", so fetch the
+    // iterator defensively and skip the node when it cannot be walked.
     if (node instanceof Map) {
-      for (const [k, v] of node.entries()) {
-        if (visited > maxNodes) return null;
-        const r = walk(v, depth + 1, node, k, true);
-        if (r) return r;
+      const entries = safeIterator(node, "entries");
+      if (entries) {
+        for (const [k, v] of entries) {
+          if (visited > maxNodes) return null;
+          const r = walk(v, depth + 1, node, k, true);
+          if (r) return r;
+        }
       }
       return null;
     }
 
     if (node instanceof Set) {
-      for (const v of node.values()) {
-        if (visited > maxNodes) return null;
-        const r = walk(v, depth + 1, null, undefined, false);
-        if (r) return r;
+      const values = safeIterator(node, "values");
+      if (values) {
+        for (const v of values) {
+          if (visited > maxNodes) return null;
+          const r = walk(v, depth + 1, null, undefined, false);
+          if (r) return r;
+        }
       }
       return null;
     }
