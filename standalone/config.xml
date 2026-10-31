@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets"
-    id="https://axotube.github.io" version="1.30.6" viewmodes="maximized">
+    id="https://axotube.github.io" version="1.30.7" viewmodes="maximized">
     <access origin="*" subdomains="true"></access>
-    <tizen:allow-navigation>*</tizen:allow-navigation>
+    <tizen:allow-navigation href="*" />
     <tizen:application
         id="axotubeapp.AxoTubeStandalone" package="axotubeapp" required_version="3.0" />
     <author
@@ -10,8 +10,7 @@
     <content
         src="index.html" />
     <feature name="http://tizen.org/feature/screen.size.all" />
-    <tizen:feature
-        name="http://tizen.org/feature/web.service" />
+    <feature name="http://tizen.org/feature/web.service" />
     <icon src="icon_16b9.png" width="1920"
         height="1080" />
     <icon src="icon.png" width="1024" height="1024" />
@@ -52,7 +51,7 @@
         name="http://tizen.org/privilege/application.launch" />
     <tizen:profile name="tv-samsung" />
     <tizen:service
-        id="axotubeapp.StandaloneService">
+        id="axotubeapp.StandaloneService" auto-restart="true">
         <tizen:content src="service/dist/index.js" />
         <tizen:name>StandaloneService</tizen:name>
         <tizen:description>StandaloneService</tizen:description>
