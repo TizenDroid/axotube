@@ -11,7 +11,8 @@ const { execSync } = require("node:child_process");
 const ROOT = path.resolve(__dirname, "..");
 const OLD = /(?<!\d)(8085|8099|19080|19081)(?!\d)/;
 // dist/ is generated and holds unrelated Unicode tables that contain these numbers.
-const SKIP = /^(dist\/|.*\.lock$|package-lock\.json$)/;
+// This file lists the stale ports on purpose, so it is skipped too.
+const SKIP = /^(dist\/|tests\/ports\.test\.cjs$|.*\.lock$|package-lock\.json$)/;
 
 test("no old or experimental port appears in any tracked source file", () => {
   const files = execSync("git ls-files", { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);

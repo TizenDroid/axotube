@@ -42,7 +42,8 @@ final class LocalProxy {
     private static final Set<String> CORS_HOSTS = new HashSet<>(Arrays.asList(
             "www.gstatic.com", "yt3.ggpht.com", "clients1.google.com", "s.youtube.com",
             "jnn-pa.googleapis.com", "yt3.googleusercontent.com", "redirector.googlevideo.com",
-            "www.youtube.com"));
+            "www.youtube.com",
+            "youtube.com"));
     private static final Set<String> DROP_RESPONSE = new HashSet<>(Arrays.asList(
             "content-encoding", "content-length", "transfer-encoding",
             "content-security-policy", "alt-svc", "connection",

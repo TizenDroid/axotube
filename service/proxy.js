@@ -60,7 +60,8 @@ var EXACT_CORS_HOSTS = {
     'jnn-pa.googleapis.com': true,
     'yt3.googleusercontent.com': true,
     'redirector.googlevideo.com': true,
-    'www.youtube.com': true
+    'www.youtube.com': true,
+    'youtube.com': true
 };
 
 function isPrivateHostname(hostname) {
