@@ -1,10 +1,10 @@
 "use strict";
 
-// axotube standalone content proxy (127.0.0.1:8099). Built into the standalone
+// axotube standalone content proxy (127.0.0.1:8081). Built into the standalone
 // bundle together with service.js by service/rollup.config.mjs.
 var express = require('express');
 var app = express();
-var PORT = 8099;
+var PORT = 8081;
 var UPSTREAM_TIMEOUT_MS = 10000;
 var fetch = require('node-fetch');
 var https = require('https');
@@ -29,7 +29,7 @@ var BUNDLE_CACHE_DIR = (function () {
     var preferred = path.join(__dirname, 'bundle-cache');
     try {
         mkdirp(preferred);
-        fs.accessSync(preferred, fs.constants.W_OK);
+        fs.accessSync(preferred, fs.W_OK); // fs.constants is missing on Node 4
         return preferred;
     } catch (e) {
         return path.join(require('os').tmpdir(), 'axotube-bundle-cache');
@@ -357,9 +357,9 @@ app.all('*', function (req, res) {
                     // Early bundle first, right after <head>, so its overrides exist
                     // before YouTube reads them. The main bundle stays at the end.
                     // The marker tells the page that this AxoTube service answers on
-                    // 8085. The page checks it, not the user agent, so the APK and the
+                    // 8080. The page checks it, not the user agent, so the APK and the
                     // WGT both get the control features whatever their UA string is.
-                    var earlyTag = '<script>window.__axotubeServiceUrl="http://127.0.0.1:8085";</script>'
+                    var earlyTag = '<script>window.__axotubeServiceUrl="http://127.0.0.1:8080";</script>'
                         + '<script src="http://localhost:' + PORT + '/axotube/early.js"></script>';
                     text = /<head(\s[^>]*)?>/i.test(text)
                         ? text.replace(/<head(\s[^>]*)?>/i, function (m) { return m + earlyTag; })
@@ -376,12 +376,21 @@ app.all('*', function (req, res) {
         });
 });
 
-// The content proxy is intentionally loopback-only; DIAL/phone control stays on 8085.
+// The content proxy is intentionally loopback-only; DIAL/phone control stays on 8080.
+// Lets the loader (service/loader.js) know this copy is listening, and when it has
+// failed to. The loader rolls back a downloaded core that never gets here.
+global.axotubeListenStarted = true;
 var server = app.listen(PORT, '127.0.0.1', function () {
     console.log('[AxoTube:service] listening on 127.0.0.1:' + PORT);
+    if (typeof global.axotubeOnHealthy === 'function') {
+        try { global.axotubeOnHealthy(); } catch (err) { console.error('[AxoTube:service] health hook failed: ' + err.message); }
+    }
 });
 // Without this, a busy port (e.g. an earlier instance still running) fails
 // silently and the splash only ever times out.
 server.on('error', function (err) {
     console.error('[AxoTube:service] could not listen on port ' + PORT + ': ' + err.code);
+    if (typeof global.axotubeOnListenError === 'function') {
+        try { global.axotubeOnListenError(err.code); } catch (hookErr) { /* the loader is best effort */ }
+    }
 });

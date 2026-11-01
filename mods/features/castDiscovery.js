@@ -6,7 +6,7 @@ import { fetchWithTimeout } from "../shared/fetch.js";
 import { t } from "i18next";
 import { showToast } from "../ui/ytUI.js";
 
-const SERVICE_URL = "http://127.0.0.1:8085";
+const SERVICE_URL = "http://127.0.0.1:8080";
 
 export function requestCastRestart(reason, onDone) {
   fetchWithTimeout(`${SERVICE_URL}/api/cast/restart`, {

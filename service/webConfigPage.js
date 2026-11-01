@@ -250,8 +250,20 @@ module.exports.webConfigPage = `<!DOCTYPE html>
   document.getElementById("saveReloadBtn").addEventListener("click", function(){ save(true); });
   document.getElementById("refreshBtn").addEventListener("click", load);
   document.getElementById("defaultsBtn").addEventListener("click", function(){ state=clone(DEFAULTS); render(); flash("Defaults loaded · press Save"); });
+  // A phone that scanned the TV's QR code arrives with ?code=123456. Pair with it
+  // directly, so nothing has to be typed, and take the code out of the address bar.
+  // This replaces the startup load() so a stale token cannot race the new pairing.
+  function autoPairFromLink() {
+    var match = /[?&]code=(\\d{6})(?:&|$)/.exec(location.search);
+    if (!match) return false;
+    if (window.history && history.replaceState) history.replaceState(null, "", location.pathname);
+    document.getElementById("pairCode").value = match[1];
+    pair();
+    return true;
+  }
+
   filter.addEventListener("input", render);
-  load();
+  if (!autoPairFromLink()) load();
 })();
 </script>
 </body>

@@ -43,10 +43,10 @@ test("control server routes match between service.js and ControlServer.java", ()
 });
 
 test("both sides use the same ports", () => {
-  assert.match(read("service/proxy.js"), /PORT\s*=\s*8099/);
-  assert.match(read(JAVA + "/LocalProxy.java"), /PORT = 8099/);
-  assert.match(read("service/service.js"), /PORT = 8085/);
-  assert.match(read(JAVA + "/ControlServer.java"), /DEFAULT_PORT = 8085/);
+  assert.match(read("service/proxy.js"), /PORT\s*=\s*8081/);
+  assert.match(read(JAVA + "/LocalProxy.java"), /PORT = 8081/);
+  assert.match(read("service/service.js"), /PORT = 8080/);
+  assert.match(read(JAVA + "/ControlServer.java"), /DEFAULT_PORT = 8080/);
 });
 
 test("the bundle package name is one value across root, WGT and APK", () => {

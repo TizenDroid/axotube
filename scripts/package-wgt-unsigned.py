@@ -21,6 +21,8 @@ FILES = (
     "icon_16b9.png",
     "index.html",
     "service/dist/index.js",
+    "service/dist/core.js",
+    "service/dist/version.json",
     "userscript/early.js",
     "userscript/userScript.js",
     "userscript/version.json",
@@ -51,13 +53,17 @@ def build(output: Path) -> None:
 
     # The Samsung widget contains no node_modules. If npm dependencies were not
     # installed before Rollup runs, it may silently leave require('node-fetch')
-    # in the service and produce a WGT that installs but cannot start.
-    service = (STANDALONE / "service/dist/index.js").read_text(encoding="utf-8")
+    # in the service and produce a WGT that installs but cannot start. The core is
+    # the service; index.js is only the small loader that starts it.
+    service = (STANDALONE / "service/dist/core.js").read_text(encoding="utf-8")
     if len(service) < 200_000 or re.search(
         r"require\(['\"](?:node-fetch|express|cors|@patrickkfkan/peer-dial)['\"]\)",
         service,
     ):
         raise ValueError("Standalone service has unresolved dependencies; run npm ci --prefix service first")
+    service_version = json.loads((STANDALONE / "service/dist/version.json").read_text(encoding="utf-8"))["version"]
+    if service_version != version:
+        raise ValueError("Service version %s does not match the release %s" % (service_version, version))
 
     output.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(output, "w", compression=ZIP_DEFLATED, compresslevel=9) as archive:

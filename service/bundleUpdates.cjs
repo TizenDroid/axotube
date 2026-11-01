@@ -128,7 +128,7 @@ function createBundleUpdater(options) {
                     }
                     return { name: name, text: text };
                 });
-            }),
+            })
         );
     }
 
@@ -191,7 +191,7 @@ function createBundleUpdater(options) {
                 function () {
                     inFlight = null;
                     return latest;
-                },
+                }
             );
         }
         return inFlight;

@@ -13,9 +13,13 @@ update with every change.
 |---|---|---|
 | `dist/early.js` | the WGT and the APK | first, right after `<head>`, before YouTube reads its config |
 | `dist/userScript.js` | the WGT and the APK | last, after the page is up |
+| `dist/service-core.js` | the WGT (Samsung TV) | downloaded, checked against `service-core.json`, and started on the next service start |
+| `dist/service-core.json` | the WGT (Samsung TV) | the version, size and sha256 that `service-core.js` must match |
 
-Both bundles are built from the AxoTube source at the version in `package.json`,
-so `axotube@latest` on jsDelivr always matches the release being shipped.
+The bundles and the service core are built from the AxoTube source at the version
+in `package.json`, so `axotube@latest` on jsDelivr always matches the release being
+shipped. A downloaded service core is only kept after it starts and answers; a copy
+that fails is rolled back to the one shipped in the WGT.
 
 ## Getting AxoTube
 

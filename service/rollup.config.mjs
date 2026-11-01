@@ -7,8 +7,8 @@ import terser from "@rollup/plugin-terser";
 import fs from "fs";
 
 // Two bundles come from one source tree:
-//   ../dist/service.js                       Tizen module (control server, 8085)
-//   ../standalone/service/dist/index.js      standalone app (content proxy, 8099,
+//   ../dist/service.js                       Tizen module (control server, 8080)
+//   ../standalone/service/dist/core.js       standalone app (content proxy, 8081,
 //                                            plus the same control server)
 // Both are built here, so they cannot drift apart.
 
@@ -89,8 +89,9 @@ export default [
     plugins: [...sharedPlugins(), minify()],
   },
   {
+    // The core: the whole standalone service. index.js is the loader that starts it.
     input: "standalone.js",
-    output: { file: "../standalone/service/dist/index.js", format: "cjs" },
+    output: { file: "../standalone/service/dist/core.js", format: "cjs" },
     onwarn,
     plugins: [...sharedPlugins(), standaloneNodeFetchPatches(), minify()],
   },

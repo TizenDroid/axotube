@@ -81,10 +81,10 @@ app.use(
 );
 app.use(express.json({ limit: "64kb" }));
 
-const PORT = 8085;
+const PORT = 8080;
 const STORE_DIR = (() => {
   try {
-    fs.accessSync(__dirname, fs.constants.W_OK);
+    fs.accessSync(__dirname, fs.W_OK); // fs.constants is missing on Node 4
     return __dirname;
   } catch (err) {
     return os.tmpdir();
@@ -156,6 +156,23 @@ function loadStore() {
   return { config: {}, revision: 0, authToken: newToken() };
 }
 
+// Settings saved before this build live in the temp folder: the writable check used
+// to throw on Node 4, so the store always fell back there. Carry them over once, so
+// an update does not reset the phone-synced settings. An existing store wins.
+function carryOverLegacyStore() {
+  const legacy = path.join(os.tmpdir(), "axotube-config-store.json");
+  if (STORE_DIR === os.tmpdir() || legacy === STORE_PATH) return;
+  try {
+    if (fs.existsSync(STORE_PATH) || !fs.existsSync(legacy)) return;
+    const body = fs.readFileSync(legacy, "utf8");
+    JSON.parse(body); // only a real store is copied
+    fs.writeFileSync(STORE_TMP_PATH, body, { encoding: "utf8", mode: 0o600 });
+    fs.renameSync(STORE_TMP_PATH, STORE_PATH);
+  } catch (err) {
+    // Nothing to carry over, or the copy failed: start from defaults, as before.
+  }
+}
+carryOverLegacyStore();
 const initialStore = loadStore();
 let storedConfig = initialStore.config;
 let configRevision = initialStore.revision;
@@ -664,7 +681,7 @@ const dialListener = app.listen(PORT, () => {
 });
 // Without this, a busy port (for example an earlier instance still running) is an
 // unhandled 'error' event and takes the whole service down. Logging keeps the
-// content proxy on 8099 alive; DIAL and phone pairing simply stay off.
+// content proxy on 8081 alive; DIAL and phone pairing simply stay off.
 dialListener.on("error", (err) => {
   console.error(`[AxoTube:service] could not listen on port ${PORT}: ${err.code}`);
 });

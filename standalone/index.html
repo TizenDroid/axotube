@@ -87,11 +87,11 @@
             return out.join("&");
         }
 
-        var PROXY_URL = "http://localhost:8099";
+        var PROXY_URL = "http://localhost:8081";
         // The service listens on 127.0.0.1 only. Checking that address directly
         // avoids "localhost" resolving to IPv6 first and waiting out a timeout.
-        var HEALTH_URL = "http://127.0.0.1:8099/axotube/health";
-        var DIAL_URL = "http%3A%2F%2Flocalhost%3A8085%2Fdial%2Fapps%2FYouTube";
+        var HEALTH_URL = "http://127.0.0.1:8081/axotube/health";
+        var DIAL_URL = "http%3A%2F%2Flocalhost%3A8080%2Fdial%2Fapps%2FYouTube";
         var HEALTH_REQUEST_TIMEOUT_MS = 2000;
         var LAUNCH_RETRY_LIMIT = 3;
         var launchFailures = 0;

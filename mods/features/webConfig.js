@@ -11,9 +11,13 @@ import {
 import { hasNativeResolver, dispatchNativeCommandWhenReady } from "../shared/nativeCommand.js";
 import { showToast } from "../ui/ytUI.js";
 import { fetchWithTimeout } from "../shared/fetch.js";
+import { setPairingInfo, pairingInfoAge } from "../shared/pairingInfo.js";
 
-const WEB_CONFIG_URL = "http://127.0.0.1:8085";
+const WEB_CONFIG_URL = "http://127.0.0.1:8080";
 const POLL_INTERVAL_MS = 5000;
+// How often the pairing code is re-read while the service answers. It changes only
+// when the service restarts, but the phone address can change with the network.
+const PAIRING_REFRESH_MS = 60000;
 
 let appliedRevision = -1;
 let configSyncing = false;
@@ -41,14 +45,27 @@ function serviceHost() {
 const hasResolver = hasNativeResolver;
 const dispatchWhenReady = dispatchNativeCommandWhenReady;
 
-function showPairingCode() {
-  if (pairingCodeShown || !hasResolver()) return;
-  fetchWithTimeout(`${WEB_CONFIG_URL}/api/pairing-code`)
+// Reads the pairing code and phone addresses into the settings panel's store.
+// Never throws: a missing service just leaves the store empty.
+function fetchPairingInfo() {
+  return fetchWithTimeout(`${WEB_CONFIG_URL}/api/pairing-code`)
     .then((res) => {
       if (!res.ok) throw new Error(`pairing code HTTP ${res.status}`);
       return res.json();
     })
     .then((data) => {
+      setPairingInfo(data);
+      return data;
+    })
+    .catch(() => {
+      setPairingInfo(null);
+      return null;
+    });
+}
+
+function showPairingCode() {
+  if (pairingCodeShown || !hasResolver()) return;
+  fetchPairingInfo().then((data) => {
       if (!data || !data.code || pairingCodeShown) return;
       pairingCodeShown = true;
       try {
@@ -60,8 +77,7 @@ function showPairingCode() {
             : t("toasts.pairingCodeOnly", { code: data.code }),
         );
       } catch (err) {}
-    })
-    .catch(() => {});
+  });
 }
 
 function showServiceToast() {
@@ -351,6 +367,7 @@ function pollOnce() {
   pullAndApply();
   consumeCommand();
   pushNowPlaying();
+  if (pollFailures === 0 && pairingInfoAge() > PAIRING_REFRESH_MS) fetchPairingInfo();
   setTimeout(pollOnce, nextPollDelayMs());
 }
 

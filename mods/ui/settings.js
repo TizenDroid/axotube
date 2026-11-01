@@ -5,6 +5,7 @@ import configSchema from "../../config-schema.json";
 import { configRead } from "../config.js";
 import { writeClientSetting } from "../shared/clientSettings.js";
 import { generateQRCode } from "./qrCode.js";
+import { getPairingInfo } from "../shared/pairingInfo.js";
 import {
   showModal,
   buttonItem,
@@ -145,6 +146,27 @@ function heading(title, subtitle) {
   return { title, subtitle };
 }
 
+// An information panel whose content is produced when it is opened, so live values
+// (like the pairing code) are current every time.
+function livePanel(name, icon, title, subtitle, content) {
+  return { name, icon, value: null, options: { title, subtitle, content } };
+}
+
+// Lines for the phone-sync panel. The QR code carries the pairing code too, so a
+// phone that scans it pairs without anyone typing the code.
+function phoneSyncLines() {
+  const info = getPairingInfo();
+  if (!info) return [t("settings.phoneSync.waiting")];
+  const lines = [t("settings.phoneSync.intro")];
+  const address = info.urls.filter((url) => !!url)[0];
+  if (address) {
+    lines.push({ qrLink: `${address}/?code=${info.code}` });
+    lines.push(t("settings.phoneSync.address", { url: address }));
+  }
+  lines.push(t("settings.phoneSync.code", { code: info.code }));
+  return lines;
+}
+
 function aboutLink(name, link) {
   return {
     name,
@@ -166,6 +188,13 @@ function frameRateSupported() {
 
 export function buildSettingsTree() {
   const settings = [
+    livePanel(
+      t("settings.phoneSync.title"),
+      "CAST_ICON",
+      t("settings.phoneSync.title"),
+      t("settings.phoneSync.subtitle"),
+      phoneSyncLines,
+    ),
     submenu(
       t("settings.ads.title"),
       "SLASH_CIRCLE_LEFT",
@@ -871,7 +900,9 @@ function panelFor(id) {
   if (node.options && typeof node.options === "object" && !Array.isArray(node.options)) {
     return {
       header: { title: node.options.title, subtitle: node.options.subtitle },
-      rows: infoRows(node.options.content || []),
+      rows: infoRows(
+        typeof node.options.content === "function" ? node.options.content() : node.options.content || [],
+      ),
     };
   }
 

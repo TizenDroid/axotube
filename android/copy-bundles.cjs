@@ -20,7 +20,7 @@ const sources = scripts.map((name) => {
 fs.mkdirSync(target, { recursive: true });
 for (const [name, bytes] of sources) fs.writeFileSync(path.join(target, name), bytes);
 fs.writeFileSync(path.join(target, 'version.json'), JSON.stringify({ version: manifest.version }) + '\n');
-// The 8085 control server on Android needs the same schema the browser uses and
+// The 8080 control server on Android needs the same schema the browser uses and
 // the same phone web page the WGT serves.
 fs.copyFileSync(path.join(root, 'config-schema.json'), path.join(target, 'config-schema.json'));
 const { webConfigPage } = require(path.join(root, 'service', 'webConfigPage.js'));

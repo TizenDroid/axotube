@@ -31,7 +31,7 @@ import java.util.zip.InflaterInputStream;
 
 /** A loopback-only HTTP origin equivalent to standalone/service/index.js. */
 final class LocalProxy {
-    static final int PORT = 8099;
+    static final int PORT = 8081;
     private static final String TAG = "AxoTubeProxy";
     private static final String ORIGIN = "http://localhost:" + PORT;
     private static final int HEADER_LIMIT = 32768;
@@ -533,9 +533,9 @@ final class LocalProxy {
                 String text = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
                 if (!cors && path.startsWith("/tv") && !path.startsWith("/tv_config")) {
                     String version = bundles.activeVersion();
-                    // Marker first: the page uses it to find the control server (8085),
+                    // Marker first: the page uses it to find the control server (8080),
                     // independent of the user agent. Same as proxy.js.
-                    String early = "<script>window.__axotubeServiceUrl=\"http://127.0.0.1:8085\";</script>"
+                    String early = "<script>window.__axotubeServiceUrl=\"http://127.0.0.1:8080\";</script>"
                             + "<script src=\"" + ORIGIN + "/axotube/early.js?v=" + version + "\"></script>";
                     Matcher head = Pattern.compile("<head(\\s[^>]*)?>", Pattern.CASE_INSENSITIVE).matcher(text);
                     text = head.find() ? head.replaceFirst(Matcher.quoteReplacement(head.group() + early)) : early + text;

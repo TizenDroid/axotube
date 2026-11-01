@@ -36,9 +36,9 @@ shipping stale dist files. The copy is shared with the app's runtime fallback.
 
 Two local servers run while the app is open:
 
-* **Port 8099** (`LocalProxy.java`): serves the YouTube TV page through
-  `http://localhost:8099/tv` and injects the page scripts. Listens on 127.0.0.1 only.
-* **Port 8085** (`ControlServer.java`): the same control API as the WGT service
+* **Port 8081** (`LocalProxy.java`): serves the YouTube TV page through
+  `http://localhost:8081/tv` and injects the page scripts. Listens on 127.0.0.1 only.
+* **Port 8080** (`ControlServer.java`): the same control API as the WGT service
   (pairing, settings sync, phone commands, now-playing, and the phone web page).
   Listens on all interfaces so phones can pair, and every request except pairing
   needs the token. DIAL casting (SSDP discovery) is not implemented on Android yet,
@@ -51,8 +51,8 @@ runs the control server on a host JVM.
 
 Release signing and npm setup: see `docs/release-setup.md`.
 
-* The application binds port 8099 on **127.0.0.1 only** and opens
-  `http://localhost:8099/tv` in a WebView with a TV user agent.
+* The application binds port 8081 on **127.0.0.1 only** and opens
+  `http://localhost:8081/tv` in a WebView with a TV user agent.
 * `GET /axotube/health`, `GET /axotube/early.js`,
   `GET /axotube/userScript.js`, `GET /axotube/update`, and
   `POST /axotube/update/apply` mirror standalone service endpoints.
@@ -79,7 +79,7 @@ Release signing and npm setup: see `docs/release-setup.md`.
 
 ## Current compatibility limits
 
-The Android app does **not** run the WGT's separate port-8085 DIAL service.
+The Android app does **not** run the WGT's separate port-8080 DIAL service.
 As a result, YouTube TV remote-casting and pairing through the WGT's
 `additionalDataUrl` are not available. The WebView opens `/tv` directly.
 Hardware D-pad and media-key forwarding are implemented; actual video codec,

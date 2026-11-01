@@ -54,19 +54,23 @@ in each new [versioned release](https://github.com/TizenDroid/axotube/releases).
   and panel shrink are all driven through YouTube's own modal renderer.
 - **Performance mode.** One switch turns off animations, inline previews, and eager
   thumbnail upgrades for slower TVs.
-- **Phone configuration.** Pair a phone with a six-digit code and change settings
-  from the web page the TV serves on your network.
-- **Updates without reinstalling.** The WGT can fetch newer page bundles through
-  jsDelivr when the `axotube` npm package is published; the WGT only needs
-  replacing when the service changes. The Android build uses the GitHub-backed
-  jsDelivr channel instead.
+- **Phone sync, no typing.** Open AxoTube's settings and choose **Phone sync**. The
+  panel shows a QR code with the pairing code built in: scan it with the phone and
+  it pairs by itself. The six-digit code and the address are shown beside it for
+  phones that cannot scan.
+- **Updates without reinstalling.** The WGT updates itself through jsDelivr. Newer
+  page bundles are offered as an update you apply yourself, except on first run, when
+  the newest bundle is used at once. A newer service is downloaded, checked
+  against its published checksum, and started on the next service start. If a new
+  service fails to load, crashes, or never answers, it is rolled back to the one in
+  the WGT. The Android build uses the GitHub-backed jsDelivr channel for its scripts.
 
 ## How it works
 
 The WGT starts a small Node service on the TV. That service proxies YouTube TV
-on port 8099, rewrites the URLs the page expects, and injects two scripts: an
+on port 8081, rewrites the URLs the page expects, and injects two scripts: an
 early bundle before YouTube's own scripts, and the main bundle at the end. A
-second listener on port 8085 handles DIAL casting and the phone configuration
+second listener on port 8080 handles DIAL casting and the phone configuration
 page. The proxy talks to YouTube, and the optional features talk to the services
 they need: SponsorBlock, DeArrow, and jsDelivr for bundle updates.
 
@@ -132,7 +136,7 @@ The automated WGT is **unsigned** and intended for Apps2Samsung, which signs
 it for the selected TV during installation. Installing it directly with Tizen
 Studio requires signing with a compatible certificate profile first.
 
-The Android app starts a loopback proxy on port 8099 and checks for script updates
+The Android app starts a loopback proxy on port 8081 and checks for script updates
 through jsDelivr's GitHub CDN. It pins both downloaded scripts to the same Git
 commit and caches them locally; compiled scripts are included inside the APK for
 offline startup. YouTube video playback still requires internet access.
@@ -144,7 +148,7 @@ and losing its local app data. The workflow supports stable release signing with
 `ANDROID_KEY_PASSWORD` repository secrets. See [Android build instructions](android/README.md).
 
 Android's WebView, device codecs, DRM and sign-in have not been verified on every
-TV model. The Android APK does not yet provide the WGT's port 8085 DIAL casting
+TV model. The Android APK does not yet provide the WGT's port 8080 DIAL casting
 and phone configuration service.
 
 ## Settings
@@ -152,7 +156,7 @@ and phone configuration service.
 Open YouTube's settings and choose **AxoTube Settings**, or press the settings
 key on the remote. The menu uses YouTube's own panels, so Back and focus behave
 the way they do everywhere else. Everything is also available from the phone
-page at `http://<tv-ip>:8085` after pairing.
+page at `http://<tv-ip>:8080` after pairing.
 
 ## Build from source
 

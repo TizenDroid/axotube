@@ -1,5 +1,13 @@
 {
   "settings": {
+    "phoneSync": {
+      "title": "Phone sync",
+      "subtitle": "Pair a phone to change settings from it",
+      "intro": "Scan the code with your phone's camera to pair it. No typing needed.",
+      "address": "Or open {{url}} on your phone and enter the code.",
+      "code": "Pairing code: {{code}}",
+      "waiting": "Phone sync needs AxoTube's TV service. On a Samsung TV, open this panel again in a few seconds. On other devices, phone sync is not available."
+    },
     "ttSettings": {
       "title": "AxoTube Settings",
       "summary": "Open AxoTube Settings",

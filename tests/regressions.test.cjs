@@ -318,7 +318,7 @@ test("standalone startup guards Tizen APIs and bounds health retries", () => {
   const src = read("standalone/index.html");
   has(src, "function safeRegisterKey");
   has(src, "MAX_HEALTH_ATTEMPTS = 600");
-  has(src, "127.0.0.1:8099/axotube/health");
+  has(src, "127.0.0.1:8081/axotube/health");
   has(src, "function sanitizeCastArgs");
 });
 

@@ -1,4 +1,4 @@
-// Update popup. The standalone proxy (localhost:8099) compares the bundle in use
+// Update popup. The standalone proxy (localhost:8081) compares the bundle in use
 // with the latest published one (standalone/service/bundleUpdates.js). This
 // module asks the proxy and shows the popup. Applying an update re-checks in the
 // proxy and reloads the page, which picks up the new bundles. Outside the standalone app
@@ -11,7 +11,7 @@ const REMIND_LATER_S = 86400;
 const BOOT_CHECK_DELAY_MS = 3000;
 
 function proxyUrl(path) {
-  const origin = window.location && window.location.origin ? window.location.origin : "http://localhost:8099";
+  const origin = window.location && window.location.origin ? window.location.origin : "http://localhost:8081";
   return origin + path;
 }
 

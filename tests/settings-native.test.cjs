@@ -15,7 +15,7 @@ const EN = JSON.parse(
   fs.readFileSync(path.join(ROOT, "mods/translations/resources/en.json"), "utf8"),
 );
 
-function harness(initial = {}) {
+function harness(initial = {}, pairing = null) {
   const config = {
     enableAdBlock: true,
     previewLengthSeconds: 40,
@@ -44,7 +44,8 @@ function harness(initial = {}) {
       }
       return true;
     },
-    generateQRCode: () => null,
+    generateQRCode: (link) => ({ link }),
+    getPairingInfo: () => pairing,
     showModal: (header, content, id, update) =>
       shown.push({ header, rows: content.overlayPanelItemListRenderer.items, id, update }),
     buttonItem: (title, icon, commands) => ({
@@ -57,7 +58,7 @@ function harness(initial = {}) {
       overlayPanelItemListRenderer: { items, selectedIndex },
     }),
     overlayMessageRenderer: (text) => ({ text }),
-    QrCodeRenderer: (url) => ({ qr: url }),
+    QrCodeRenderer: (qr) => ({ qr: qr.link }),
     window: hostWindow,
     nativeHost: () => hostWindow.h5vcc.tizentube,
     console,
@@ -81,7 +82,7 @@ function open(h, title) {
   return last(h).rows;
 }
 
-test("the root has eight categories and opening one pushes a new modal", () => {
+test("the root has nine categories, phone sync first, and opening one pushes a new modal", () => {
   const h = harness();
   h.api.modernUI();
   assert.equal(h.shown.length, 1);
@@ -89,6 +90,7 @@ test("the root has eight categories and opening one pushes a new modal", () => {
   // Copied into this realm: arrays built inside the vm context fail strict equality.
   const titles = Array.from(h.shown[0].rows, (r) => r.title);
   assert.deepEqual(titles, [
+    "settings.phoneSync.title",
     "settings.ads.title",
     "settings.playback.title",
     "settings.playerControls.title",
@@ -113,7 +115,9 @@ test("a toggle inside a submenu writes once and refreshes that panel in place", 
   h.api.handleSettingsAction(action(adblock).action, action(adblock).parameters);
   assert.deepEqual(h.writes, [{ k: "enableAdBlock", valName: "boolValue", value: false }]);
   assert.equal(last(h).update, true, "refresh updates the modal in place");
-  assert.equal(last(h).id, "axo-settings:root.0", "same unique id as the panel it refreshes");
+  // The ads row is no longer first (phone sync is), so its panel id is its position in the root.
+  const adsIndex = h.shown[0].rows.findIndex((r) => r.title === "settings.ads.title");
+  assert.equal(last(h).id, `axo-settings:root.${adsIndex}`, "same unique id as the panel it refreshes");
 });
 
 test("stepper steps the value and clamps to the schema range", () => {
@@ -256,3 +260,31 @@ test("every config key the built tree reads or writes is in the schema", () => {
   const unknown = Array.from(used).filter((k) => !known.has(k));
   assert.deepEqual(unknown, [], "keys missing from config-schema.json defaults");
 });
+
+test("phone sync shows the QR code, the address and the code from the live pairing store", () => {
+  const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8080"] });
+  h.api.modernUI();
+  const rows = open(h, "settings.phoneSync.title");
+  const shown = rows.map((r) => r.text || r.qr || r.title);
+  assert.ok(rows.some((r) => r.qr === "http://192.168.1.5:8080/?code=123456"), "the QR carries the pairing code");
+  assert.ok(shown.includes("settings.phoneSync.intro"));
+  assert.ok(shown.includes("settings.phoneSync.address"));
+  assert.ok(shown.includes("settings.phoneSync.code"));
+});
+
+test("phone sync without a service says so, and shows no QR code", () => {
+  const h = harness({}, null);
+  h.api.modernUI();
+  const rows = open(h, "settings.phoneSync.title");
+  assert.ok(rows.some((r) => r.text === "settings.phoneSync.waiting"));
+  assert.ok(!rows.some((r) => r.qr !== undefined), "no QR without a pairing code");
+});
+
+test("phone sync with a code but no address still shows the code, without a QR", () => {
+  const h = harness({}, { code: "654321", urls: [] });
+  h.api.modernUI();
+  const rows = open(h, "settings.phoneSync.title");
+  assert.ok(rows.some((r) => r.text === "settings.phoneSync.code"));
+  assert.ok(!rows.some((r) => r.qr !== undefined));
+});
+

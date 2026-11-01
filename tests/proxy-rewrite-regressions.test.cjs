@@ -21,12 +21,12 @@ function loadRewriteTrustedText() {
   const start = code.indexOf("function rewriteTrustedText(text)");
   assert.ok(start >= 0, "rewriteTrustedText exists");
   const end = code.indexOf("\n}\n", start) + 3;
-  return new Function("PORT", code.slice(start, end) + "\nreturn rewriteTrustedText;")(8099);
+  return new Function("PORT", code.slice(start, end) + "\nreturn rewriteTrustedText;")(8081);
 }
 
 test("the redirector host is prefixed exactly once", () => {
   const rewrite = loadRewriteTrustedText();
-  const prefix = "http://localhost:8099/cors-bypass/https://redirector.googlevideo.com";
+  const prefix = "http://localhost:8081/cors-bypass/https://redirector.googlevideo.com";
   const out = rewrite('a="https://redirector.googlevideo.com/initplayback?x=1";');
   assert.ok(out.includes('"' + prefix + '/initplayback?x=1"'), out);
   assert.ok(!out.includes("https://http://"), "no doubled scheme");
@@ -36,7 +36,7 @@ test("the redirector host is prefixed exactly once", () => {
 test("a bare redirector hostname is still prefixed", () => {
   const rewrite = loadRewriteTrustedText();
   const out = rewrite('a="redirector.googlevideo.com/x";');
-  assert.ok(out.includes("http://localhost:8099/cors-bypass/https://redirector.googlevideo.com/x"), out);
+  assert.ok(out.includes("http://localhost:8081/cors-bypass/https://redirector.googlevideo.com/x"), out);
 });
 
 test("euri values with an argument list are not cut into invalid JavaScript", () => {
@@ -50,7 +50,7 @@ test("euri values with an argument list are not cut into invalid JavaScript", ()
 test("a simple euri value is still rewritten to the youtube.com origin, and stays valid", () => {
   const rewrite = loadRewriteTrustedText();
   const out = rewrite("{euri:a.b,c:1}");
-  assert.ok(out.includes('euri:document.location.toString().replace("http://localhost:8099", "https://www.youtube.com"),c:1'), out);
+  assert.ok(out.includes('euri:document.location.toString().replace("http://localhost:8081", "https://www.youtube.com"),c:1'), out);
   assert.doesNotThrow(() => new Function("return " + out));
 });
 

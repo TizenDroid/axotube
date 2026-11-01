@@ -58,6 +58,11 @@ jobs:
       - name: Build standalone page bundles
         run: node scripts/build-standalone.js
 
+      # The TV runs the standalone service on Node 4. This starts it on Node 4.4.4 and
+      # checks startup, health, LAN pairing and a full settings save.
+      - name: Check the standalone service on Node 4 (the TV runtime)
+        run: node scripts/node4-smoke.cjs
+
       - name: Pull requests must commit an up-to-date dist/
         if: github.event_name == 'pull_request'
         run: |
@@ -254,6 +259,7 @@ jobs:
           npm ci --prefix mods
           npm ci --prefix service
           npm run build
+          node scripts/build-standalone.js
 
       - name: Assemble the bundle package
         run: node scripts/make-bundle-package.js
