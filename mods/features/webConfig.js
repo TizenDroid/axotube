@@ -367,7 +367,9 @@ function pollOnce() {
   pullAndApply();
   consumeCommand();
   pushNowPlaying();
-  if (pollFailures === 0 && pairingInfoAge() > PAIRING_REFRESH_MS) fetchPairingInfo();
+  // Own timer, not gated on pollFailures: one failed config pull must not leave the
+  // phone-sync code empty for as long as the pulls keep failing.
+  if (serviceHost() && pairingInfoAge() > PAIRING_REFRESH_MS) fetchPairingInfo();
   setTimeout(pollOnce, nextPollDelayMs());
 }
 

@@ -12,9 +12,11 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 const JAVA = "android/app/src/main/java/org/axotube/tv";
 
 test("redirects to youtube.com stay on the proxy in both proxies", () => {
-  assert.match(read("service/proxy.js"), /lower === 'location' && !isCorsBypass/);
+  assert.match(read("service/proxy.js"), /lower === 'location'\) \{/);
+  assert.match(read("service/proxy.js"), /isCorsBypass\s*\?\s*rewriteCorsRedirect\(location, targetUrl\)/);
   assert.match(read("service/proxy.js"), /replace\('https:\/\/www\.youtube\.com\/', 'http:\/\/localhost:' \+ PORT \+ '\/'\)/);
-  assert.match(read(JAVA + "/LocalProxy.java"), /"location"\.equalsIgnoreCase\(entry\.getKey\(\)\) && !cors/);
+  assert.match(read(JAVA + "/LocalProxy.java"), /"location"\.equalsIgnoreCase\(entry\.getKey\(\)\)\) \{/);
+  assert.match(read(JAVA + "/LocalProxy.java"), /cors \? rewriteCorsRedirect\(location, upstream\)/);
   assert.match(read(JAVA + "/LocalProxy.java"), /location\.replace\("https:\/\/www\.youtube\.com\/", ORIGIN \+ "\/"\)/);
 });
 

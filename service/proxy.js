@@ -94,6 +94,14 @@ function parseCorsTarget(rawTarget) {
     return isAllowedCorsTarget(parsed) ? parsed : null;
 }
 
+// Keeps a cors-bypass redirect on the proxy when its target is an allowed host.
+// Redirects to any other host are returned unchanged.
+function rewriteCorsRedirect(location, fromUrl) {
+    var absolute;
+    try { absolute = URL.resolve(fromUrl, location); } catch (e) { return location; }
+    return parseCorsTarget(absolute) ? 'http://localhost:' + PORT + '/cors-bypass/' + absolute : location;
+}
+
 app.use(function (req, res, next) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
@@ -325,13 +333,17 @@ app.all('*', function (req, res) {
                     }
                     return;
                 }
-                if (lower === 'location' && !isCorsBypass) {
-                    // Redirects to youtube.com must stay on the proxy. Otherwise the
-                    // WebView follows them out of the proxy and loses every rewrite.
-                    // LocalProxy.java does the same rewrite.
+                if (lower === 'location') {
+                    // Redirects must stay on the proxy. Otherwise the WebView follows
+                    // them out of the proxy and loses every rewrite. LocalProxy.java
+                    // does the same rewrite for youtube.com; cors-bypass redirects
+                    // (for example redirector.googlevideo.com -> a media host) need it
+                    // too, or the follow-up request fails CORS from the localhost page.
                     var location = response.headers.get(key);
                     if (location !== null) {
-                        res.setHeader(key, location.replace('https://www.youtube.com/', 'http://localhost:' + PORT + '/'));
+                        res.setHeader(key, isCorsBypass
+                            ? rewriteCorsRedirect(location, targetUrl)
+                            : location.replace('https://www.youtube.com/', 'http://localhost:' + PORT + '/'));
                     }
                     return;
                 }

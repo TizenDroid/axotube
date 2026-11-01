@@ -375,6 +375,17 @@ final class LocalProxy {
         return out.toString();
     }
 
+    // Same rule as rewriteCorsRedirect in service/proxy.js: a redirect to an allowed
+    // host is wrapped in cors-bypass; anything else is returned unchanged.
+    private static String rewriteCorsRedirect(String location, URL from) {
+        try {
+            URI absolute = from.toURI().resolve(location);
+            return allowedCors(absolute) ? ORIGIN + "/cors-bypass/" + absolute : location;
+        } catch (Exception e) {
+            return location;
+        }
+    }
+
     private static boolean allowedCors(URI uri) {
         String host = uri.getHost();
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getRawUserInfo() != null
@@ -491,10 +502,13 @@ final class LocalProxy {
                                 .replaceAll("(?i);\\s*SameSite=None", ""));
                     }
                     rewritten.put("Set-Cookie", cookies);
-                } else if ("location".equalsIgnoreCase(entry.getKey()) && !cors) {
+                } else if ("location".equalsIgnoreCase(entry.getKey())) {
+                    // Keep redirects on the proxy. A cors-bypass redirect to a media host
+                    // must be wrapped too, or the follow-up request fails CORS.
                     java.util.ArrayList<String> locations = new java.util.ArrayList<>();
                     for (String location : entry.getValue()) {
-                        locations.add(location.replace("https://www.youtube.com/", ORIGIN + "/"));
+                        locations.add(cors ? rewriteCorsRedirect(location, upstream)
+                                : location.replace("https://www.youtube.com/", ORIGIN + "/"));
                     }
                     rewritten.put("Location", locations);
                 } else {
