@@ -282,6 +282,11 @@ function resetPairAttempts(req) {
   pairAttemptsByAddress.delete(pairAttemptKey(req));
 }
 
+// Browsers request this automatically; answer it so the console stays clean.
+app.get("/favicon.ico", (req, res) => {
+  res.status(204).end();
+});
+
 app.get("/", (req, res) => {
   res.type("html").send(webConfigPage);
 });

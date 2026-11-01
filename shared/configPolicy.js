@@ -20,15 +20,12 @@ function validateConfigValue(key, value) {
   if (typeof value !== typeof expected) return false;
 
   const allowed = configSchema.enums[key];
-  if (allowed && !allowed.includes(value)) return false;
+  // Array.prototype.includes is Node 6+; the TV service runs Node 4.
+  if (allowed && allowed.indexOf(value) === -1) return false;
   if (key === "routeColor" && !/^#[0-9a-f]{6}$/i.test(value)) return false;
+  // The global URL constructor is missing on Node 4, so check the scheme directly.
   if (key === "routeBackgroundUrl" && value) {
-    try {
-      const parsed = new URL(value);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    } catch (err) {
-      return false;
-    }
+    if (!/^https?:\/\/\S+$/i.test(value)) return false;
   }
   return true;
 }
