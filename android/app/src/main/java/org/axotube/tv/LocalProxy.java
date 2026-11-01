@@ -183,12 +183,35 @@ final class LocalProxy {
         }
     }
 
+    /**
+     * The origin to echo for a credentialed request, or null to keep the wildcard.
+     * Browsers refuse "*" when credentials are sent (the googlevideo playback POST
+     * does this), so only the loopback page and youtube.com are echoed.
+     */
+    static String corsOrigin(String origin) {
+        if (origin == null) return null;
+        if (origin.matches("https?://(localhost|127\\.0\\.0\\.1)(:\\d+)?")) return origin;
+        if (origin.equals("https://www.youtube.com")) return origin;
+        return null;
+    }
+
+    private static void appendCorsOrigin(StringBuilder text, String requestOrigin) {
+        String origin = corsOrigin(requestOrigin);
+        if (origin == null) {
+            text.append("Access-Control-Allow-Origin: *\r\n");
+            return;
+        }
+        text.append("Access-Control-Allow-Origin: ").append(origin).append("\r\n");
+        text.append("Access-Control-Allow-Credentials: true\r\n");
+        text.append("Vary: Origin\r\n");
+    }
+
     private static void startResponse(OutputStream out, int status, Map<String, List<String>> headers,
-                                      boolean cors, boolean bodyPresent, long length) throws Exception {
+                                      boolean cors, boolean bodyPresent, long length, String requestOrigin) throws Exception {
         StringBuilder text = new StringBuilder("HTTP/1.1 " + status + " " + reason(status) + "\r\n");
         text.append("Connection: close\r\n");
         if (cors) {
-            text.append("Access-Control-Allow-Origin: *\r\n");
+            appendCorsOrigin(text, requestOrigin);
             text.append("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, PATCH, DELETE\r\n");
             text.append("Access-Control-Allow-Headers: Content-Type, Range, Accept, Origin, Referer\r\n");
         }
@@ -213,16 +236,16 @@ final class LocalProxy {
      * (for example x-goog-api-key), so custom headers pass. Only plain header-name
      * characters are echoed, so a request cannot inject a header line.
      */
-    private static void sendPreflight(OutputStream out, String requested) throws Exception {
+    private static void sendPreflight(OutputStream out, String requested, String requestOrigin) throws Exception {
         String allow = "Content-Type, Range, Accept, Origin, Referer";
         if (requested != null && requested.matches("[A-Za-z0-9,\\- ]{1,512}")) allow += ", " + requested;
-        String head = "HTTP/1.1 200 OK\r\n"
-                + "Connection: close\r\n"
-                + "Access-Control-Allow-Origin: *\r\n"
-                + "Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, PATCH, DELETE\r\n"
-                + "Access-Control-Allow-Headers: " + allow + "\r\n"
-                + "Content-Length: 0\r\n\r\n";
-        out.write(head.getBytes(StandardCharsets.ISO_8859_1));
+        StringBuilder head = new StringBuilder("HTTP/1.1 200 OK\r\n");
+        head.append("Connection: close\r\n");
+        appendCorsOrigin(head, requestOrigin);
+        head.append("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, PATCH, DELETE\r\n");
+        head.append("Access-Control-Allow-Headers: ").append(allow).append("\r\n");
+        head.append("Content-Length: 0\r\n\r\n");
+        out.write(head.toString().getBytes(StandardCharsets.ISO_8859_1));
     }
 
     private static void send(OutputStream out, int status, String type, byte[] body, String extra) throws Exception {
@@ -264,7 +287,7 @@ final class LocalProxy {
             if (req == null) return;
             req.target = encodeTarget(req.target);
             if ("OPTIONS".equals(req.method)) {
-                sendPreflight(output, req.headers.get("access-control-request-headers"));
+                sendPreflight(output, req.headers.get("access-control-request-headers"), req.headers.get("origin"));
                 return;
             }
             URI target = URI.create(req.target);
@@ -557,10 +580,10 @@ final class LocalProxy {
                     text += "<script src=\"" + ORIGIN + "/axotube/userScript.js?v=" + version + "\"></script>";
                 }
                 byte[] encoded = rewriteTrustedText(text).getBytes(StandardCharsets.UTF_8);
-                startResponse(output, code, rewritten, true, true, encoded.length);
+                startResponse(output, code, rewritten, true, true, encoded.length, req.headers.get("origin"));
                 output.write(encoded);
             } else {
-                startResponse(output, code, rewritten, true, hasBody, -1);
+                startResponse(output, code, rewritten, true, hasBody, -1, req.headers.get("origin"));
                 if (hasBody && stream != null) copy(stream, output);
             }
             output.flush();

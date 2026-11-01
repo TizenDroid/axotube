@@ -28,7 +28,7 @@ test("the Node proxy echoes requested CORS headers, and only plain header names"
 
 test("the Java proxy answers preflight with the requested headers, validated the same way", () => {
   const src = read(JAVA + "/LocalProxy.java");
-  assert.match(src, /sendPreflight\(output, req\.headers\.get\("access-control-request-headers"\)\)/);
+  assert.match(src, /sendPreflight\(output, req\.headers\.get\("access-control-request-headers"\), req\.headers\.get\("origin"\)\)/);
   assert.match(src, /requested\.matches\("\[A-Za-z0-9,\\\\- \]\{1,512\}"\)/);
 });
 

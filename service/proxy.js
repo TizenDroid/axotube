@@ -103,8 +103,28 @@ function rewriteCorsRedirect(location, fromUrl) {
     return parseCorsTarget(absolute) ? 'http://localhost:' + PORT + '/cors-bypass/' + absolute : location;
 }
 
+// Browsers refuse a wildcard Access-Control-Allow-Origin on a request sent with
+// credentials (the googlevideo playback POST does this). So the page's own origin
+// is echoed back for the origins that can reach the proxy: the loopback page and
+// youtube.com. Anything else keeps the wildcard, which is enough for plain requests.
+function corsOriginFor(origin) {
+    var o = String(origin || '');
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(o)) return o;
+    if (o === 'https://www.youtube.com') return o;
+    return null;
+}
+
+function applyCors(req, res) {
+    var origin = corsOriginFor(req.get('Origin'));
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    if (origin) {
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+    }
+}
+
 app.use(function (req, res, next) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    applyCors(req, res);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
     // Echo the headers the browser asks for (for example x-goog-api-key) so a
     // preflight passes. Only plain header-name characters are echoed.
@@ -351,7 +371,7 @@ app.all('*', function (req, res) {
                 var value = response.headers.get(key);
                 if (value !== null) res.setHeader(key, value);
             });
-            res.setHeader('Access-Control-Allow-Origin', '*');
+            applyCors(req, res);
 
             var contentType = response.headers.get('content-type') || '';
             var textLike = contentType.indexOf('text/html') !== -1 ||
