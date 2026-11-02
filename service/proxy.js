@@ -276,8 +276,15 @@ app.get('/axotube/diagnostics.json', function (req, res) {
     res.json(diagnostics.summary());
 });
 
+// Hosts that get the page's login cookies on cors-bypass requests. Without a
+// proxy, the page sends these cookies to YouTube itself, so the proxied player's
+// innertube and attestation calls need them to look like the same session.
+// Googlevideo and every other bypass host stay cookie-free.
+var COOKIE_CORS_HOSTS = { 'www.youtube.com': true, 'youtube.com': true };
+
 function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
     var headers = {};
+    var sendCookies = !isCorsBypass || !!COOKIE_CORS_HOSTS[String(parsedTarget.hostname || '').toLowerCase()];
     var blocked = {
         host: true,
         connection: true,
@@ -287,7 +294,9 @@ function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
         'accept-encoding': true
     };
     if (isCorsBypass) {
-        blocked.cookie = true;
+        if (!sendCookies) {
+            blocked.cookie = true;
+        }
         blocked.authorization = true;
         blocked['proxy-authorization'] = true;
         blocked['x-axotube-token'] = true;
@@ -299,7 +308,7 @@ function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
         headers[lower] = req.headers[key];
     });
 
-    if (!isCorsBypass && req.headers.cookie) {
+    if (sendCookies && req.headers.cookie) {
         headers.cookie = req.headers.cookie
             .replace(/__LocalSecure-/g, '__Secure-')
             .replace(/__LocalHost-/g, '__Host-');
@@ -339,7 +348,7 @@ function rewriteTrustedText(text) {
     // Only rewrite a value that cannot span an argument list: no commas, parens or
     // braces, or a plain name() call. A call such as f(x,y) is left alone rather
     // than cut at its inner comma, which used to produce invalid JavaScript.
-    text = text.replace(/euri:(?:[^,(){}]+|[\w$.]+\(\)),/g, 'euri:document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com"),');
+    text = text.replace(/euri:(?!"")(?:[^,(){}]+|[\w$.]+\(\)),/g, 'euri:document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com"),');
     text = text.replace(/https:\/\/s\.youtube\.com/g, proxyPrefix + 'https://s.youtube.com');
     // A bare hostname only: skip one already preceded by a URL character. The
     // googlevideo rules above have already prefixed "https://redirector...", and

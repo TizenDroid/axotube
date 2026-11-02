@@ -48,6 +48,8 @@ final class LocalProxy {
             "content-encoding", "content-length", "transfer-encoding",
             "content-security-policy", "alt-svc", "connection",
             "access-control-allow-origin", "access-control-allow-credentials", "keep-alive"));
+    // Same host list as COOKIE_CORS_HOSTS in service/proxy.js.
+    private static final Set<String> COOKIE_CORS_HOSTS = new HashSet<>(Arrays.asList("www.youtube.com", "youtube.com"));
     private static final Set<String> DROP_REQUEST = new HashSet<>(Arrays.asList(
             "host", "connection", "proxy-connection", "content-length", "transfer-encoding",
             "accept-encoding", "upgrade"));
@@ -467,7 +469,7 @@ final class LocalProxy {
         text = text.replace(":document.location.toString()",
                 ":document.location.toString().replace(\"" + ORIGIN + "\", \"https://www.youtube.com\")");
         // Same rule as proxy.js: never rewrite a value that spans an argument list.
-        text = replace(text, "euri:(?:[^,(){}]+|[\\w$.]+\\(\\)),",
+        text = replace(text, "euri:(?!\"\")(?:[^,(){}]+|[\\w$.]+\\(\\)),",
                 Matcher.quoteReplacement("euri:document.location.toString().replace(\"" + ORIGIN
                         + "\", \"https://www.youtube.com\"),"));
         text = text.replace("this.scheme=\"https\"", "this.scheme=\"http\"")
@@ -487,10 +489,11 @@ final class LocalProxy {
         conn.setRequestProperty("Accept-Encoding", "identity");
         conn.setRequestProperty("Host", upstream.getHost());
         conn.setRequestProperty("Origin", "https://www.youtube.com");
+        boolean cookieHost = COOKIE_CORS_HOSTS.contains(upstream.getHost().toLowerCase(java.util.Locale.ROOT));
         for (Map.Entry<String, String> entry : req.headers.entrySet()) {
             String key = entry.getKey();
-            if (DROP_REQUEST.contains(key) || (cors && Arrays.asList("cookie", "authorization",
-                    "proxy-authorization", "x-axotube-token").contains(key))) continue;
+            if (DROP_REQUEST.contains(key) || (cors && (("cookie".equals(key) && !cookieHost)
+                    || Arrays.asList("authorization", "proxy-authorization", "x-axotube-token").contains(key)))) continue;
             String value = entry.getValue();
             if ("cookie".equals(key)) {
                 value = value.replace("__LocalSecure-", "__Secure-").replace("__LocalHost-", "__Host-");
