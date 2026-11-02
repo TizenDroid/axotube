@@ -52,11 +52,13 @@ jobs:
       - name: Build bundles and service from source
         run: npm run build
 
-      - name: Run regression tests (against the fresh build)
-        run: npm test
-
+      # The shipped-bundle tests read the standalone copies, so they must exist
+      # before the suite runs.
       - name: Build standalone page bundles
         run: node scripts/build-standalone.js
+
+      - name: Run regression tests (against the fresh build)
+        run: npm test
 
       # The TV runs the standalone service on Node 4. This starts it on Node 4.4.4 and
       # checks startup, health, LAN pairing and a full settings save.
