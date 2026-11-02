@@ -142,7 +142,7 @@ test("config validates values and never clears unrelated storage", () => {
 
 test("launchToOnStartup stays string-or-null across TV and web", () => {
   const cfg = read("shared/configPolicy.js");
-  const web = read("service/webConfigPage.js");
+  const web = read("service/web/config.html");
   has(cfg, 'value === null || typeof value === "string"');
   has(web, 'key === "launchToOnStartup"');
   has(web, "JSON.parse(v); state[key]=v");
@@ -271,7 +271,7 @@ test("LAN API is paired while loopback and DIAL remain functional", () => {
 test("successful pairing keeps the TV-displayed code valid for another phone", () => {
   const src = read("service/service.js");
   const route = between(src, 'app.post("/api/pair"', 'app.use("/api", requireApiAuth)');
-  has(route, "res.json({ ok: true, token: authToken })");
+  assert.match(route, /res\.json\(\{\s*ok: true,\s*token: authToken\s*\}\)/);
   assert.ok(
     !route.includes("pairingCode = newPairingCode()"),
     "pairing must not silently rotate a code the TV only displayed once",
@@ -284,7 +284,7 @@ test("legacy persisted config migration keeps valid settings independently", () 
   has(migration, "launchToOnStartup");
   has(migration, "JSON.stringify");
   has(migration, "continue");
-  const loader = between(src, "function loadStore()", "const initialStore");
+  const loader = between(src, "function loadStore()", "var initialStore");
   has(loader, "migrateStoredConfig(parsed.config)");
   assert.ok(
     !loader.includes("sanitizeConfig(parsed.config) || {}"),
@@ -293,7 +293,8 @@ test("legacy persisted config migration keeps valid settings independently", () 
 });
 
 test("web config pairs and avoids innerHTML sinks", () => {
-  const src = read("service/webConfigPage.js");
+  // The page's source. service/webConfigPage.js is generated from it.
+  const src = read("service/web/config.html");
   has(src, "axotube-pair-token");
   has(src, 'opts.headers.Authorization = "Bearer " + token');
   has(src, "textContent");

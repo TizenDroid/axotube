@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>axotube diagnostics</title>
+<style>
+  html, body { margin:0; background:#0f0f0f; color:#eee; font-family:Roboto, Arial, sans-serif; }
+  body { padding:40px 56px; box-sizing:border-box; min-height:100vh; }
+  h1 { font-size:40px; margin:0 0 16px; font-weight:500; }
+  .lines { font-size:22px; line-height:1.5; color:#ddd; white-space:pre-wrap; }
+  .note { font-size:20px; color:#8fd694; min-height:28px; margin:16px 0; }
+  .actions { display:flex; gap:16px; margin:12px 0 24px; }
+  button { font-size:22px; padding:12px 22px; border-radius:8px; border:2px solid #444; background:#222; color:#fff; font-family:inherit; }
+  button:focus { outline:none; border-color:#0DC1E9; background:#153b45; }
+  .log { font-size:18px; line-height:1.4; color:#bbb; white-space:pre-wrap; word-break:break-word; background:#151515; border:1px solid #2a2a2a; border-radius:8px; padding:16px; max-height:520px; overflow:auto; }
+  .hint { font-size:18px; color:#888; margin-top:14px; }
+</style>
+</head>
+<body>
+<h1>axotube diagnostics</h1>
+<div id="versions" class="lines">Loading…</div>
+<div id="launch" class="lines"></div>
+<div id="uptime" class="lines"></div>
+<div id="note" class="note"></div>
+<div class="actions">
+  <button id="retryBtn" type="button">Retry debugger launch</button>
+  <button id="refreshBtn" type="button">Refresh</button>
+  <button id="backBtn" type="button">Back</button>
+</div>
+<pre id="events" class="log"></pre>
+<div class="hint">Arrow keys move between buttons. Enter presses. Back returns to the previous screen. Retry only clears a failed debugger launch; the next start tries again if the debugger launch is on.</div>
+<script>
+(function () {
+  "use strict";
+  var BACK_KEY = 10009;
+  var match = /[?&]wgt=([^&]*)/.exec(location.search);
+  var wgt = match ? decodeURIComponent(match[1]) : "";
+
+  // True when version a is older than b (dotted numbers, missing parts are 0).
+  function isOlder(a, b) {
+      var pa = String(a).split(".");
+      var pb = String(b).split(".");
+      for (var i = 0; i < 3; i++) {
+    var x = parseInt(pa[i], 10) || 0;
+    var y = parseInt(pb[i], 10) || 0;
+    if (x !== y) return x < y;
+      }
+      return false;
+  }
+
+  function $(id) { return document.getElementById(id); }
+  function note(text) { $("note").textContent = text; }
+  var buttons = [$("retryBtn"), $("refreshBtn"), $("backBtn")];
+
+  function render(d) {
+    var s = d.service || {};
+    var b = d.bundle || {};
+    var l = d.launch || {};
+    var versions = "App " + (wgt || "?") + "   ·   Service " + (s.version || "?") + "   ·   Bundle " + (b.current || "?");
+    if (b.available) versions += " (update " + b.latest + " ready)";
+    if (wgt && s.version && isOlder(s.version, wgt)) versions += "\nThe service is older than the app. Reinstall the app.";
+    $("versions").textContent = versions;
+    $("launch").textContent = "Launch: " + (l.debugger ? "debugger" : "proxy") + "   ·   state " + (l.state || "?") +
+      (l.reason ? "\n" + l.reason : "");
+    $("uptime").textContent = "Service up " + (s.uptimeSeconds || 0) + " s   ·   " + (s.node || "");
+    var events = (d.events || []).slice().reverse();
+    $("events").textContent = events.length
+      ? events.map(function (e) { return new Date(e.t).toLocaleTimeString() + "  " + e.level + "  " + e.message; }).join("\n")
+      : "No events yet.";
+  }
+
+  // Loads the data. It leaves the note alone, so a message from a retry stays visible.
+  function load() {
+    fetch("/axotube/diagnostics.json", { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(render)
+      .catch(function (e) { note("Could not load diagnostics: " + (e.message || "error")); });
+  }
+
+  function retry() {
+    note("Clearing the failed debugger launch…");
+    fetch("/axotube/launch/reset", { method: "POST" })
+      .then(function (r) {
+        return r.json().then(function (body) { return { ok: r.ok, body: body }; });
+      })
+      .then(function (res) {
+        note(res.ok
+          ? "Cleared. The next start tries the debugger again if it is on."
+          : "Not cleared: YouTube is open under the debugger (" + (res.body.state || "?") + ").");
+        load();
+      })
+      .catch(function (e) { note("Retry failed: " + (e.message || "error")); });
+  }
+
+  function goBack() {
+    if (history.length > 1) history.back();
+  }
+
+  buttons[0].addEventListener("click", retry);
+  buttons[1].addEventListener("click", load);
+  buttons[2].addEventListener("click", goBack);
+
+  function move(step) {
+    var index = buttons.indexOf(document.activeElement);
+    var next = (index + step + buttons.length) % buttons.length;
+    buttons[next].focus();
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.keyCode === BACK_KEY || e.key === "XF86Back") {
+      goBack();
+    } else if (e.keyCode === 39 || e.keyCode === 40) {
+      move(1);
+    } else if (e.keyCode === 37 || e.keyCode === 38) {
+      move(-1);
+    }
+  });
+
+  buttons[0].focus();
+  load();
+})();
+</script>
+</body>
+</html>

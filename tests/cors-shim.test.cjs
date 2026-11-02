@@ -62,14 +62,37 @@ test("leaves other hosts and non-https targets alone", () => {
   const { win } = load("http://localhost:8081");
   win.fetch("https://www.google.com/x");
   win.fetch("https://evil.example.com/gstatic.com");
-  win.fetch("http://www.gstatic.com/plain");
+  win.fetch("http://evil.example.com/plain");
   win.fetch("/relative/path");
   assert.deepStrictEqual(win.fetchCalls.map((c) => c.input), [
     "https://www.google.com/x",
     "https://evil.example.com/gstatic.com",
-    "http://www.gstatic.com/plain",
+    "http://evil.example.com/plain",
     "/relative/path",
   ]);
+});
+
+test("upgrades http targets on allowlisted hosts and sends them through the proxy", () => {
+  const { win } = load("http://localhost:8081");
+  win.fetch("http://www.youtube.com/api/stats/watchtime?ver=2");
+  win.fetch("http://www.gstatic.com/plain");
+  assert.deepStrictEqual(win.fetchCalls.map((c) => c.input), [
+    "http://localhost:8081/cors-bypass/https://www.youtube.com/api/stats/watchtime?ver=2",
+    "http://localhost:8081/cors-bypass/https://www.gstatic.com/plain",
+  ]);
+});
+
+test("an explicit :80 on an upgraded http target is dropped", () => {
+  const { win } = load("http://localhost:8081");
+  win.fetch("http://www.youtube.com:80/api/x");
+  assert.equal(win.fetchCalls[0].input, "http://localhost:8081/cors-bypass/https://www.youtube.com/api/x");
+});
+
+test("upgrades http XHR targets the same way", () => {
+  const { win } = load("http://localhost:8081");
+  const xhr = new win.XMLHttpRequest();
+  xhr.open("POST", "http://www.youtube.com/api/stats/watchtime");
+  assert.deepStrictEqual(win.xhrOpened[0], ["POST", "http://localhost:8081/cors-bypass/https://www.youtube.com/api/stats/watchtime"]);
 });
 
 test("does nothing when the page is not served from localhost", () => {

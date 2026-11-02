@@ -186,6 +186,7 @@ test("user agent: the webview gets the Samsung TV string once", () => {
     console,
   });
   ctx.window = win;
+  ctx.configRead = () => "auto";
   load("mods/features/userAgentSpoofing.js", ctx);
   assert.deepEqual(applied, [
     "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) AppleWebKit/537.3 (KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3",
@@ -207,7 +208,34 @@ test("user agent: no reload when the page already has the Samsung string", () =>
     console,
   });
   ctx.window = win;
+  ctx.configRead = () => "auto";
   load("mods/features/userAgentSpoofing.js", ctx);
   assert.equal(applied, 0);
 });
 
+
+test("user agent: the android profile sends the phone agent, reloading once", () => {
+  const win = makeWindow({ navigator: { userAgent: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) SamsungBrowser/2.1 TV Safari/537.3" } });
+  const applied = [];
+  let reloads = 0;
+  const session = new Map();
+  win.tizen = { websetting: { setUserAgentString: (ua) => applied.push(ua) } };
+  win.location.reload = () => reloads++;
+  const ctx = vm.createContext({
+    window: win,
+    navigator: win.navigator,
+    sessionStorage: {
+      getItem: (k) => (session.has(k) ? session.get(k) : null),
+      setItem: (k, v) => session.set(k, String(v)),
+    },
+    location: win.location,
+    console,
+    configRead: () => "android",
+  });
+  ctx.window = win;
+  load("mods/features/userAgentSpoofing.js", ctx);
+  assert.equal(applied.length, 1);
+  assert.ok(applied[0].includes("Android 13"), "the phone agent is sent");
+  assert.ok(!applied[0].includes("SamsungBrowser"), "not the TV agent");
+  assert.equal(reloads, 1);
+});

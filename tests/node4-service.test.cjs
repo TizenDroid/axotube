@@ -15,6 +15,14 @@ const SOURCES = [
   "service/standalone.js",
   "service/webConfigPage.js",
   "shared/configPolicy.js",
+  "service/diagnostics.js",
+  "service/launchSettings.js",
+  "service/webConfigPage.js",
+  "service/diagnosticsPage.js",
+  "service/cdp/websocket.js",
+  "service/cdp/sdb.js",
+  "service/cdp/cdp.js",
+  "service/cdp/launcher.js",
 ];
 
 // Strips // and /* */ comments so the explanatory comments that name the

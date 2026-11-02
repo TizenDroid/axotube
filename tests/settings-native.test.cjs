@@ -15,7 +15,10 @@ const EN = JSON.parse(
   fs.readFileSync(path.join(ROOT, "mods/translations/resources/en.json"), "utf8"),
 );
 
-function harness(initial = {}, pairing = null) {
+function harness(initial = {}, pairing = null, status = { checked: true, service: { version: "2.0", launchDebugger: false, bundle: null }, proxy: null }) {
+  const launchWrites = [];
+  const toasts = [];
+  const hostLocation = { href: "" };
   const config = {
     enableAdBlock: true,
     previewLengthSeconds: 40,
@@ -46,6 +49,18 @@ function harness(initial = {}, pairing = null) {
     },
     generateQRCode: (link) => ({ link }),
     getPairingInfo: () => pairing,
+    // Status stubs: refreshStatus answers at once with the status the test set up.
+    getServiceStatus: () => status,
+    refreshStatus: (done) => {
+      if (done) done();
+    },
+    setLaunchMode: (debuggerOn, done) => {
+      launchWrites.push(debuggerOn);
+      status.service = Object.assign({}, status.service, { launchDebugger: debuggerOn });
+      done(true);
+    },
+    showToast: (title, text) => toasts.push(text),
+    location: hostLocation,
     showModal: (header, content, id, update) =>
       shown.push({ header, rows: content.overlayPanelItemListRenderer.items, id, update }),
     buttonItem: (title, icon, commands) => ({
@@ -68,7 +83,7 @@ function harness(initial = {}, pairing = null) {
     .replace(/^export function /gm, "function ");
   src += "\n;globalThis.__api = { modernUI, handleSettingsAction, buildSettingsTree };";
   vm.runInContext(src, ctx, { filename: "settings.js" });
-  return { api: ctx.__api, config, shown, writes };
+  return { api: ctx.__api, config, shown, writes, launchWrites, toasts, hostLocation, status };
 }
 
 const action = (row) => row.commands[0].customAction;
@@ -82,7 +97,7 @@ function open(h, title) {
   return last(h).rows;
 }
 
-test("the root has nine categories, phone sync first, and opening one pushes a new modal", () => {
+test("the root starts with Web config, About and Advanced, then the existing categories", () => {
   const h = harness();
   h.api.modernUI();
   assert.equal(h.shown.length, 1);
@@ -90,7 +105,9 @@ test("the root has nine categories, phone sync first, and opening one pushes a n
   // Copied into this realm: arrays built inside the vm context fail strict equality.
   const titles = Array.from(h.shown[0].rows, (r) => r.title);
   assert.deepEqual(titles, [
-    "settings.phoneSync.title",
+    "settings.webConfig.title",
+    "settings.about.title",
+    "settings.advanced.title",
     "settings.ads.title",
     "settings.playback.title",
     "settings.playerControls.title",
@@ -98,7 +115,6 @@ test("the root has nine categories, phone sync first, and opening one pushes a n
     "settings.home.title",
     "settings.appearance.title",
     "settings.system.title",
-    "settings.about.title",
   ]);
   open(h, "settings.browsing.title");
   assert.equal(h.shown.length, 2);
@@ -264,7 +280,7 @@ test("every config key the built tree reads or writes is in the schema", () => {
 test("phone sync shows the QR code, the address and the code from the live pairing store", () => {
   const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8080"] });
   h.api.modernUI();
-  const rows = open(h, "settings.phoneSync.title");
+  const rows = open(h, "settings.webConfig.title");
   const shown = rows.map((r) => r.text || r.qr || r.title);
   assert.ok(rows.some((r) => r.qr === "http://192.168.1.5:8080/?code=123456"), "the QR carries the pairing code");
   assert.ok(shown.includes("settings.phoneSync.intro"));
@@ -272,10 +288,10 @@ test("phone sync shows the QR code, the address and the code from the live pairi
   assert.ok(shown.includes("settings.phoneSync.code"));
 });
 
-test("phone sync without a service says so, and shows no QR code", () => {
+test("web config without pairing info says so, and shows no QR code", () => {
   const h = harness({}, null);
   h.api.modernUI();
-  const rows = open(h, "settings.phoneSync.title");
+  const rows = open(h, "settings.webConfig.title");
   assert.ok(rows.some((r) => r.text === "settings.phoneSync.waiting"));
   assert.ok(!rows.some((r) => r.qr !== undefined), "no QR without a pairing code");
 });
@@ -283,8 +299,110 @@ test("phone sync without a service says so, and shows no QR code", () => {
 test("phone sync with a code but no address still shows the code, without a QR", () => {
   const h = harness({}, { code: "654321", urls: [] });
   h.api.modernUI();
-  const rows = open(h, "settings.phoneSync.title");
+  const rows = open(h, "settings.webConfig.title");
   assert.ok(rows.some((r) => r.text === "settings.phoneSync.code"));
   assert.ok(!rows.some((r) => r.qr !== undefined));
 });
 
+
+// Redesign: Web config, About and Advanced.
+
+function texts(rows) {
+  return rows.map((r) => r.text).filter((x) => x !== undefined);
+}
+
+test("About lists the userscript, service, proxy, bundle and launch mode, then the project links", () => {
+  const h = harness({}, null, {
+    checked: true,
+    service: { version: "1.31.3", launchDebugger: false, bundle: { current: "1.31.3", latest: "1.31.4", available: true } },
+    proxy: { version: "1.31.3" },
+  });
+  h.api.modernUI();
+  const rows = open(h, "settings.about.title");
+  const lines = texts(rows);
+  assert.ok(lines.includes("settings.about.userscript"));
+  assert.ok(lines.includes("settings.about.serviceOnline"));
+  assert.ok(lines.includes("settings.about.proxyOnline"));
+  assert.ok(lines.includes("settings.about.bundleUpdate"), "an available update is named");
+  assert.ok(lines.includes("settings.about.launchMode"));
+  assert.ok(rows.some((r) => r.qr === "https://github.com/TizenDroid/axotube"), "GitHub QR kept");
+  assert.ok(rows.some((r) => r.qr === "https://discord.gg/UDb8nak5YD"), "Discord QR kept");
+});
+
+test("About says what is not running when the service and proxy do not answer", () => {
+  const h = harness({}, null, { checked: true, service: null, proxy: null });
+  h.api.modernUI();
+  const lines = texts(open(h, "settings.about.title"));
+  assert.ok(lines.includes("settings.about.serviceOffline"));
+  assert.ok(lines.includes("settings.about.proxyOffline"));
+  assert.ok(lines.includes("settings.about.launchUnknown"));
+});
+
+test("About shows checking until the first check has answered", () => {
+  const h = harness({}, null, { checked: false, service: null, proxy: null });
+  h.api.modernUI();
+  const lines = texts(open(h, "settings.about.title"));
+  assert.ok(lines.includes("settings.status.checking"));
+  assert.ok(!lines.includes("settings.about.serviceOffline"), "no offline claim before the check");
+});
+
+test("Web config says the service is not running and shows no QR code", () => {
+  const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8080"] }, { checked: true, service: null, proxy: null });
+  h.api.modernUI();
+  const rows = open(h, "settings.webConfig.title");
+  assert.ok(texts(rows).includes("settings.webConfig.offline"));
+  assert.ok(!rows.some((r) => r.qr !== undefined), "no QR while the service is off");
+});
+
+test("opening a panel with a refresh draws it again once the check answers", () => {
+  const h = harness();
+  h.api.modernUI();
+  open(h, "settings.about.title");
+  assert.ok(h.shown.some((s) => s.update === true), "the same modal is updated in place");
+});
+
+test("launch mode shows the stored choice and a click writes it through the service", () => {
+  const h = harness({}, null, { checked: true, service: { version: "2", launchDebugger: false, bundle: null }, proxy: null });
+  h.api.modernUI();
+  open(h, "settings.advanced.title");
+  const rows = open(h, "settings.advanced.launch.title");
+  const proxy = rows.find((r) => r.title === "settings.advanced.launch.proxy");
+  const debuggerRow = rows.find((r) => r.title === "settings.advanced.launch.debugger");
+  assert.equal(proxy.secondaryIcon, "RADIO_BUTTON_CHECKED");
+  assert.equal(debuggerRow.secondaryIcon, "RADIO_BUTTON_UNCHECKED");
+
+  const cmd = debuggerRow.commands[0].customAction;
+  assert.equal(cmd.action, "SETTINGS_LAUNCH");
+  h.api.handleSettingsAction(cmd.action, cmd.parameters);
+  assert.deepEqual(h.launchWrites, [true]);
+  assert.deepEqual(h.toasts, ["settings.advanced.launch.saved"]);
+  const after = last(h).rows.find((r) => r.title === "settings.advanced.launch.debugger");
+  assert.equal(after.secondaryIcon, "RADIO_BUTTON_CHECKED", "the panel redraws with the new choice");
+});
+
+test("the user agent radio shows auto as the Samsung agent and writes android when picked", () => {
+  const h = harness({ userAgentProfile: "auto" });
+  h.api.modernUI();
+  open(h, "settings.advanced.title");
+  const rows = open(h, "settings.advanced.userAgent.title");
+  const samsung = rows.find((r) => r.title === "settings.advanced.userAgent.samsung");
+  const phone = rows.find((r) => r.title === "settings.advanced.userAgent.android");
+  assert.equal(samsung.secondaryIcon, "RADIO_BUTTON_CHECKED", "auto shows as the Samsung agent");
+  assert.equal(phone.secondaryIcon, "RADIO_BUTTON_UNCHECKED");
+
+  const cmd = phone.commands[0].customAction;
+  h.api.handleSettingsAction(cmd.action, cmd.parameters);
+  assert.deepEqual(h.writes.at(-1), { k: "userAgentProfile", valName: "stringValue", value: "android" });
+  assert.equal(h.config.userAgentProfile, "android");
+});
+
+test("the diagnostics shortcut opens the proxy's diagnostics page", () => {
+  const h = harness();
+  h.api.modernUI();
+  const rows = open(h, "settings.advanced.title");
+  const row = rows.find((r) => r.title === "settings.advanced.diagnostics.title");
+  const cmd = row.commands[0].customAction;
+  assert.equal(cmd.action, "SETTINGS_OPEN_DIAGNOSTICS");
+  h.api.handleSettingsAction(cmd.action, cmd.parameters);
+  assert.equal(h.hostLocation.href, "http://127.0.0.1:8081/axotube/diagnostics");
+});

@@ -23,7 +23,7 @@ test("shared validation accepts only the three profiles", () => {
 });
 
 test("phone settings page lists the key in a category", () => {
-  assert.ok(read("service/webConfigPage.js").includes('userAgentProfile:"System"'));
+  assert.ok(read("service/web/config.html").includes('userAgentProfile:"System"'));
 });
 
 test("MainActivity resolves the profile and no longer hardcodes the TV agent", () => {

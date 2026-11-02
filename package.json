@@ -1,7 +1,7 @@
 {
   "name": "axotube",
   "appName": "axotube",
-  "version": "1.31.3",
+  "version": "2.0.0",
   "description": "YouTube TV for Samsung Tizen TVs with ad filtering, SponsorBlock and playback controls.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8080%2Fdial%2Fapps%2FYouTube",
@@ -23,7 +23,7 @@
   },
   "license": "GPL-3.0-only",
   "scripts": {
-    "build": "npm run build --prefix mods && npm run build --prefix service",
+    "build": "node scripts/build-web-pages.cjs && npm run build --prefix mods && npm run build --prefix service",
     "build:mods": "npm run build --prefix mods",
     "build:service": "npm run build --prefix service",
     "build:standalone": "npm run build && node scripts/build-standalone.js",

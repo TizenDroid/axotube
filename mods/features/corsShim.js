@@ -9,8 +9,8 @@
 // through /cors-bypass/ on the same proxy, where the proxy adds the CORS headers.
 //
 // The host list must match EXACT_CORS_HOSTS in service/proxy.js. The tests check
-// that. Only https targets are rewritten, and only when the page is served from
-// localhost or 127.0.0.1. Anything else is left alone.
+// that. http and https targets are rewritten (http is sent as https), and only when
+// the page is served from localhost or 127.0.0.1. Anything else is left alone.
 
 var SHIM_HOSTS = {
   "www.gstatic.com": true,
@@ -37,8 +37,11 @@ export function rewriteForProxy(win, raw) {
   var a = win.document.createElement("a");
   a.href = String(raw);
   var abs = String(a.href || "");
-  var m = /^https:\/\/([^\/?#:]+)/i.exec(abs);
+  // http:// is upgraded here. Chrome does the same upgrade on its own (HSTS), so the
+  // request would otherwise go straight to YouTube without the proxy.
+  var m = /^https?:\/\/([^\/?#:]+)/i.exec(abs);
   if (!m || !isShimHost(m[1])) return null;
+  if (/^http:\/\//i.test(abs)) abs = "https://" + abs.slice("http://".length).replace(/^([^\/?#]*?):80(?=[\/?#]|$)/, "$1");
   return loc.origin + "/cors-bypass/" + abs;
 }
 

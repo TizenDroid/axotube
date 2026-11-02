@@ -204,6 +204,8 @@ function customAction(action, parameters) {
     case "SETTINGS_TOGGLE":
     case "SETTINGS_STEP":
     case "SETTINGS_SEGMENT":
+    case "SETTINGS_OPEN_DIAGNOSTICS":
+    case "SETTINGS_LAUNCH":
       handleSettingsAction(action, parameters);
       break;
     case "AXO_SPEED_SETTINGS_SHOW":

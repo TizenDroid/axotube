@@ -28,17 +28,28 @@ test("upstream host allowlist matches between proxy.js and LocalProxy.java", () 
   assert.deepEqual([...java].sort(), [...js].sort());
 });
 
+// Routes only the Tizen build has: the debugger launch (SDB and CDP do not exist on
+// Android) and the diagnostics page and data. Anything else must match the Android side.
+const TIZEN_ONLY_PROXY_ROUTES = ["/axotube/launch/next", "/axotube/launch/reset", "/axotube/diagnostics", "/axotube/diagnostics.json"];
+const TIZEN_ONLY_CONTROL_ROUTES = ["/api/launch", "/api/diagnostics"];
+
 test("proxy routes match between proxy.js and LocalProxy.java", () => {
   const js = quoted(read("service/proxy.js"), /'(\/axotube\/[a-zA-Z0-9/.]+)'/g);
+  // The launch routes are mounted by the launcher, in its own file.
+  for (const route of quoted(read("service/cdp/launcher.js"), /"(\/axotube\/[a-zA-Z0-9/.]+)"/g)) js.add(route);
   const java = quoted(read(JAVA + "/LocalProxy.java"), /"(\/axotube\/[a-zA-Z0-9/.]+)"/g);
   assert.ok(js.has("/axotube/health"), "JS proxy routes parsed");
+  for (const route of TIZEN_ONLY_PROXY_ROUTES) assert.ok(js.has(route), route + " is in the Tizen proxy");
+  for (const route of TIZEN_ONLY_PROXY_ROUTES) js.delete(route);
   assert.deepEqual([...java].sort(), [...js].sort());
 });
 
 test("control server routes match between service.js and ControlServer.java", () => {
   const js = quoted(read("service/service.js"), /app\.(?:get|post)\("(\/api\/[a-z/-]+)"/g);
-  const java = quoted(read(JAVA + "/ControlServer.java"), /"(\/api\/[a-z/-]+)"/g);
+  const java = quoted(read(JAVA + "/ControlServer.java"), /"(\/api\/[a-z\/-]+)"/g);
   assert.ok(js.has("/api/pairing-code"), "JS control routes parsed");
+  for (const route of TIZEN_ONLY_CONTROL_ROUTES) assert.ok(js.has(route), route + " is in the Tizen service");
+  for (const route of TIZEN_ONLY_CONTROL_ROUTES) js.delete(route);
   assert.deepEqual([...java].sort(), [...js].sort());
 });
 

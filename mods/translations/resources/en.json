@@ -284,7 +284,51 @@
     "about": {
       "title": "About AxoTube",
       "version": "Version {{version}}",
-      "scanMessage": "Scan the QR code to open {{name}}."
+      "scanMessage": "Scan the QR code to open {{name}}.",
+      "subtitle": "Which AxoTube parts are running",
+      "userscript": "Userscript: running, version {{version}}",
+      "serviceOnline": "Service (port 8080): online, version {{version}}",
+      "serviceOffline": "Service (port 8080): not reachable",
+      "proxyOnline": "Proxy (port 8081): online, version {{version}}",
+      "proxyOffline": "Proxy (port 8081): not reachable",
+      "bundleCurrent": "App bundle: {{version}}",
+      "bundleUpdate": "App bundle: {{current}}, update {{latest}} available",
+      "bundleUnknown": "App bundle: not checked yet",
+      "launchMode": "Launch mode: {{mode}}",
+      "launchUnknown": "Launch mode: unknown while the service is not running"
+    },
+    "webConfig": {
+      "title": "Web config",
+      "subtitle": "Pairing code, phone address and service status",
+      "online": "AxoTube service: online",
+      "offline": "AxoTube service is not running, so the web config page is not available."
+    },
+    "status": {
+      "checking": "Checking the services…"
+    },
+    "advanced": {
+      "title": "Advanced",
+      "subtitle": "Diagnostics, user agent and launch mode",
+      "diagnostics": {
+        "title": "Diagnostics page",
+        "subtitle": "Launch log, versions and what the app last did"
+      },
+      "userAgent": {
+        "title": "User agent",
+        "subtitle": "The browser identity YouTube sees. Takes effect after AxoTube reloads. The phone agent is experimental on TV.",
+        "samsung": "Samsung TV (default)",
+        "android": "Android phone (experimental)"
+      },
+      "launch": {
+        "title": "Launch mode",
+        "subtitle": "Applies the next time AxoTube starts. SDB needs developer mode on the TV.",
+        "proxy": "Proxy (recommended)",
+        "debugger": "SDB debugger launch",
+        "proxyShort": "proxy",
+        "debuggerShort": "SDB debugger",
+        "saved": "Launch mode saved. It applies the next time AxoTube starts.",
+        "failed": "Could not save the launch mode. Is AxoTube running?"
+      }
     }
   },
   "welcomeMsg": {
@@ -348,7 +392,11 @@
     "castRestartNotRunning": "Cast discovery is not running. Restart the app to bring it back.",
     "castRestartUnsupported": "Restarting cast is not available on this device."
   },
+  "playback": {
+    "retryPrompt": "Playback stopped at {{time}}. Press blue to retry from there."
+  },
   "updater": {
+    "reloadWhenPaused": "Update installed. It takes effect when playback pauses or the video ends.",
     "modalTitle": "Update Available",
     "modalBody": "A new version of axotube is available: {{latest}}\nCurrent version: {{current}}\nRelease date: {{date}}\nRelease notes:",
     "unknownDate": "Unknown",

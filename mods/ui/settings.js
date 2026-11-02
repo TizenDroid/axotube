@@ -6,13 +6,20 @@ import { configRead } from "../config.js";
 import { writeClientSetting } from "../shared/clientSettings.js";
 import { generateQRCode } from "./qrCode.js";
 import { getPairingInfo } from "../shared/pairingInfo.js";
+import { getServiceStatus, refreshStatus, setLaunchMode } from "../shared/serviceStatus.js";
 import {
   showModal,
+  showToast,
   buttonItem,
   overlayPanelItemListRenderer,
   overlayMessageRenderer,
   QrCodeRenderer,
 } from "./ytUI.js";
+
+const GITHUB_URL = "https://github.com/TizenDroid/axotube";
+const DISCORD_URL = "https://discord.gg/UDb8nak5YD";
+// The service's diagnostics page on the proxy, the same page the red key opens on the splash.
+const DIAGNOSTICS_URL = "http://127.0.0.1:8081/axotube/diagnostics";
 
 // The settings tree is plain data: labels, config keys and nesting. It is
 // rendered as YouTube's own modal panels. Node kinds:
@@ -24,7 +31,10 @@ import {
 //                           show a skip button, or off (cycles on press)
 //   options: [...]          submenu
 //   options: { title, subtitle, content }   information panel (text, { qrLink })
+//   launchDebugger: <bool>  radio row for the service's launch mode
 //   action: "<ACTION>"      runs a custom action
+// A node may carry refresh: a function that updates live state and then calls its
+// callback. It runs each time the panel opens, so status rows are current.
 // A null entry is left out. That is how a feature the device lacks is hidden.
 
 // Each segment type has one enable key. Whether it is shown as a skip button
@@ -134,12 +144,15 @@ function toggle(name, key, icon) {
   return { name, icon, value: key };
 }
 
-function radio(name, key, value) {
-  return { name, key, value };
+// also lists other stored values that this row should show as checked (for example
+// "auto" means the same as "samsung" for the user agent).
+function radio(name, key, value, also) {
+  return { name, key, value, also };
 }
 
-function submenu(name, icon, options, menuHeader) {
-  return { name, icon, value: null, menuHeader, options };
+// refresh (optional) is called when the panel opens, before its rows are drawn again.
+function submenu(name, icon, options, menuHeader, refresh) {
+  return { name, icon, value: null, menuHeader, options, refresh };
 }
 
 function heading(title, subtitle) {
@@ -147,9 +160,14 @@ function heading(title, subtitle) {
 }
 
 // An information panel whose content is produced when it is opened, so live values
-// (like the pairing code) are current every time.
-function livePanel(name, icon, title, subtitle, content) {
-  return { name, icon, value: null, options: { title, subtitle, content } };
+// (like the pairing code) are current every time. refresh works as for submenu.
+function livePanel(name, icon, title, subtitle, content, refresh) {
+  return { name, icon, value: null, options: { title, subtitle, content }, refresh };
+}
+
+// A row that picks the service's launch mode: proxy (false) or SDB debugger (true).
+function launchChoice(name, icon, debuggerOn) {
+  return { name, icon, launchDebugger: debuggerOn };
 }
 
 // Lines for the phone-sync panel. The QR code carries the pairing code too, so a
@@ -167,17 +185,54 @@ function phoneSyncLines() {
   return lines;
 }
 
-function aboutLink(name, link) {
-  return {
-    name,
-    icon: "OPEN_IN_NEW",
-    value: null,
-    options: {
-      title: name,
-      subtitle: link,
-      content: [t("settings.about.scanMessage", { name }), { qrLink: link }],
-    },
-  };
+// Web config panel: service state first, then the pairing code and phone addresses.
+function webConfigLines() {
+  const status = getServiceStatus();
+  if (!status.checked) return [t("settings.status.checking")];
+  if (!status.service) return [t("settings.webConfig.offline")];
+  return [t("settings.webConfig.online")].concat(phoneSyncLines());
+}
+
+function bundleLine(status) {
+  const bundle = status.service && status.service.bundle;
+  if (!bundle || !bundle.current) return t("settings.about.bundleUnknown");
+  if (bundle.available && bundle.latest) {
+    return t("settings.about.bundleUpdate", { current: bundle.current, latest: bundle.latest });
+  }
+  return t("settings.about.bundleCurrent", { version: bundle.current });
+}
+
+function launchLine(status) {
+  if (!status.service) return t("settings.about.launchUnknown");
+  const mode = status.service.launchDebugger
+    ? t("settings.advanced.launch.debuggerShort")
+    : t("settings.advanced.launch.proxyShort");
+  return t("settings.about.launchMode", { mode });
+}
+
+// About panel: which parts are running, then the project links as QR codes.
+function aboutLines() {
+  const status = getServiceStatus();
+  const lines = [t("settings.about.userscript", { version: AXOTUBE_VERSION })];
+  if (!status.checked) {
+    lines.push(t("settings.status.checking"));
+    return lines;
+  }
+  lines.push(
+    status.service
+      ? t("settings.about.serviceOnline", { version: status.service.version })
+      : t("settings.about.serviceOffline"),
+  );
+  lines.push(
+    status.proxy
+      ? t("settings.about.proxyOnline", { version: status.proxy.version })
+      : t("settings.about.proxyOffline"),
+  );
+  lines.push(bundleLine(status));
+  lines.push(launchLine(status));
+  lines.push(t("settings.about.scanMessage", { name: "GitHub" }), { qrLink: GITHUB_URL });
+  lines.push(t("settings.about.scanMessage", { name: "Discord" }), { qrLink: DISCORD_URL });
+  return lines;
 }
 
 // The frame-rate row needs the TV's native frame-rate call.
@@ -189,11 +244,54 @@ function frameRateSupported() {
 export function buildSettingsTree() {
   const settings = [
     livePanel(
-      t("settings.phoneSync.title"),
-      "CAST_ICON",
-      t("settings.phoneSync.title"),
-      t("settings.phoneSync.subtitle"),
-      phoneSyncLines,
+      t("settings.webConfig.title"),
+      "PHONELINK",
+      t("settings.webConfig.title"),
+      t("settings.webConfig.subtitle"),
+      webConfigLines,
+      refreshStatus,
+    ),
+    livePanel(
+      t("settings.about.title"),
+      "INFO",
+      t("settings.about.title"),
+      t("settings.about.subtitle"),
+      aboutLines,
+      refreshStatus,
+    ),
+    submenu(
+      t("settings.advanced.title"),
+      "SETTINGS",
+      [
+        {
+          name: t("settings.advanced.diagnostics.title"),
+          icon: "BUG_REPORT",
+          action: "SETTINGS_OPEN_DIAGNOSTICS",
+        },
+        submenu(
+          t("settings.advanced.userAgent.title"),
+          "LANGUAGE",
+          [
+            radio(t("settings.advanced.userAgent.samsung"), "userAgentProfile", "samsung", ["auto"]),
+            radio(t("settings.advanced.userAgent.android"), "userAgentProfile", "android"),
+          ],
+          heading(
+            t("settings.advanced.userAgent.title"),
+            t("settings.advanced.userAgent.subtitle"),
+          ),
+        ),
+        submenu(
+          t("settings.advanced.launch.title"),
+          "CAST_MOBILE",
+          [
+            launchChoice(t("settings.advanced.launch.proxy"), "TV", false),
+            launchChoice(t("settings.advanced.launch.debugger"), "SETTINGS_REMOTE", true),
+          ],
+          heading(t("settings.advanced.launch.title"), t("settings.advanced.launch.subtitle")),
+          refreshStatus,
+        ),
+      ],
+      heading(t("settings.advanced.title"), t("settings.advanced.subtitle")),
     ),
     submenu(
       t("settings.ads.title"),
@@ -677,15 +775,6 @@ export function buildSettingsTree() {
       ],
       heading(t("settings.system.title"), t("settings.system.subtitle")),
     ),
-    submenu(
-      t("settings.about.title"),
-      "HELP",
-      [
-        aboutLink("GitHub", "https://github.com/TizenDroid/axotube"),
-        aboutLink("Discord", "https://discord.gg/UDb8nak5YD"),
-      ],
-      heading(t("settings.about.title"), t("settings.about.version", { version: AXOTUBE_VERSION })),
-    ),
   ];
 
   return settings;
@@ -766,8 +855,26 @@ function rowFor(node, id, arrayKey, panelId) {
     );
   }
 
+  if (node.launchDebugger !== undefined) {
+    const status = getServiceStatus();
+    const chosen = status.service ? status.service.launchDebugger : null;
+    return buttonItem(
+      { title: node.name },
+      {
+        icon: node.icon,
+        secondaryIcon: chosen === node.launchDebugger ? "RADIO_BUTTON_CHECKED" : "RADIO_BUTTON_UNCHECKED",
+      },
+      settingCommand("SETTINGS_LAUNCH", {
+        debugger: node.launchDebugger,
+        panel: panelId,
+        index: idIndex(id),
+      }),
+    );
+  }
+
   if (node.key !== undefined) {
-    const on = configRead(node.key) === node.value;
+    const stored = configRead(node.key);
+    const on = stored === node.value || (!!node.also && node.also.indexOf(stored) !== -1);
     return buttonItem(
       { title: node.name },
       {
@@ -932,8 +1039,26 @@ function applyAndRefresh(write, panelId, index) {
 export function handleSettingsAction(action, parameters) {
   const p = parameters || {};
   switch (action) {
-    case "SETTINGS_OPEN":
+    case "SETTINGS_OPEN": {
+      const node = nodes.get(p.id);
       showPanel(p.id, false);
+      // A panel with a refresh draws its last answer now and again once the check
+      // returns, updating the same modal in place.
+      if (node && node.refresh) node.refresh(() => showPanel(p.id, true));
+      return;
+    }
+    case "SETTINGS_OPEN_DIAGNOSTICS":
+      // A plain page navigation: Back (10009) returns to YouTube.
+      location.href = DIAGNOSTICS_URL;
+      return;
+    case "SETTINGS_LAUNCH":
+      setLaunchMode(p.debugger, (ok) => {
+        showToast(
+          t("app.name"),
+          ok ? t("settings.advanced.launch.saved") : t("settings.advanced.launch.failed"),
+        );
+        showPanel(p.panel, true, p.index);
+      });
       return;
     case "SETTINGS_TOGGLE":
       applyAndRefresh(

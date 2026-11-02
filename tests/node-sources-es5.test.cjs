@@ -15,6 +15,16 @@ const FILES = [
   "service/bundleUpdates.cjs",
   "service/proxy.js",
   "service/standalone.js",
+  "service/cdp/websocket.js",
+  "service/cdp/sdb.js",
+  "service/cdp/cdp.js",
+  "service/cdp/launcher.js",
+  "service/service.js",
+  "service/diagnostics.js",
+  "service/launchSettings.js",
+  "service/webConfigPage.js",
+  "service/diagnosticsPage.js",
+  "shared/configPolicy.js",
 ];
 
 for (const file of FILES) {

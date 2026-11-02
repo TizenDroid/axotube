@@ -11,6 +11,8 @@ const REMIND_LATER_S = 86400;
 const BOOT_CHECK_DELAY_MS = 3000;
 
 function proxyUrl(path) {
+  // The CDP launch path runs this page on youtube.com, so the launcher names the proxy.
+  if (typeof window.__axotubeProxyUrl === "string") return window.__axotubeProxyUrl + path;
   const origin = window.location && window.location.origin ? window.location.origin : "http://localhost:8081";
   return origin + path;
 }
@@ -84,6 +86,24 @@ function checkForUpdates(showNoUpdateToast) {
     });
 }
 
+// Reloads so the new bundles load. While a video plays, the reload waits for a
+// pause or the end of the video, so playback is not cut off.
+function reloadWhenIdle() {
+  const video = document.querySelector("video");
+  if (!video || video.paused || video.ended) {
+    window.location.reload();
+    return;
+  }
+  showToast(t("app.name"), t("updater.reloadWhenPaused"), null);
+  const reload = () => {
+    video.removeEventListener("pause", reload);
+    video.removeEventListener("ended", reload);
+    window.location.reload();
+  };
+  video.addEventListener("pause", reload);
+  video.addEventListener("ended", reload);
+}
+
 // Applies the newest bundle and reloads. The reload picks up the new bundles,
 // so the running page never mixes old and new code.
 function applyUpdate() {
@@ -95,7 +115,7 @@ function applyUpdate() {
     })
     .then((status) => {
       if (status.error) throw new Error(status.error);
-      window.location.reload();
+      reloadWhenIdle();
     })
     .catch((error) => {
       console.error("[AxoTube:updater] apply failed:", error && error.message);

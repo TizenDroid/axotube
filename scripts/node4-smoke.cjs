@@ -194,6 +194,49 @@ async function main() {
     const favicon = await phone("GET", "/favicon.ico");
     if (favicon.status !== 204) fail("favicon returned " + favicon.status);
 
+    // The version the splash compares with the WGT, and the proxy-first default.
+    const shippedVersion = JSON.parse(fs.readFileSync(path.join(ROOT, "standalone", "service", "dist", "version.json"), "utf8")).version;
+    const health = JSON.parse((await request("127.0.0.1", "GET", PROXY_PORT, "/axotube/health")).body);
+    if (health.ok !== true || health.version !== shippedVersion) fail("health reports " + JSON.stringify(health));
+    const next = JSON.parse((await request("127.0.0.1", "GET", PROXY_PORT, "/axotube/launch/next?args=")).body);
+    if (next.action !== "proxy" || next.mode !== "proxy") fail("the default launch is not the proxy: " + JSON.stringify(next));
+    console.log("node4-smoke: health reports " + shippedVersion + "; the default launch is the proxy, with no exit");
+
+    // The diagnostics page the red key opens, and the data it reads.
+    const diagPage = await request("127.0.0.1", "GET", PROXY_PORT, "/axotube/diagnostics");
+    if (diagPage.status !== 200 || diagPage.body.indexOf("axotube diagnostics") === -1) fail("diagnostics page returned " + diagPage.status);
+    const diag = JSON.parse((await request("127.0.0.1", "GET", PROXY_PORT, "/axotube/diagnostics.json")).body);
+    if (diag.service.version !== shippedVersion || !Array.isArray(diag.events) || diag.launch.debugger !== false) {
+      fail("diagnostics.json has an unexpected shape: " + JSON.stringify(diag).slice(0, 300));
+    }
+    const reset = await request("127.0.0.1", "POST", PROXY_PORT, "/axotube/launch/reset");
+    if (reset.status !== 200) fail("launch reset returned " + reset.status + ": " + reset.body);
+
+    // The phone's launch mode: read, save, reject a bad value, and put it back.
+    const authed = { "x-axotube-token": token, "Content-Type": "application/json" };
+    const launchGet = await phone("GET", "/api/launch", { "x-axotube-token": token });
+    if (launchGet.status !== 200 || JSON.parse(launchGet.body).debugger !== false) fail("GET /api/launch: " + launchGet.body);
+    const launchBad = await phone("POST", "/api/launch", authed, JSON.stringify({ debugger: "yes" }));
+    if (launchBad.status !== 400) fail("a non-boolean launch mode was not refused: " + launchBad.status);
+    const launchOn = await phone("POST", "/api/launch", authed, JSON.stringify({ debugger: true }));
+    if (launchOn.status !== 200) fail("saving the debugger launch returned " + launchOn.status);
+    const nextOn = JSON.parse((await request("127.0.0.1", "GET", PROXY_PORT, "/axotube/launch/next?args=")).body);
+    if (nextOn.mode !== "debugger") fail("the saved choice did not reach the launcher: " + JSON.stringify(nextOn));
+    const launchOff = await phone("POST", "/api/launch", authed, JSON.stringify({ debugger: false }));
+    if (launchOff.status !== 200) fail("restoring the proxy launch returned " + launchOff.status);
+    const phoneDiag = await phone("GET", "/api/diagnostics", { "x-axotube-token": token });
+    if (phoneDiag.status !== 200 || JSON.parse(phoneDiag.body).service.version !== shippedVersion) fail("GET /api/diagnostics: " + phoneDiag.body.slice(0, 200));
+    const configPage = await phone("GET", "/");
+    if (configPage.status !== 200 || configPage.body.indexOf("launchDebugger") === -1) fail("the config page does not show the launch mode");
+    console.log("node4-smoke: the launch mode saves and reaches the launcher; diagnostics and the config page answer");
+
+    // The cast restart route uses object spread, which the ES5 build expands with a
+    // helper. This runs it on Node 4 (loopback only, so the TV itself calls it).
+    const restart = await request("127.0.0.1", "POST", CONTROL_PORT, "/api/cast/restart", { "Content-Type": "application/json" }, JSON.stringify({ reason: "manual" }));
+    const restartBody = JSON.parse(restart.body);
+    if (restart.status !== 200 || restartBody.ok !== true || restartBody.restarted !== true) fail("cast restart: " + restart.status + " " + restart.body);
+    console.log("node4-smoke: cast discovery restarts from the ES5 build");
+
     const digest = crypto.createHash("sha256").update(fs.readFileSync(path.join(layout, "service", "dist", "core.js"))).digest("hex");
     console.log("node4-smoke: passed (core sha256 " + digest.slice(0, 12) + ")");
   } finally {

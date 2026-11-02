@@ -159,7 +159,7 @@ test("TV exposes a usable Web Config address with the pairing code", () => {
 });
 
 test("speed increment keeps decimal Web Config control but caps modal work", () => {
-  const web = read("service/webConfigPage.js");
+  const web = read("service/web/config.html");
   has(web, 'key==="speedSettingsIncrement"?0.01:1');
   const speed = read("mods/ui/speedUI.js");
   has(speed, "MAX_SPEED_OPTIONS = 100");

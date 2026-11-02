@@ -17,9 +17,22 @@ var fs = require('fs');
 var net = require('net');
 
 var bundleUpdates = require('./bundleUpdates.cjs');
+var diagnostics = require('./diagnostics.js');
+var diagnosticsPage = require('./diagnosticsPage.js').diagnosticsPage;
 // Shipped bundles, read-only inside the WGT. Newer bundles from the CDN are cached
 // in a writable folder and preferred once they are newer than the shipped ones.
-var BUNDLED_DIR = path.join(__dirname, '..', '..', 'userscript');
+// The built bundle lives in standalone/service/dist, so the shipped folder is two
+// levels up. Run from source (service/), it is standalone/userscript. Whichever exists.
+var BUNDLED_DIR = (function () {
+    var candidates = [
+        path.join(__dirname, '..', '..', 'userscript'),
+        path.join(__dirname, '..', 'standalone', 'userscript')
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+        if (fs.existsSync(path.join(candidates[i], 'userScript.js'))) return candidates[i];
+    }
+    return candidates[0];
+})();
 function mkdirp(dir) {
     if (fs.existsSync(dir)) return;
     mkdirp(path.dirname(dir));
@@ -91,8 +104,40 @@ function parseCorsTarget(rawTarget) {
     var decoded = String(rawTarget || '');
     try { decoded = decodeURIComponent(decoded); } catch (e) {}
     if (decoded.indexOf('://') === -1) decoded = 'https://' + decoded;
+    // Plain http to an allowed host is upgraded here, not refused. Runtime code
+    // (and Chrome's HSTS upgrade) can produce http:// URLs for these hosts, and
+    // YouTube would only answer with a redirect back to https.
+    if (/^http:\/\//i.test(decoded)) decoded = 'https://' + decoded.slice('http://'.length).replace(/^([^\/?#]*?):80(?=[\/?#]|$)/, '$1');
     var parsed = URL.parse(decoded);
     return isAllowedCorsTarget(parsed) ? parsed : null;
+}
+
+// One retry for a request that died on a reused keep-alive socket (the server
+// closed it while it sat idle). Seeks send several range requests at once, and
+// a reset there surfaced as a 502 and a playback error. Only bodiless requests
+// are retried, because a body stream cannot be sent twice.
+function fetchUpstream(url, options, retriesLeft) {
+    return fetch(url, options).catch(function (err) {
+        var stale = err && (err.code === 'ECONNRESET' || err.code === 'EPIPE' || /socket hang up/i.test(String(err.message || '')));
+        if (stale && retriesLeft > 0 && !options.body) return fetchUpstream(url, options, retriesLeft - 1);
+        throw err;
+    });
+}
+
+// Range requests that come back as errors or as a very small body are the seek
+// failures. Logged so the failing request can be matched with the player log.
+function logSuspiciousMedia(req, targetUrl, response) {
+    var status = response.status;
+    var rawLength = response.headers.get('content-length');
+    var length = rawLength === null ? NaN : Number(rawLength);
+    var isMedia = /\/videoplayback/.test(targetUrl);
+    if (status >= 400 || (isMedia && req.headers.range && length > 0 && length < 4096)) {
+        var parsed = URL.parse(targetUrl);
+        var line = status + ' ' + parsed.pathname + ' range=' + (req.headers.range || '-') +
+            ' length=' + (isNaN(length) ? '?' : length);
+        console.warn('[AxoTube:proxy] ' + line);
+        diagnostics.record('warn', 'media ' + line);
+    }
 }
 
 // Keeps a cors-bypass redirect on the proxy when its target is an allowed host.
@@ -136,9 +181,36 @@ app.use(function (req, res, next) {
     next();
 });
 
+// The splash compares this version with the WGT's own version and warns when they
+// differ. The file is written by scripts/build-standalone.js next to core.js.
+var SERVICE_VERSION = (function () {
+    try {
+        return JSON.parse(fs.readFileSync(path.join(__dirname, 'version.json'), 'utf8')).version || 'unknown';
+    } catch (e) {
+        return 'unknown';
+    }
+})();
+diagnostics.setServiceVersion(SERVICE_VERSION);
+diagnostics.setBundle(bundleUpdater.status());
+
 app.get('/axotube/health', function (req, res) {
-    res.status(200).end();
+    res.status(200).json({ ok: true, version: SERVICE_VERSION });
 });
+
+// The same bundle files the proxy serves, read from disk. The CDP launcher inlines
+// them into the page, so both paths run identical code.
+function bundleText(name) {
+    return fs.readFileSync(bundleUpdater.filePath(name), 'utf8');
+}
+
+// Starts YouTube under the debugger when the TV allows it (service/cdp/launcher.js).
+// Mounted before the catch-all route, which would otherwise answer it.
+// Kept so that a bundle change (check or apply) can re-register the page scripts.
+var launcher = require('./cdp/launcher.js').mountRoutes(app, bundleText);
+// Called after every check, so a newer cached bundle reaches the next page load.
+function bundlesChanged() {
+    try { launcher.refreshScripts(); } catch (err) { console.error('[AxoTube:launch] refresh failed: ' + err.message); }
+}
 
 // Scripts are revalidated on every load, but a 304 avoids the transfer when the
 // file has not changed. The tag is built from size and mtime, which change on
@@ -173,7 +245,11 @@ app.get('/axotube/update', function (req, res) {
 
 app.post('/axotube/update/apply', function (req, res) {
     bundleUpdater.apply().then(function () {
-        res.json(bundleUpdater.status());
+        bundlesChanged();
+        var status = bundleUpdater.status();
+        diagnostics.setBundle(status);
+        diagnostics.record(status.error ? 'error' : 'info', 'update apply: ' + (status.error || 'bundle ' + status.current));
+        res.json(status);
     });
 });
 
@@ -181,8 +257,23 @@ app.post('/axotube/update/apply', function (req, res) {
 // so "Check for updates" needs this to learn about a release published since boot.
 app.post('/axotube/update/check', function (req, res) {
     bundleUpdater.check().then(function () {
-        res.json(bundleUpdater.status());
+        bundlesChanged();
+        var status = bundleUpdater.status();
+        diagnostics.setBundle(status);
+        diagnostics.record(status.error ? 'error' : 'info', 'update check: ' + (status.error || (status.available ? 'bundle ' + status.latest + ' available' : 'up to date')));
+        res.json(status);
     });
+});
+
+// The diagnostics page the red key opens on the TV, and the data it reads. Served
+// from the proxy, so it still works when YouTube's page is not loaded.
+app.get('/axotube/diagnostics', function (req, res) {
+    res.type('html').send(diagnosticsPage);
+});
+
+app.get('/axotube/diagnostics.json', function (req, res) {
+    diagnostics.setBundle(bundleUpdater.status());
+    res.json(diagnostics.summary());
 });
 
 function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
@@ -277,6 +368,7 @@ function notify(text) {
 var CHECK_RETRY_DELAYS_MS = [30 * 1000, 2 * 60 * 1000, 10 * 60 * 1000];
 function checkWithRetry(attempt) {
     return bundleUpdater.check().then(function () {
+        bundlesChanged();
         if (!bundleUpdater.status().error) return;
         if (attempt < CHECK_RETRY_DELAYS_MS.length) {
             setTimeout(function () { checkWithRetry(attempt + 1); }, CHECK_RETRY_DELAYS_MS[attempt]);
@@ -290,7 +382,7 @@ function checkWithRetry(attempt) {
 var firstBundleCheck = checkWithRetry(0);
 var firstBundleCheckDone = false;
 firstBundleCheck.then(function () { firstBundleCheckDone = true; });
-setInterval(function () { bundleUpdater.check(); }, BUNDLE_CHECK_INTERVAL_MS);
+setInterval(function () { bundleUpdater.check().then(bundlesChanged); }, BUNDLE_CHECK_INTERVAL_MS);
 app.use(function (req, res, next) {
     if (firstBundleCheckDone || req.url.indexOf('/tv') !== 0 || req.url.indexOf('/tv_config') !== -1) {
         return next();
@@ -321,8 +413,9 @@ app.all('*', function (req, res) {
         agent: upstreamAgent
     };
 
-    fetch(targetUrl, fetchOptions)
+    fetchUpstream(targetUrl, fetchOptions, 1)
         .then(function (response) {
+            logSuspiciousMedia(req, targetUrl, response);
             res.status(req.method === 'OPTIONS' ? 200 : response.status);
             var rawHeaders = response.headers.raw();
             Object.keys(rawHeaders).forEach(function (key) {

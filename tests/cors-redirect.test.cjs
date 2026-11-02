@@ -44,7 +44,8 @@ test("a redirect to a host outside the allowlist is returned unchanged", () => {
   const rewrite = load();
   const from = "https://redirector.googlevideo.com/x";
   assert.equal(rewrite("https://example.com/y", from), "https://example.com/y");
-  assert.equal(rewrite("http://rr4---sn-test.googlevideo.com/y", from), "http://rr4---sn-test.googlevideo.com/y");
+  // An allowed host over plain http stays on the proxy; the proxy upgrades it to https.
+  assert.equal(rewrite("http://rr4---sn-test.googlevideo.com/y", from), "http://localhost:8081/cors-bypass/http://rr4---sn-test.googlevideo.com/y");
 });
 
 test("the proxy routes cors-bypass redirects through the helper", () => {

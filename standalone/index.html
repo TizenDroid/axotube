@@ -87,21 +87,38 @@
             return out.join("&");
         }
 
+        // The proxy's pages are on 127.0.0.1 (the service listens there only). The
+        // page itself is opened as localhost, the address YouTube's links expect.
         var PROXY_URL = "http://localhost:8081";
-        // The service listens on 127.0.0.1 only. Checking that address directly
-        // avoids "localhost" resolving to IPv6 first and waiting out a timeout.
         var HEALTH_URL = "http://127.0.0.1:8081/axotube/health";
+        var LAUNCH_NEXT_URL = "http://127.0.0.1:8081/axotube/launch/next";
+        var DIAGNOSTICS_URL = "http://127.0.0.1:8081/axotube/diagnostics";
         var DIAL_URL = "http%3A%2F%2Flocalhost%3A8080%2Fdial%2Fapps%2FYouTube";
         var HEALTH_REQUEST_TIMEOUT_MS = 2000;
         var LAUNCH_RETRY_LIMIT = 3;
-        var launchFailures = 0;
-        var healthAttempts = 0;
+        var LAUNCH_MAX_POLLS = 200; // covers the debugger path (SDB 20 s, attach 15 s); the proxy path answers at once
         var SLOW_START_ATTEMPT = 40;
         var MAX_HEALTH_ATTEMPTS = 600;
+        var VERSION_NOTICE_MS = 3000;
+        var DEBUGGER_NOTICE_MS = 2500;
+        var KEY_ENTER = 13;
+        var KEY_RED = 403;
+        var launchFailures = 0;
+        var healthAttempts = 0;
+        var launchPolls = 0;
+        var retryReady = false;
 
         function setStatus(text) {
             var el = document.getElementById("status");
             if (el) el.textContent = text;
+        }
+
+        function wgtVersion() {
+            try {
+                return String(tizen.application.getCurrentApplication().appInfo.version || "");
+            } catch (e) {
+                return "";
+            }
         }
 
         function fetchWithDeadline(url, options, timeoutMs) {
@@ -134,12 +151,52 @@
             return healthAttempts < 20 ? 300 : 1000;
         }
 
+        // The service stopped answering or failed to start. Enter retries, and the
+        // red key opens the diagnostics page.
+        function showRetry(message) {
+            retryReady = true;
+            setStatus(message + " Press Enter to retry. Red for diagnostics.");
+        }
+
+        function retry() {
+            retryReady = false;
+            healthAttempts = 0;
+            launchFailures = 0;
+            launchPolls = 0;
+            launchService();
+        }
+
+        // True when version a is older than b (dotted numbers, missing parts are 0).
+        function isOlder(a, b) {
+            var pa = String(a).split(".");
+            var pb = String(b).split(".");
+            for (var i = 0; i < 3; i++) {
+                var x = parseInt(pa[i], 10) || 0;
+                var y = parseInt(pb[i], 10) || 0;
+                if (x !== y) return x < y;
+            }
+            return false;
+        }
+
+        // An older service than the app means the app was installed over a newer
+        // service and the two can disagree. The service also updates itself, so a
+        // newer service is normal and gets no warning.
+        function checkVersions(serviceVersion, next) {
+            var app = wgtVersion();
+            if (app && serviceVersion && serviceVersion !== "unknown" && isOlder(serviceVersion, app)) {
+                setStatus("Service " + serviceVersion + " is older than the app " + app + ". Reinstall the app.");
+                setTimeout(next, VERSION_NOTICE_MS);
+            } else {
+                next();
+            }
+        }
+
         function openYouTube() {
             var args = sanitizeCastArgs(getCastArgs());
             var target = PROXY_URL + "/tv?additionalDataUrl=" + DIAL_URL + (args ? "&" + args : "");
             healthAttempts += 1;
             if (healthAttempts > MAX_HEALTH_ATTEMPTS) {
-                setStatus("Service did not respond. Restart the app.");
+                showRetry("Service did not respond.");
                 return;
             }
             setStatus(
@@ -149,16 +206,67 @@
             );
             fetchWithDeadline(HEALTH_URL, { cache: "no-store" }, HEALTH_REQUEST_TIMEOUT_MS)
                 .then(function (r) {
-                    if (r.ok) {
-                        setStatus("Service running. Opening YouTube…");
-                        location.href = target;
-                    } else {
+                    if (!r.ok) return null;
+                    return r.json().catch(function () { return {}; });
+                })
+                .then(function (health) {
+                    if (!health) {
                         setTimeout(openYouTube, healthDelayMs());
+                        return;
                     }
+                    setStatus("Service running. Opening YouTube…");
+                    checkVersions(health.version, function () { handOff(target); });
                 })
                 .catch(function () {
                     setTimeout(openYouTube, healthDelayMs());
                 });
+        }
+
+        // Asks the service how to open YouTube. Proxy is the default: the answer is
+        // "proxy" and the WGT loads the proxy page at once. Only when the user turns
+        // the debugger launch on does the service answer "exit" (this WGT closes so
+        // the service can start it under the debugger), "wait" (keep asking) or
+        // "attached" (the service is navigating this WGT).
+        function handOff(fallbackUrl) {
+            var args = sanitizeCastArgs(getCastArgs());
+            launchPolls += 1;
+            if (launchPolls > LAUNCH_MAX_POLLS) {
+                location.href = fallbackUrl;
+                return;
+            }
+            fetchWithDeadline(LAUNCH_NEXT_URL + "?args=" + encodeURIComponent(args), { cache: "no-store" }, HEALTH_REQUEST_TIMEOUT_MS)
+                .then(function (r) { return r.json(); })
+                .then(function (state) {
+                    if (state.action === "exit") {
+                        setStatus("Restarting under the debugger…");
+                        try {
+                            tizen.application.getCurrentApplication().exit();
+                        } catch (e) {
+                            location.href = fallbackUrl;
+                        }
+                    } else if (state.action === "wait") {
+                        setStatus("Connecting to YouTube…");
+                        setTimeout(function () { handOff(fallbackUrl); }, 250);
+                    } else if (state.action === "attached") {
+                        setStatus("Opening YouTube…");
+                    } else {
+                        goToProxy(fallbackUrl, state);
+                    }
+                })
+                .catch(function () {
+                    location.href = fallbackUrl;
+                });
+        }
+
+        // When the debugger was asked for and could not be used, the reason is shown
+        // briefly, so the user knows why YouTube opened without it.
+        function goToProxy(fallbackUrl, state) {
+            if (state.mode === "debugger" && state.reason) {
+                setStatus("Opening YouTube without the debugger. " + state.reason);
+                setTimeout(function () { location.href = fallbackUrl; }, DEBUGGER_NOTICE_MS);
+            } else {
+                location.href = fallbackUrl;
+            }
         }
 
         function launchService() {
@@ -180,14 +288,22 @@
                             setStatus("Service launch failed (" + reason + "). Retrying…");
                             setTimeout(launchService, 2000);
                         } else {
-                            setStatus("Service launch failed: " + reason + ". Restart the app.");
+                            showRetry("Service launch failed (" + reason + ").");
                         }
                     }
                 );
             } catch (e) {
-                setStatus("Launch Service failed: " + e.message);
+                showRetry("Launch Service failed: " + e.message + ".");
             }
         }
+
+        document.addEventListener("keydown", function (e) {
+            if (e.keyCode === KEY_RED || e.key === "ColorF0Red") {
+                location.href = DIAGNOSTICS_URL + "?wgt=" + encodeURIComponent(wgtVersion());
+            } else if ((e.keyCode === KEY_ENTER || e.key === "Enter") && retryReady) {
+                retry();
+            }
+        });
 
         if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", launchService);
         else launchService();
