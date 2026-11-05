@@ -226,8 +226,17 @@ async function main() {
     if (launchOff.status !== 200) fail("restoring the proxy launch returned " + launchOff.status);
     const phoneDiag = await phone("GET", "/api/diagnostics", { "x-axotube-token": token });
     if (phoneDiag.status !== 200 || JSON.parse(phoneDiag.body).service.version !== shippedVersion) fail("GET /api/diagnostics: " + phoneDiag.body.slice(0, 200));
+    // The shell loads the config app from the release; the launch control is rendered
+    // by service/web/config.js, so check both the served page and the shipped app.
     const configPage = await phone("GET", "/");
-    if (configPage.status !== 200 || configPage.body.indexOf("launchDebugger") === -1) fail("the config page does not show the launch mode");
+    const configApp = fs.readFileSync(path.join(ROOT, "service", "web", "config.js"), "utf8");
+    if (
+      configPage.status !== 200 ||
+      configPage.body.indexOf("/config.js") === -1 ||
+      configApp.indexOf("launchDebugger") === -1
+    ) {
+      fail("the config page does not load the launch-mode app");
+    }
     console.log("node4-smoke: the launch mode saves and reaches the launcher; diagnostics and the config page answer");
 
     // The cast restart route uses object spread, which the ES5 build expands with a
