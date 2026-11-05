@@ -65,6 +65,22 @@ function stubServer(pages, api) {
   })));
 }
 
+// The shell loads its assets from the pinned jsDelivr release. Answer those requests from
+// the files on disk, so the page runs exactly as shipped, integrity checks included.
+// Pass { down: true } to simulate the CDN being unreachable.
+const WEB_DIR = path.join(ROOT, "service", "web");
+const CDN = /^https:\/\/cdn\.jsdelivr\.net\/gh\/TizenDroid\/axotube@v[^/]+\/service\/web\/([\w.-]+)$/;
+async function serveAssets(context, opts) {
+  await context.route(CDN, (route) => {
+    if (opts && opts.down) return route.abort("internetdisconnected");
+    const name = route.request().url().match(CDN)[1];
+    const file = path.join(WEB_DIR, name);
+    if (!fs.existsSync(file)) return route.fulfill({ status: 404, body: "" });
+    const type = name.endsWith(".css") ? "text/css" : name.endsWith(".json") ? "application/json" : "text/javascript";
+    return route.fulfill({ status: 200, contentType: type, body: fs.readFileSync(file) });
+  });
+}
+
 async function withBrowser(fn) {
   const browser = await pw.chromium.launch({ executablePath: chromePath, args: ["--no-sandbox", "--disable-gpu"] });
   try {
@@ -90,9 +106,9 @@ test("the TV diagnostics page renders the versions, events and retry", { skip: S
       await page.goto(server.base + "/axotube/diagnostics?wgt=1.31.3");
       await page.waitForFunction(() => document.getElementById("versions").textContent.indexOf("Service") !== -1);
       const versions = await page.textContent("#versions");
-      assert.match(versions, /App 1\.31\.3 .*Service 1\.31\.3 .*Bundle 1\.31\.3 \(update 1\.31\.4 ready\)/);
+      assert.match(versions, /App\s*1\.31\.3\s*Service\s*1\.31\.3\s*Bundle\s*1\.31\.3 \(update 1\.31\.4 ready\)/);
       assert.match(await page.textContent("#events"), /media 403 \/videoplayback/);
-      assert.match(await page.textContent("#launch"), /Launch: proxy/);
+      assert.match(await page.textContent("#launch"), /Mode\s*Proxy/);
 
       await page.click("#retryBtn");
       await page.waitForFunction(() => document.getElementById("note").textContent.indexOf("Cleared") !== -1);
@@ -113,11 +129,12 @@ test("the TV diagnostics page warns when the service is older than the app", { s
     await withBrowser(async (browser) => {
       const page = await browser.newPage();
       await page.goto(server.base + "/axotube/diagnostics?wgt=1.32.0");
-      await page.waitForFunction(() => document.getElementById("versions").textContent.indexOf("older") !== -1);
+      await page.waitForFunction(() => document.getElementById("versionWarn").textContent.indexOf("older") !== -1);
       const quiet = await browser.newPage();
       await quiet.goto(server.base + "/axotube/diagnostics?wgt=1.31.0");
       await quiet.waitForFunction(() => document.getElementById("versions").textContent.indexOf("Service") !== -1);
-      assert.equal(await quiet.textContent("#versions"), "App 1.31.0   ·   Service 1.31.3   ·   Bundle 1.31.3 (update 1.31.4 ready)", "a newer service is not warned about");
+      assert.equal(await quiet.isHidden("#versionWarn"), true, "a newer service is not warned about");
+      assert.match(await quiet.textContent("#versions"), /App\s*1\.31\.0\s*Service\s*1\.31\.3/);
     });
   } finally {
     await server.close();
@@ -144,14 +161,16 @@ test("the phone config page shows the launch mode and saves it", { skip: SKIP, t
       await context.addInitScript(() => {
         window.localStorage.setItem("axotube-pair-token", "test-token");
       });
+      await serveAssets(context);
       const page = await context.newPage();
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(server.base + "/");
-      await page.waitForFunction(() => document.getElementById("launchDebugger").offsetParent !== null);
+      await page.waitForFunction(() => document.getElementById("launchDebugger") && document.getElementById("launchDebugger").offsetParent !== null);
       assert.equal(await page.isChecked("#launchDebugger"), false, "proxy is the default");
 
       await page.check("#launchDebugger");
+      await page.click("#launchSave");
       await page.waitForFunction(() => document.getElementById("launchNote").textContent.indexOf("Saved") !== -1);
       assert.equal(settings.debugger, true, "the choice reached the service");
       assert.match(await page.textContent("#launchNote"), /next time YouTube opens/);

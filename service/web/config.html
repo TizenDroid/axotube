@@ -1,341 +1,89 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>axotube Web Config</title>
-<style>
-  :root { color-scheme: dark; font-family: Arial, sans-serif; background:#0f0f0f; color:#eee; }
-  body { margin:0; }
-  header { position:sticky; top:0; z-index:10; background:#141414; padding:16px 20px; border-bottom:1px solid #333; display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-  h1 { font-size:20px; margin:0; }
-  button,input,select,textarea { font:inherit; }
-  button { padding:8px 12px; border-radius:6px; border:1px solid #555; background:#272727; color:#fff; cursor:pointer; }
-  button.primary { background:#fff; color:#111; }
-  input,select,textarea { background:#1d1d1d; color:#fff; border:1px solid #555; border-radius:6px; padding:7px 8px; }
-  input[type=checkbox] { width:20px; height:20px; }
-  input[type=color] { width:48px; height:34px; padding:2px; }
-  input[type=range] { width:180px; }
-  textarea { min-width:280px; min-height:54px; }
-  .toolbar,.pairing { display:flex; gap:8px; flex-wrap:wrap; padding:12px 20px; align-items:center; }
-  .pairing { background:#171717; border-bottom:1px solid #333; }
-  .pairing.hidden { display:none; }
-  .hint { padding:0 20px; color:#aaa; font-size:12px; }
-  main { padding:8px 20px 40px; max-width:1050px; margin:auto; }
-  .group { margin-top:20px; color:#aaa; text-transform:uppercase; font-size:12px; letter-spacing:.06em; border-bottom:1px solid #333; padding-bottom:5px; }
-  .row { display:flex; align-items:center; gap:12px; padding:10px 8px; border-bottom:1px solid #282828; }
-  .key { flex:1; min-width:220px; word-break:break-word; }
-  .ctrl { display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end; }
-  .status { font-size:13px; color:#aaa; }
-  .status.ok { color:#8fd694; }
-  .status.err { color:#ff8c8c; }
-  .preview { width:80px; height:45px; object-fit:cover; border-radius:4px; border:1px solid #555; }
-  .swatch { width:22px; height:22px; padding:0; border-radius:50%; }
-  #filter { flex:1; min-width:200px; }
-  .toast { position:fixed; right:18px; bottom:18px; background:#222; border:1px solid #555; padding:10px 14px; border-radius:7px; display:none; }
-  .toast.show { display:block; }
-  .panel { max-width:1050px; margin:0 auto; padding:0 20px; }
-  .panel.hidden { display:none; }
-  .log { white-space:pre-wrap; word-break:break-word; font-size:12px; color:#ccc; max-height:360px; overflow:auto; background:#141414; padding:10px; border-radius:6px; border:1px solid #282828; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="referrer" content="no-referrer" />
+<title>axotube Config</title>
+<link rel="stylesheet" href="__ASSET_BASE__/config.css" integrity="__SRI_CSS__" crossorigin="anonymous" />
+<script>
+  // Data the application reads on start. The schema is injected at build time, so
+  // defaults and valid values always match the service this page was served from.
+  window.AXOTUBE_WEB = {
+    schema: __SCHEMA__,
+    uiUrl: "__ASSET_BASE__/config-ui.json",
+    uiIntegrity: "__SRI_UI__"
+  };
+  window.axotubeAssetError = function () {
+    var box = document.getElementById("bootError");
+    if (box) box.hidden = false;
+  };
+</script>
 </head>
 <body>
-<header><h1>axotube Web Config</h1><span id="status" class="status">pairing required</span></header>
-<div id="pairing" class="pairing">
-  <strong>Pair with TV:</strong>
-  <input id="pairCode" inputmode="numeric" maxlength="6" placeholder="6-digit code" />
-  <button id="pairBtn" class="primary">Pair</button>
-  <span>Code is shown on the TV when axotube connects.</span>
-</div>
-<div class="toolbar">
-  <input type="search" id="filter" placeholder="Filter settings..." />
-  <button id="saveBtn" class="primary">Save to TV</button>
-  <button id="saveReloadBtn">Save & Reload TV</button>
-  <button id="refreshBtn">Reload from TV</button>
-  <button id="defaultsBtn">Reset to defaults</button>
-</div>
-<p class="hint">Settings are stored on the TV and applied live where supported.</p>
-<section id="launchPanel" class="panel hidden">
-  <div class="group">Launch</div>
-  <div class="row">
-    <div class="key">Start YouTube under the debugger. The TV app exits and restarts, which takes a few seconds. Needs developer mode with developer IP 127.0.0.1. Off: YouTube opens at once through the proxy.</div>
-    <div class="ctrl"><input type="checkbox" id="launchDebugger" /></div>
+<noscript><p class="boot-error">axotube Config needs JavaScript to run.</p></noscript>
+<p id="bootError" class="boot-error" role="alert" hidden>AxoTube Config could not load its interface assets. Check your internet connection and reload this page.</p>
+
+<header class="topbar">
+  <div class="brand"><span class="brand-name">axotube</span><span class="brand-sub">Config</span></div>
+  <div class="topbar-tools">
+    <span id="conn" class="conn" role="status">Pairing required</span>
+    <label class="search">
+      <span class="visually-hidden">Search settings</span>
+      <input id="search" type="search" placeholder="Search settings" autocomplete="off" />
+      <kbd class="kbd" aria-hidden="true">/</kbd>
+    </label>
   </div>
-  <div class="hint" id="launchNote"></div>
-</section>
-<section id="diagPanel" class="panel hidden">
-  <div class="group">Diagnostics</div>
-  <div class="row">
-    <div class="key" id="diagSummary">Loading…</div>
-    <div class="ctrl"><button id="diagRefresh">Refresh</button></div>
+</header>
+
+<form id="pairing" class="pairing" hidden>
+  <h2>Pair this browser</h2>
+  <p>Enter the six-digit code shown on the TV screen. The code changes each time AxoTube starts.</p>
+  <div class="pair-row">
+    <div class="code-field">
+      <label class="visually-hidden" for="pairCode">Pairing code</label>
+      <input id="pairCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" aria-describedby="pairError" />
+      <div class="code-slots" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+    <button id="pairBtn" class="btn primary" type="submit">Pair</button>
   </div>
-  <pre id="diagLog" class="log"></pre>
-</section>
-<main id="main"></main>
-<div id="toast" class="toast"></div>
-<script>
-(function () {
-  "use strict";
-  var SCHEMA = __SCHEMA__;
-  var DEFAULTS = SCHEMA.defaults;
-  var GROUPS = {
-    enableAdBlock:"AdBlock",
-    enableSponsorBlock:"SponsorBlock", enableSponsorBlockToasts:"SponsorBlock", sponsorBlockManualSkips:"SponsorBlock",
-    enableSponsorBlockSponsor:"SponsorBlock", enableSponsorBlockIntro:"SponsorBlock", enableSponsorBlockOutro:"SponsorBlock",
-    enableSponsorBlockInteraction:"SponsorBlock", enableSponsorBlockSelfPromo:"SponsorBlock", enableSponsorBlockPreview:"SponsorBlock",
-    enableSponsorBlockMusicOfftopic:"SponsorBlock", enableSponsorBlockFiller:"SponsorBlock", enableSponsorBlockHighlight:"SponsorBlock",
-    videoSpeed:"Player", speedSettingsIncrement:"Player", preferredVideoQuality:"Player", videoPreferredCodec:"Player", enablePreviousNextButtons:"Player",
-    enableSuperThanksButton:"Player", enableSpeedControlsButton:"Player", enablePatchingVideoPlayer:"Player", enableMPButton:"Player",
-    enableSwapMPWithPIP:"Player", enablePreviews:"Player", previewLengthSeconds:"Player", enableRemainingTime:"Player", enablePauseOnBlur:"Player", enablePanelShrink:"Player", panelShrinkPercent:"Player", enableLowMemoryMode:"Player", autoFrameRate:"Player", autoFrameRatePauseVideoFor:"Player", enableOnePressMode:"Player", enableExperimentalResolution:"Player", experimentalMaxResolution:"Player", enableAutoSubtitles:"Player", autoSubtitleLanguage:"Player", autoSubtitleAllowAuto:"Player",
-    enableDeArrowTitles:"Player", enableDeArrowThumbnails:"Player", enableDeArrowPeek:"Player",
-    routeColor:"Theme", routeBackgroundUrl:"Theme", themePreset:"Theme", textTheme:"Theme",
-    enableHqThumbnails:"Interface", enableLongPress:"Interface", enableShorts:"Interface", enableReducedMotion:"Interface", enablePerformanceMode:"Interface", clockMode:"Interface", clockFormat:"Interface", clockPosition:"Interface", clockShowSeconds:"Interface",
-    enableHideWatchedVideos:"Interface", hideWatchedVideosThreshold:"Interface", hideWatchedVideosPages:"Interface",
-    enableHideEndScreenCards:"Interface", enableYouThereRenderer:"Interface", enableScreenDimming:"Interface",
-    dimmingTimeout:"Interface", dimmingOpacity:"Interface", enablePaidPromotionOverlay:"Interface",
-    enableWhoIsWatchingMenu:"Interface", permanentlyEnableWhoIsWatchingMenu:"Interface", enableWhosWatchingMenuOnAppExit:"Interface",
-    enableShowUserLanguage:"Interface", enableShowOtherLanguages:"Interface", showWelcomeToast:"Interface",
-    launchToOnStartup:"Interface", reloadHomeOnStartup:"Interface", userAgentProfile:"System", disabledSidebarContents:"Interface", disableChannelsOnSidebar:"Interface",
-    dontCheckUpdateUntil:"System", enableUpdater:"System", enableSigninReminder:"System", sortSubscriptionsByAlphabet:"System"
-  };
-  var ARRAY_KEYS = { sponsorBlockManualSkips:true, hideWatchedVideosPages:true, disabledSidebarContents:true };
-  var state = {};
-  var revision = 0;
-  var saving = false;
-  var token = localStorage.getItem("axotube-pair-token") || "";
-  var main = document.getElementById("main");
-  var filter = document.getElementById("filter");
-  var status = document.getElementById("status");
-  var pairing = document.getElementById("pairing");
-  var toast = document.getElementById("toast");
+  <p id="pairError" class="field-error" role="alert" hidden></p>
+</form>
 
-  function clone(value) { return JSON.parse(JSON.stringify(value)); }
-  function setStatus(ok, text) { status.textContent = text; status.className = "status " + (ok ? "ok" : "err"); }
-  function flash(text) { toast.textContent = text; toast.className = "toast show"; setTimeout(function(){ toast.className = "toast"; }, 2200); }
-  function setPaired(paired) {
-    pairing.className = paired ? "pairing hidden" : "pairing";
-    document.getElementById("launchPanel").className = paired ? "panel" : "panel hidden";
-    document.getElementById("diagPanel").className = paired ? "panel" : "panel hidden";
-  }
+<dialog id="forgetDialog" class="confirm" aria-labelledby="forgetTitle">
+  <h2 id="forgetTitle">Forget this browser?</h2>
+  <p>This browser will stop editing your TV's settings. Unsaved changes in this browser will be lost.</p>
+  <p>Your TV's settings do not change. To pair again, you will need the code shown on the TV.</p>
+  <div class="confirm-actions">
+    <button id="forgetCancel" class="btn" type="button">Cancel</button>
+    <button id="forgetConfirm" class="btn danger-solid" type="button">Forget browser</button>
+  </div>
+</dialog>
 
-  function request(url, method, body, useAuth) {
-    var opts = { method: method || "GET", headers: {} };
-    if (useAuth !== false && token) opts.headers.Authorization = "Bearer " + token;
-    if (body !== undefined) {
-      opts.headers["Content-Type"] = "application/json";
-      opts.body = JSON.stringify(body);
-    }
-    return fetch(url, opts).then(function (res) {
-      return res.text().then(function (text) {
-        var data = {};
-        try { data = text ? JSON.parse(text) : {}; } catch (e) {}
-        if (!res.ok) {
-          var err = new Error(data.error || ("HTTP " + res.status));
-          err.status = res.status;
-          throw err;
-        }
-        return data;
-      });
-    });
-  }
+<div id="app" class="app" hidden>
+  <nav id="nav" class="nav" aria-label="Settings sections"></nav>
+  <main id="main" class="main" tabindex="-1"></main>
+</div>
 
-  function pair() {
-    var code = document.getElementById("pairCode").value.trim();
-    if (!/^\d{6}$/.test(code)) { flash("Enter the 6-digit TV code"); return; }
-    request("/api/pair", "POST", { code: code }, false).then(function (data) {
-      if (!data.token) throw new Error("No token returned");
-      token = data.token;
-      localStorage.setItem("axotube-pair-token", token);
-      document.getElementById("pairCode").value = "";
-      setPaired(true);
-      flash("Paired");
-      load();
-    }).catch(function (err) { setStatus(false, err.message || "Pairing failed"); });
-  }
+<div id="restartBar" class="restart-bar" role="status" hidden>
+  <span id="restartText"></span>
+  <button id="restartBtn" class="btn" type="button">Restart YouTube</button>
+  <button id="restartDismiss" class="btn quiet" type="button">Not now</button>
+</div>
 
-  function load() {
-    if (!token) { setPaired(false); setStatus(false, "pairing required"); main.textContent = ""; return; }
-    setStatus(false, "loading...");
-    request("/api/config").then(function (data) {
-      revision = data.revision || 0;
-      var cfg = data.config && Object.keys(data.config).length ? data.config : DEFAULTS;
-      state = clone(DEFAULTS);
-      Object.keys(DEFAULTS).forEach(function (key) {
-        if (Object.prototype.hasOwnProperty.call(cfg, key)) state[key] = clone(cfg[key]);
-      });
-      setPaired(true);
-      setStatus(true, "connected · revision " + revision);
-      render();
-      loadLaunch();
-      loadDiagnostics();
-    }).catch(function (err) {
-      if (err.status === 401) {
-        token = "";
-        localStorage.removeItem("axotube-pair-token");
-        setPaired(false);
-        setStatus(false, "pairing required");
-      } else setStatus(false, err.message || "service unreachable");
-    });
-  }
+<div id="savebar" class="savebar" role="region" aria-label="Unsaved changes" hidden>
+  <div class="savebar-text">
+    <strong id="saveCount">No unsaved changes</strong>
+    <span id="saveHint" class="muted"></span>
+  </div>
+  <div class="savebar-actions">
+    <button id="discardBtn" class="btn quiet" type="button" disabled>Discard</button>
+    <button id="saveBtn" class="btn primary" type="button" disabled>Save changes</button>
+  </div>
+</div>
 
-  // Launch mode: "proxy" by default. The checkbox saves straight to the TV.
-  var launchBox = document.getElementById("launchDebugger");
-  var launchNote = document.getElementById("launchNote");
-  function loadLaunch() {
-    request("/api/launch").then(function (data) {
-      launchBox.checked = data.debugger === true;
-      launchNote.textContent = "";
-    }).catch(function (err) {
-      launchNote.textContent = "Could not read the launch mode: " + (err.message || "error");
-    });
-  }
-  function saveLaunch() {
-    var wanted = launchBox.checked;
-    request("/api/launch", "POST", { debugger: wanted }).then(function () {
-      launchNote.textContent = wanted
-        ? "Saved. The next time YouTube opens, the TV app restarts under the debugger."
-        : "Saved. YouTube opens through the proxy, with no restart.";
-      flash("Launch mode saved");
-    }).catch(function (err) {
-      launchBox.checked = !wanted;
-      launchNote.textContent = "Not saved: " + (err.message || "error");
-    });
-  }
-
-  // Diagnostics: the same data the TV shows on its diagnostics page.
-  var diagSummary = document.getElementById("diagSummary");
-  var diagLog = document.getElementById("diagLog");
-  function loadDiagnostics() {
-    diagSummary.textContent = "Loading…";
-    request("/api/diagnostics").then(function (d) {
-      var b = d.bundle || {};
-      var l = d.launch || {};
-      var s = d.service || {};
-      var line = "Service " + (s.version || "?") + " · bundle " + (b.current || "?");
-      if (b.available) line += " (update " + b.latest + " ready)";
-      line += " · launch " + (l.debugger ? "debugger" : "proxy");
-      if (l.reason) line += " · " + l.reason;
-      diagSummary.textContent = line;
-      var events = (d.events || []).slice().reverse();
-      diagLog.textContent = events.length
-        ? events.map(function (e) { return new Date(e.t).toLocaleTimeString() + "  " + e.level + "  " + e.message; }).join("\n")
-        : "No events yet.";
-    }).catch(function (err) {
-      diagSummary.textContent = "Could not load diagnostics: " + (err.message || "error");
-    });
-  }
-
-  function addText(parent, tag, className, text) {
-    var el = document.createElement(tag);
-    if (className) el.className = className;
-    el.textContent = text;
-    parent.appendChild(el);
-    return el;
-  }
-
-  function makeInputFor(key, row) {
-    var value = state[key];
-    var ctrl = document.createElement("div");
-    ctrl.className = "ctrl";
-    row.appendChild(ctrl);
-
-    if (key === "routeColor") {
-      var color = document.createElement("input"); color.type = "color"; color.value = value; ctrl.appendChild(color);
-      color.addEventListener("change", function(){ state[key] = color.value; });
-      Object.keys(SCHEMA.themePresetColors).forEach(function (name) {
-        var swatch = document.createElement("button"); swatch.type = "button"; swatch.className = "swatch";
-        swatch.title = name; swatch.style.backgroundColor = SCHEMA.themePresetColors[name]; ctrl.appendChild(swatch);
-        swatch.addEventListener("click", function(){ state.routeColor = SCHEMA.themePresetColors[name]; state.themePreset = name; color.value = state.routeColor; });
-      });
-      return;
-    }
-
-    if (key === "routeBackgroundUrl") {
-      var url = document.createElement("input"); url.type = "url"; url.value = value || ""; url.size = 36; ctrl.appendChild(url);
-      var img = document.createElement("img"); img.className = "preview"; ctrl.appendChild(img);
-      function preview(){ if (url.value) { img.src = url.value; img.style.display = "block"; } else { img.removeAttribute("src"); img.style.display = "none"; } }
-      url.addEventListener("change", function(){ state[key] = url.value.trim(); preview(); }); preview(); return;
-    }
-
-    if (SCHEMA.enums[key]) {
-      var select = document.createElement("select");
-      SCHEMA.enums[key].forEach(function (option) { var o=document.createElement("option"); o.value=option; o.textContent=option; if (String(option)===String(value)) o.selected=true; select.appendChild(o); });
-      ctrl.appendChild(select);
-      select.addEventListener("change", function(){ state[key]=select.value; if (key === "themePreset" && SCHEMA.themePresetColors[select.value]) state.routeColor=SCHEMA.themePresetColors[select.value]; });
-      return;
-    }
-
-    if (SCHEMA.ranges[key]) {
-      var range = document.createElement("input"); range.type="range"; range.min=SCHEMA.ranges[key][0]; range.max=SCHEMA.ranges[key][1]; range.step=(key==="dimmingOpacity"?0.1:(key==="videoSpeed"?0.05:(key==="speedSettingsIncrement"?0.01:1))); range.value=value; ctrl.appendChild(range);
-      var label = addText(ctrl,"span","",String(value));
-      range.addEventListener("input", function(){ state[key]=Number(range.value); label.textContent=range.value; });
-      return;
-    }
-
-    if (ARRAY_KEYS[key]) {
-      var arr = document.createElement("input"); arr.type="text"; arr.size=34; arr.value=Array.isArray(value)?value.join(", "):""; ctrl.appendChild(arr);
-      arr.addEventListener("change", function(){ state[key]=arr.value.split(",").map(function(v){return v.trim();}).filter(Boolean); }); return;
-    }
-
-    if (key === "launchToOnStartup") {
-      var area = document.createElement("textarea"); area.value=value || ""; ctrl.appendChild(area);
-      area.addEventListener("change", function(){ var v=area.value.trim(); if (!v) { state[key]=null; return; } try { JSON.parse(v); state[key]=v; } catch(e){ flash("Launch command must be valid JSON"); area.value=state[key]||""; } }); return;
-    }
-
-    if (typeof value === "boolean") {
-      var check = document.createElement("input"); check.type="checkbox"; check.checked=value; ctrl.appendChild(check); check.addEventListener("change", function(){ state[key]=check.checked; }); return;
-    }
-
-    if (typeof value === "number") {
-      var num = document.createElement("input"); num.type="number"; num.value=value; num.step="any"; ctrl.appendChild(num); num.addEventListener("change", function(){ var n=Number(num.value); if (isFinite(n)) state[key]=n; }); return;
-    }
-
-    var text = document.createElement("input"); text.type="text"; text.size=30; text.value=value == null ? "" : String(value); ctrl.appendChild(text); text.addEventListener("change", function(){ state[key]=text.value; });
-  }
-
-  function render() {
-    main.textContent = "";
-    var q = filter.value.trim().toLowerCase();
-    var lastGroup = "";
-    var shown = 0;
-    Object.keys(DEFAULTS).forEach(function (key) {
-      if (q && key.toLowerCase().indexOf(q) === -1) return;
-      var group = GROUPS[key] || "General";
-      if (group !== lastGroup) { addText(main,"div","group",group); lastGroup=group; }
-      var row=document.createElement("div"); row.className="row"; main.appendChild(row); addText(row,"div","key",key); makeInputFor(key,row); shown++;
-    });
-    if (!shown) addText(main,"div","hint",'No settings match "' + q + '".');
-  }
-
-  function save(reload) {
-    if (saving) return;
-    saving = true;
-    request("/api/config","POST",{revision:revision,config:state}).then(function(data){ revision=data.revision; setStatus(true,"connected · revision " + revision); if (!reload) { flash("Saved"); return; } return request("/api/command","POST",{action:"reload"}).then(function(){ flash("Saved · TV reloading"); }); }).catch(function(err){ if (err.status === 409) setStatus(false,"Settings changed on TV · reload before saving"); flash("Save failed: " + (err.message || "unknown")); }).then(function(){ saving = false; });
-  }
-
-  document.getElementById("pairBtn").addEventListener("click", pair);
-  document.getElementById("pairCode").addEventListener("keydown", function(e){ if(e.key==="Enter") pair(); });
-  document.getElementById("saveBtn").addEventListener("click", function(){ save(false); });
-  document.getElementById("saveReloadBtn").addEventListener("click", function(){ save(true); });
-  document.getElementById("refreshBtn").addEventListener("click", load);
-  document.getElementById("defaultsBtn").addEventListener("click", function(){ state=clone(DEFAULTS); render(); flash("Defaults loaded · press Save"); });
-  // A phone that scanned the TV's QR code arrives with ?code=123456. Pair with it
-  // directly, so nothing has to be typed, and take the code out of the address bar.
-  // This replaces the startup load() so a stale token cannot race the new pairing.
-  function autoPairFromLink() {
-    var match = /[?&]code=(\d{6})(?:&|$)/.exec(location.search);
-    if (!match) return false;
-    if (window.history && history.replaceState) history.replaceState(null, "", location.pathname);
-    document.getElementById("pairCode").value = match[1];
-    pair();
-    return true;
-  }
-
-  launchBox.addEventListener("change", saveLaunch);
-  document.getElementById("diagRefresh").addEventListener("click", loadDiagnostics);
-  filter.addEventListener("input", render);
-  if (!autoPairFromLink()) load();
-})();
-</script>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="__ASSET_BASE__/config.js" integrity="__SRI_JS__" crossorigin="anonymous" defer onerror="window.axotubeAssetError()"></script>
 </body>
 </html>

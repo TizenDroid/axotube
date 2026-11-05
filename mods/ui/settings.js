@@ -43,12 +43,12 @@ const DIAGNOSTICS_URL = "http://127.0.0.1:8081/axotube/diagnostics";
 const SEGMENT_TYPES = [
   { type: "sponsor", key: "enableSponsorBlockSponsor", icon: "MONEY_HEART" },
   { type: "intro", key: "enableSponsorBlockIntro", icon: "PLAY_CIRCLE" },
-  { type: "outro", key: "enableSponsorBlockOutro", icon: "STOP_CIRCLE" },
-  { type: "interaction", key: "enableSponsorBlockInteraction", icon: "TOUCH_APP" },
-  { type: "selfpromo", key: "enableSponsorBlockSelfPromo", icon: "PROMOTION" },
-  { type: "preview", key: "enableSponsorBlockPreview", icon: "PREVIEW" },
-  { type: "filler", key: "enableSponsorBlockFiller", icon: "PADDING" },
-  { type: "music_offtopic", key: "enableSponsorBlockMusicOfftopic", icon: "MUSIC_NOTE" },
+  { type: "outro", key: "enableSponsorBlockOutro", icon: "PAUSE" },
+  { type: "interaction", key: "enableSponsorBlockInteraction", icon: "SUBSCRIBE" },
+  { type: "selfpromo", key: "enableSponsorBlockSelfPromo", icon: "BROADCAST" },
+  { type: "preview", key: "enableSponsorBlockPreview", icon: "PLAY_ARROW_CIRCLE" },
+  { type: "filler", key: "enableSponsorBlockFiller", icon: "TIMER" },
+  { type: "music_offtopic", key: "enableSponsorBlockMusicOfftopic", icon: "MUSIC" },
 ];
 
 const SEGMENT_NEXT_MODE = { skip: "show", show: "off", off: "skip" };
@@ -140,8 +140,8 @@ function writeSegmentMode(type, mode) {
   }
 }
 
-function toggle(name, key, icon) {
-  return { name, icon, value: key };
+function toggle(name, key, icon, hint) {
+  return { name, icon, value: key, hint };
 }
 
 // also lists other stored values that this row should show as checked (for example
@@ -161,8 +161,14 @@ function heading(title, subtitle) {
 
 // An information panel whose content is produced when it is opened, so live values
 // (like the pairing code) are current every time. refresh works as for submenu.
-function livePanel(name, icon, title, subtitle, content, refresh) {
-  return { name, icon, value: null, options: { title, subtitle, content }, refresh };
+function livePanel(name, icon, title, subtitle, content, refresh, links) {
+  return { name, icon, value: null, options: { title, subtitle, content, links }, refresh };
+}
+
+// Sets a one-line description shown under a row's title.
+function withHint(node, hint) {
+  node.hint = hint;
+  return node;
 }
 
 // A row that picks the service's launch mode: proxy (false) or SDB debugger (true).
@@ -177,12 +183,26 @@ function phoneSyncLines() {
   if (!info) return [t("settings.phoneSync.waiting")];
   const lines = [t("settings.phoneSync.intro")];
   const address = info.urls.filter((url) => !!url)[0];
-  if (address) {
-    lines.push({ qrLink: `${address}/?code=${info.code}` });
-    lines.push(t("settings.phoneSync.address", { url: address }));
-  }
+  if (address) lines.push(t("settings.phoneSync.address", { url: address }));
   lines.push(t("settings.phoneSync.code", { code: info.code }));
   return lines;
+}
+
+// The QR panel: an instruction line (the panel subtitle) and the code as its only row.
+function phoneQrLines() {
+  const info = getPairingInfo();
+  const address = info && info.urls.filter((url) => !!url)[0];
+  if (!info || !address) return [t("settings.phoneSync.noQr")];
+  return [t("settings.phoneSync.qrHint"), { qrLink: `${address}/?code=${info.code}` }];
+}
+
+function phoneQrPanel() {
+  return {
+    name: t("settings.webConfig.qrTitle"),
+    icon: "SMARTPHONE",
+    value: null,
+    options: { title: t("settings.webConfig.qrTitle"), subtitle: t("settings.webConfig.qrSubtitle"), content: phoneQrLines },
+  };
 }
 
 // Web config panel: service state first, then the pairing code and phone addresses.
@@ -230,9 +250,37 @@ function aboutLines() {
   );
   lines.push(bundleLine(status));
   lines.push(launchLine(status));
-  lines.push(t("settings.about.scanMessage", { name: "GitHub" }), { qrLink: GITHUB_URL });
-  lines.push(t("settings.about.scanMessage", { name: "Discord" }), { qrLink: DISCORD_URL });
   return lines;
+}
+
+// Socials: a list of names. Each one opens its own QR code.
+function socialsPanel() {
+  const github = {
+    name: "GitHub",
+    icon: "PRIVACY_PUBLIC",
+    value: null,
+    options: {
+      title: "GitHub",
+      subtitle: t("settings.about.socials.githubHint"),
+      content: [t("settings.about.scanMessage", { name: "GitHub" }), { qrLink: GITHUB_URL }],
+    },
+  };
+  const discord = {
+    name: "Discord",
+    icon: "COMMENT",
+    value: null,
+    options: {
+      title: "Discord",
+      subtitle: t("settings.about.socials.discordHint"),
+      content: [t("settings.about.scanMessage", { name: "Discord" }), { qrLink: DISCORD_URL }],
+    },
+  };
+  return submenu(
+    t("settings.about.socials.title"),
+    "PEOPLE",
+    [github, discord],
+    heading(t("settings.about.socials.title"), t("settings.about.socials.subtitle")),
+  );
 }
 
 // The frame-rate row needs the TV's native frame-rate call.
@@ -243,78 +291,6 @@ function frameRateSupported() {
 
 export function buildSettingsTree() {
   const settings = [
-    livePanel(
-      t("settings.webConfig.title"),
-      "PHONELINK",
-      t("settings.webConfig.title"),
-      t("settings.webConfig.subtitle"),
-      webConfigLines,
-      refreshStatus,
-    ),
-    livePanel(
-      t("settings.about.title"),
-      "INFO",
-      t("settings.about.title"),
-      t("settings.about.subtitle"),
-      aboutLines,
-      refreshStatus,
-    ),
-    submenu(
-      t("settings.advanced.title"),
-      "SETTINGS",
-      [
-        {
-          name: t("settings.advanced.diagnostics.title"),
-          icon: "BUG_REPORT",
-          action: "SETTINGS_OPEN_DIAGNOSTICS",
-        },
-        submenu(
-          t("settings.advanced.userAgent.title"),
-          "LANGUAGE",
-          [
-            radio(t("settings.advanced.userAgent.samsung"), "userAgentProfile", "samsung", ["auto"]),
-            radio(t("settings.advanced.userAgent.android"), "userAgentProfile", "android"),
-          ],
-          heading(
-            t("settings.advanced.userAgent.title"),
-            t("settings.advanced.userAgent.subtitle"),
-          ),
-        ),
-        submenu(
-          t("settings.advanced.launch.title"),
-          "CAST_MOBILE",
-          [
-            launchChoice(t("settings.advanced.launch.proxy"), "TV", false),
-            launchChoice(t("settings.advanced.launch.debugger"), "SETTINGS_REMOTE", true),
-          ],
-          heading(t("settings.advanced.launch.title"), t("settings.advanced.launch.subtitle")),
-          refreshStatus,
-        ),
-      ],
-      heading(t("settings.advanced.title"), t("settings.advanced.subtitle")),
-    ),
-    submenu(
-      t("settings.ads.title"),
-      "SLASH_CIRCLE_LEFT",
-      [
-        toggle(t("settings.ads.blockAds"), "enableAdBlock", "HEALTH_AND_SAFETY"),
-        toggle(t("settings.ads.paidPromotion"), "enablePaidPromotionOverlay", "PAID"),
-        toggle(t("settings.ads.sponsorBlock"), "enableSponsorBlock", "SPONSORSHIP_STAR"),
-        submenu(
-          t("settings.ads.segmentTypes.title"),
-          "SETTINGS",
-          SEGMENT_TYPES.map((entry) => ({
-            name: t(`settings.ads.segments.${entry.type}`),
-            icon: entry.icon,
-            segment: entry.type,
-          })),
-          heading(t("settings.ads.segmentTypes.title"), t("settings.ads.segmentTypes.subtitle")),
-        ),
-        toggle(t("settings.ads.highlightButton"), "enableSponsorBlockHighlight", "STAR"),
-        toggle(t("settings.ads.notices"), "enableSponsorBlockToasts", "INFO"),
-      ],
-      heading(t("settings.ads.title"), t("settings.ads.subtitle")),
-    ),
     submenu(
       t("settings.playback.title"),
       "PLAY_CIRCLE",
@@ -399,26 +375,6 @@ export function buildSettingsTree() {
           heading(t("settings.playback.captions.title"), t("settings.playback.captions.subtitle")),
         ),
         submenu(
-          t("settings.playback.experimental.title"),
-          "VIDEO_QUALITY_4K",
-          [
-            toggle(t("settings.playback.experimental.unlock"), "enableExperimentalResolution", "VIDEO_QUALITY_8K"),
-            submenu(
-              t("settings.playback.experimental.max.title"),
-              "VIDEO_QUALITY",
-              EXPERIMENTAL_RESOLUTIONS.map((res) => radio(res, "experimentalMaxResolution", res)),
-              heading(
-                t("settings.playback.experimental.max.title"),
-                t("settings.playback.experimental.max.subtitle"),
-              ),
-            ),
-          ],
-          heading(
-            t("settings.playback.experimental.title"),
-            t("settings.playback.experimental.subtitle"),
-          ),
-        ),
-        submenu(
           t("settings.playback.panelShrink.title"),
           "COMMENT",
           [
@@ -451,23 +407,77 @@ export function buildSettingsTree() {
       t("settings.playerControls.title"),
       "SETTINGS_REMOTE",
       [
-        toggle(t("settings.playerControls.customize"), "enablePatchingVideoPlayer", "EDIT"),
-        toggle(t("settings.playerControls.previousNext"), "enablePreviousNextButtons", "SKIP_NEXT"),
+        toggle(
+          t("settings.playerControls.customize"),
+          "enablePatchingVideoPlayer",
+          "EDIT",
+          t("settings.playerControls.hints.customize"),
+        ),
+        toggle(
+          t("settings.playerControls.previousNext"),
+          "enablePreviousNextButtons",
+          "SKIP_NEXT",
+          t("settings.playerControls.hints.previousNext"),
+        ),
         toggle(
           t("settings.playerControls.speed"),
           "enableSpeedControlsButton",
           "SLOW_MOTION_VIDEO",
+          t("settings.playerControls.hints.speed"),
         ),
-        toggle(t("settings.playerControls.superThanks"), "enableSuperThanksButton", "HANDS_HEART"),
-        toggle(t("settings.playerControls.miniPlayer"), "enableMPButton", "MULTIVIEW"),
+        toggle(
+          t("settings.playerControls.superThanks"),
+          "enableSuperThanksButton",
+          "HANDS_HEART",
+          t("settings.playerControls.hints.superThanks"),
+        ),
+        toggle(
+          t("settings.playerControls.miniPlayer"),
+          "enableMPButton",
+          "MULTIVIEW",
+          t("settings.playerControls.hints.miniPlayer"),
+        ),
         toggle(
           t("settings.playerControls.pipInsteadOfMini"),
           "enableSwapMPWithPIP",
-          "PICTURE_IN_PICTURE",
+          "SCREEN_SWITCH",
+          t("settings.playerControls.hints.pipInsteadOfMini"),
         ),
-        toggle(t("settings.playerControls.onePress"), "enableOnePressMode", "SPACE_BAR"),
+        toggle(
+          t("settings.ads.paidPromotion"),
+          "enablePaidPromotionOverlay",
+          "PAID",
+          t("settings.playerControls.hints.paidPromotion"),
+        ),
+        toggle(
+          t("settings.playerControls.onePress"),
+          "enableOnePressMode",
+          "SPACE_BAR",
+          t("settings.playerControls.hints.onePress"),
+        ),
       ],
       heading(t("settings.playerControls.title"), t("settings.playerControls.subtitle")),
+    ),
+    submenu(
+      t("settings.ads.title"),
+      "SLASH_CIRCLE_LEFT",
+      [
+        toggle(t("settings.ads.blockAds"), "enableAdBlock", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.ads.sponsorBlock"), "enableSponsorBlock", "SPONSORSHIP_STAR"),
+        submenu(
+          t("settings.ads.segmentTypes.title"),
+          "SETTINGS",
+          SEGMENT_TYPES.map((entry) => ({
+            name: t(`settings.ads.segments.${entry.type}`),
+            icon: entry.icon,
+            segment: entry.type,
+          })),
+          heading(t("settings.ads.segmentTypes.title"), t("settings.ads.segmentTypes.subtitle")),
+        ),
+        toggle(t("settings.ads.highlightButton"), "enableSponsorBlockHighlight", "STAR"),
+        toggle(t("settings.ads.notices"), "enableSponsorBlockToasts", "INFO"),
+      ],
+      heading(t("settings.ads.title"), t("settings.ads.subtitle")),
     ),
     submenu(
       t("settings.browsing.title"),
@@ -480,7 +490,7 @@ export function buildSettingsTree() {
             toggle(t("settings.browsing.hqThumbnails"), "enableHqThumbnails", "VIDEO_QUALITY"),
             toggle(t("settings.browsing.deArrowTitles"), "enableDeArrowTitles", "TEXT_BOX"),
             toggle(t("settings.browsing.deArrowThumbnails"), "enableDeArrowThumbnails", "EYE"),
-            toggle(t("settings.browsing.deArrowPeek"), "enableDeArrowPeek", "TOUCH_APP"),
+            toggle(t("settings.browsing.deArrowPeek"), "enableDeArrowPeek", "VISIBILITY"),
           ],
           heading(
             t("settings.browsing.thumbnails.title"),
@@ -489,7 +499,7 @@ export function buildSettingsTree() {
         ),
         submenu(
           t("settings.browsing.previews.title"),
-          "PREVIEW",
+          "PLAY_CIRCLE",
           [
             toggle(t("settings.browsing.previews.on"), "enablePreviews", "PLAY_ARROW_CIRCLE"),
             {
@@ -526,13 +536,13 @@ export function buildSettingsTree() {
                 t("settings.browsing.hideWatched.pages.subtitle"),
               ),
               options: [
-                { name: "Search Results", value: "search" },
-                { name: "Home", value: "home" },
-                { name: "Music", value: "music" },
-                { name: "Gaming", value: "gaming" },
-                { name: "Subscriptions", value: "subscriptions" },
-                { name: "Library", value: "library" },
-                { name: "More", value: "more" },
+                { name: "Search Results", icon: "SEARCH", value: "search" },
+                { name: "Home", icon: "WHAT_TO_WATCH", value: "home" },
+                { name: "Music", icon: "YOUTUBE_MUSIC", value: "music" },
+                { name: "Gaming", icon: "GAMING", value: "gaming" },
+                { name: "Subscriptions", icon: "SUBSCRIPTIONS", value: "subscriptions" },
+                { name: "Library", icon: "TAB_LIBRARY", value: "library" },
+                { name: "More", icon: "TAB_MORE", value: "more" },
               ],
             },
           ],
@@ -543,7 +553,7 @@ export function buildSettingsTree() {
         ),
         toggle(t("settings.browsing.shorts"), "enableShorts", "YOUTUBE_SHORTS_FILL_24"),
         toggle(t("settings.browsing.endScreens"), "enableHideEndScreenCards", "VISIBILITY_OFF"),
-        toggle(t("settings.browsing.longPress"), "enableLongPress", "TOUCH_APP"),
+        toggle(t("settings.browsing.longPress"), "enableLongPress", "ADD_TO_PLAYLIST"),
         toggle(t("settings.browsing.stillWatching"), "enableYouThereRenderer", "PERSON"),
       ],
       heading(t("settings.browsing.title"), t("settings.browsing.subtitle")),
@@ -563,10 +573,10 @@ export function buildSettingsTree() {
           })),
           heading(t("settings.home.startup.title"), t("settings.home.startup.subtitle")),
         ),
-        toggle(t("settings.home.reloadHome"), "reloadHomeOnStartup", "REFRESH"),
+        toggle(t("settings.home.reloadHome"), "reloadHomeOnStartup", "ARROW_CIRCLE"),
         {
           name: t("settings.home.sidebarItems.title"),
-          icon: "MENU",
+          icon: "LIST",
           value: null,
           arrayToEdit: "disabledSidebarContents",
           menuHeader: heading(
@@ -586,15 +596,15 @@ export function buildSettingsTree() {
     ),
     submenu(
       t("settings.appearance.title"),
-      "STYLE",
+      "AUTO_AWESOME",
       [
         submenu(
           t("settings.appearance.theme.title"),
-          "COLOR_LENS",
+          "LENS_BLUE",
           [
             submenu(
               t("settings.appearance.theme.presets.title"),
-              "COLOR_LENS",
+              "LENS_MAGENTA",
               PRESET_NAMES.map((name) =>
                 radio(t(`settings.appearance.colors.${name}`), "themePreset", name),
               ),
@@ -605,7 +615,7 @@ export function buildSettingsTree() {
             ),
             submenu(
               t("settings.appearance.theme.background.title"),
-              "COLOR_LENS",
+              "LENS_BLACK",
               PRESET_NAMES.map((name) =>
                 radio(
                   t(`settings.appearance.colors.${name}`),
@@ -620,7 +630,7 @@ export function buildSettingsTree() {
             ),
             submenu(
               t("settings.appearance.theme.text.title"),
-              "COLOR_LENS",
+              "TEXT_BOX",
               TEXT_THEMES.map((name) =>
                 radio(t(`settings.appearance.textColors.${name}`), "textTheme", name),
               ),
@@ -736,9 +746,21 @@ export function buildSettingsTree() {
       heading(t("settings.appearance.title"), t("settings.appearance.subtitle")),
     ),
     submenu(
-      t("settings.system.title"),
-      "SETTINGS",
+      t("settings.axotube.title"),
+      "SPARK",
       [
+      withHint(
+        livePanel(
+          t("settings.webConfig.title"),
+          "PHONELINK",
+          t("settings.webConfig.title"),
+          t("settings.webConfig.subtitle"),
+          webConfigLines,
+          refreshStatus,
+          [phoneQrPanel()],
+        ),
+        t("settings.webConfig.rowHint"),
+      ),
         submenu(
           t("settings.system.whosWatching.title"),
           "ACCOUNT_CIRCLE",
@@ -771,10 +793,74 @@ export function buildSettingsTree() {
           ),
         ),
         { name: t("settings.system.restartCast"), icon: "CAST_ICON", action: "AXO_CAST_RESTART" },
-        { name: t("settings.system.reload"), icon: "REFRESH", action: "AXO_RELOAD_PAGE" },
+        { name: t("settings.system.reload"), icon: "REPLAY", action: "AXO_RELOAD_PAGE" },
       ],
-      heading(t("settings.system.title"), t("settings.system.subtitle")),
+      heading(t("settings.axotube.title"), t("settings.axotube.subtitle")),
     ),
+    submenu(
+      t("settings.advanced.title"),
+      "SETTINGS",
+      [
+        {
+          name: t("settings.advanced.diagnostics.title"),
+          icon: "BUG_REPORT",
+          action: "SETTINGS_OPEN_DIAGNOSTICS",
+        },
+        submenu(
+          t("settings.advanced.userAgent.title"),
+          "LANGUAGE",
+          [
+            radio(t("settings.advanced.userAgent.samsung"), "userAgentProfile", "samsung", ["auto"]),
+            radio(t("settings.advanced.userAgent.android"), "userAgentProfile", "android"),
+          ],
+          heading(
+            t("settings.advanced.userAgent.title"),
+            t("settings.advanced.userAgent.subtitle"),
+          ),
+        ),
+        submenu(
+          t("settings.advanced.launch.title"),
+          "CAST_MOBILE",
+          [
+            launchChoice(t("settings.advanced.launch.proxy"), "TV", false),
+            launchChoice(t("settings.advanced.launch.debugger"), "SETTINGS_REMOTE", true),
+          ],
+          heading(t("settings.advanced.launch.title"), t("settings.advanced.launch.subtitle")),
+          refreshStatus,
+        ),
+        submenu(
+          t("settings.playback.experimental.title"),
+          "VIDEO_QUALITY_4K",
+          [
+            toggle(t("settings.playback.experimental.unlock"), "enableExperimentalResolution", "VIDEO_QUALITY_8K"),
+            submenu(
+              t("settings.playback.experimental.max.title"),
+              "VIDEO_QUALITY",
+              EXPERIMENTAL_RESOLUTIONS.map((res) => radio(res, "experimentalMaxResolution", res)),
+              heading(
+                t("settings.playback.experimental.max.title"),
+                t("settings.playback.experimental.max.subtitle"),
+              ),
+            ),
+          ],
+          heading(
+            t("settings.playback.experimental.title"),
+            t("settings.playback.experimental.subtitle"),
+          ),
+        ),
+      ],
+      heading(t("settings.advanced.title"), t("settings.advanced.subtitle")),
+    ),
+    livePanel(
+      t("settings.about.title"),
+      "INFO",
+      t("settings.about.title"),
+      t("settings.about.subtitle"),
+      aboutLines,
+      refreshStatus,
+      [socialsPanel()],
+    ),
+    { text: t("settings.moreOnWeb.text") },
   ];
 
   return settings;
@@ -802,6 +888,7 @@ function registerNodes(list, parentId) {
     const id = `${parentId}.${i}`;
     nodes.set(id, node);
     if (Array.isArray(node.options)) registerNodes(node.options, id);
+    if (node.options && Array.isArray(node.options.links)) registerNodes(node.options.links, `${id}.links`);
   }
 }
 
@@ -818,6 +905,8 @@ function secondsLabel(count) {
 }
 
 function rowFor(node, id, arrayKey, panelId) {
+  if (node.text !== undefined) return overlayMessageRenderer(node.text);
+
   if (node.action) {
     return buttonItem({ title: node.name }, { icon: node.icon }, [
       { customAction: { action: node.action } },
@@ -903,7 +992,7 @@ function rowFor(node, id, arrayKey, panelId) {
 
   if (node.arrayToEdit !== undefined || (node.options && typeof node.options === "object")) {
     return buttonItem(
-      { title: node.name },
+      { title: node.name, subtitle: node.hint },
       { icon: node.icon },
       settingCommand("SETTINGS_OPEN", { id }),
     );
@@ -911,7 +1000,7 @@ function rowFor(node, id, arrayKey, panelId) {
 
   if (typeof node.value === "string") {
     return buttonItem(
-      { title: node.name },
+      { title: node.name, subtitle: node.hint },
       {
         icon: node.icon,
         secondaryIcon: configRead(node.value) ? "CHECK_BOX" : "CHECK_BOX_OUTLINE_BLANK",
@@ -950,6 +1039,18 @@ function infoRows(content) {
       const qr = generateQRCode(line.qrLink);
       if (qr) rows.push(QrCodeRenderer(qr));
     }
+  }
+  return rows;
+}
+
+// Buttons under an information panel's text. Each opens its own panel.
+function linkRows(node, id) {
+  const rows = [];
+  const links = (node.options && node.options.links) || [];
+  for (let i = 0; i < links.length; i++) {
+    if (!links[i]) continue;
+    const row = rowFor(links[i], `${id}.links.${i}`, undefined, id);
+    if (row) rows.push(row);
   }
   return rows;
 }
@@ -1005,11 +1106,20 @@ function panelFor(id) {
   }
 
   if (node.options && typeof node.options === "object" && !Array.isArray(node.options)) {
+    const content = typeof node.options.content === "function" ? node.options.content() : node.options.content || [];
+    const hasQr = content.some((line) => line && line.qrLink);
+    if (hasQr) {
+      // A QR code is drawn over whatever follows it in a list, so it gets a panel of its
+      // own: the text becomes the subtitle and the code is the only row.
+      const texts = content.filter((line) => typeof line === "string");
+      return {
+        header: { title: node.options.title, subtitle: texts.length ? texts.join(" ") : node.options.subtitle },
+        rows: infoRows(content.filter((line) => line && line.qrLink)),
+      };
+    }
     return {
       header: { title: node.options.title, subtitle: node.options.subtitle },
-      rows: infoRows(
-        typeof node.options.content === "function" ? node.options.content() : node.options.content || [],
-      ),
+      rows: infoRows(content).concat(linkRows(node, id)),
     };
   }
 

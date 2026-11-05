@@ -142,10 +142,12 @@ test("config validates values and never clears unrelated storage", () => {
 
 test("launchToOnStartup stays string-or-null across TV and web", () => {
   const cfg = read("shared/configPolicy.js");
-  const web = read("service/web/config.html");
+  const web = read("service/web/config.js");
+  const ui = JSON.parse(read("service/web/config-ui.json"));
   has(cfg, 'value === null || typeof value === "string"');
-  has(web, 'key === "launchToOnStartup"');
-  has(web, "JSON.parse(v); state[key]=v");
+  assert.equal(ui.settings.launchToOnStartup.control, "json", "startup command is a JSON control");
+  has(web, 'case "json": buildJson(reg, ctrl)');
+  has(web, "JSON.parse(value)");
 });
 
 test("HQ probes fan out and cache is bounded", () => {
@@ -293,12 +295,12 @@ test("legacy persisted config migration keeps valid settings independently", () 
 });
 
 test("web config pairs and avoids innerHTML sinks", () => {
-  // The page's source. service/webConfigPage.js is generated from it.
-  const src = read("service/web/config.html");
+  // The application source. The shell loads it from the release; see build-web-pages.cjs.
+  const src = read("service/web/config.js");
   has(src, "axotube-pair-token");
   has(src, 'opts.headers.Authorization = "Bearer " + token');
   has(src, "textContent");
-  assert.ok(!src.includes(".innerHTML ="));
+  assert.ok(!src.includes(".innerHTML"), "no innerHTML sinks in the config application");
 });
 
 test("standalone proxy has trusted-host/private-host checks and strips credentials", () => {

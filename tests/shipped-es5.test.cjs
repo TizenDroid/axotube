@@ -29,6 +29,7 @@ const SERVICE_SOURCES = [
   "service/diagnostics.js",
   "service/launchSettings.js",
   "service/webConfigPage.js",
+  "service/web/config.js",
   "service/diagnosticsPage.js",
   "shared/configPolicy.js",
   "service/cdp/websocket.js",

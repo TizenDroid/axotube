@@ -97,24 +97,29 @@ function open(h, title) {
   return last(h).rows;
 }
 
-test("the root starts with Web config, About and Advanced, then the existing categories", () => {
+// Web config now lives inside the AxoTube panel: open that, then Web config.
+function openWebConfig(h) {
+  open(h, "settings.axotube.title");
+  return open(h, "settings.webConfig.title");
+}
+
+test("the root holds the categories by purpose, with AxoTube, then Advanced and About last", () => {
   const h = harness();
   h.api.modernUI();
   assert.equal(h.shown.length, 1);
   assert.equal(h.shown[0].update, false, "root is pushed, not updated");
   // Copied into this realm: arrays built inside the vm context fail strict equality.
-  const titles = Array.from(h.shown[0].rows, (r) => r.title);
+  const titles = Array.from(h.shown[0].rows, (r) => r.title).filter((t) => t !== undefined);
   assert.deepEqual(titles, [
-    "settings.webConfig.title",
-    "settings.about.title",
-    "settings.advanced.title",
-    "settings.ads.title",
     "settings.playback.title",
     "settings.playerControls.title",
+    "settings.ads.title",
     "settings.browsing.title",
     "settings.home.title",
     "settings.appearance.title",
-    "settings.system.title",
+    "settings.axotube.title",
+    "settings.advanced.title",
+    "settings.about.title",
   ]);
   open(h, "settings.browsing.title");
   assert.equal(h.shown.length, 2);
@@ -280,18 +285,21 @@ test("every config key the built tree reads or writes is in the schema", () => {
 test("phone sync shows the QR code, the address and the code from the live pairing store", () => {
   const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8080"] });
   h.api.modernUI();
-  const rows = open(h, "settings.webConfig.title");
+  const rows = openWebConfig(h);
   const shown = rows.map((r) => r.text || r.qr || r.title);
-  assert.ok(rows.some((r) => r.qr === "http://192.168.1.5:8080/?code=123456"), "the QR carries the pairing code");
   assert.ok(shown.includes("settings.phoneSync.intro"));
   assert.ok(shown.includes("settings.phoneSync.address"));
   assert.ok(shown.includes("settings.phoneSync.code"));
+  assert.ok(!rows.some((r) => r.qr), "the QR is in its own panel, not in the text panel");
+  const qr = open(h, "settings.webConfig.qrTitle");
+  assert.ok(qr.some((r) => r.qr === "http://192.168.1.5:8080/?code=123456"), "the QR carries the pairing code");
+  assert.equal(qr.filter((r) => r.qr).length, 1, "the QR panel shows only the code");
 });
 
 test("web config without pairing info says so, and shows no QR code", () => {
   const h = harness({}, null);
   h.api.modernUI();
-  const rows = open(h, "settings.webConfig.title");
+  const rows = openWebConfig(h);
   assert.ok(rows.some((r) => r.text === "settings.phoneSync.waiting"));
   assert.ok(!rows.some((r) => r.qr !== undefined), "no QR without a pairing code");
 });
@@ -299,7 +307,7 @@ test("web config without pairing info says so, and shows no QR code", () => {
 test("phone sync with a code but no address still shows the code, without a QR", () => {
   const h = harness({}, { code: "654321", urls: [] });
   h.api.modernUI();
-  const rows = open(h, "settings.webConfig.title");
+  const rows = openWebConfig(h);
   assert.ok(rows.some((r) => r.text === "settings.phoneSync.code"));
   assert.ok(!rows.some((r) => r.qr !== undefined));
 });
@@ -311,7 +319,7 @@ function texts(rows) {
   return rows.map((r) => r.text).filter((x) => x !== undefined);
 }
 
-test("About lists the userscript, service, proxy, bundle and launch mode, then the project links", () => {
+test("About lists the userscript, service, proxy, bundle and launch mode, with Socials below", () => {
   const h = harness({}, null, {
     checked: true,
     service: { version: "1.31.3", launchDebugger: false, bundle: { current: "1.31.3", latest: "1.31.4", available: true } },
@@ -325,8 +333,13 @@ test("About lists the userscript, service, proxy, bundle and launch mode, then t
   assert.ok(lines.includes("settings.about.proxyOnline"));
   assert.ok(lines.includes("settings.about.bundleUpdate"), "an available update is named");
   assert.ok(lines.includes("settings.about.launchMode"));
-  assert.ok(rows.some((r) => r.qr === "https://github.com/TizenDroid/axotube"), "GitHub QR kept");
-  assert.ok(rows.some((r) => r.qr === "https://discord.gg/UDb8nak5YD"), "Discord QR kept");
+  assert.ok(!rows.some((r) => r.qr), "About shows no QR codes itself");
+  assert.ok(rows.some((r) => r.title === "settings.about.socials.title"), "Socials is a button below the text");
+  const socials = open(h, "settings.about.socials.title");
+  assert.ok(socials.some((r) => r.title === "GitHub"), "Socials lists GitHub");
+  assert.ok(socials.some((r) => r.title === "Discord"), "Socials lists Discord");
+  const github = open(h, "GitHub");
+  assert.ok(github.some((r) => r.qr === "https://github.com/TizenDroid/axotube"), "GitHub opens its QR code");
 });
 
 test("About says what is not running when the service and proxy do not answer", () => {
@@ -349,7 +362,7 @@ test("About shows checking until the first check has answered", () => {
 test("Web config says the service is not running and shows no QR code", () => {
   const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8080"] }, { checked: true, service: null, proxy: null });
   h.api.modernUI();
-  const rows = open(h, "settings.webConfig.title");
+  const rows = openWebConfig(h);
   assert.ok(texts(rows).includes("settings.webConfig.offline"));
   assert.ok(!rows.some((r) => r.qr !== undefined), "no QR while the service is off");
 });

@@ -6,7 +6,9 @@
       "intro": "Scan the code with your phone's camera to pair it. No typing needed.",
       "address": "Or open {{url}} on your phone and enter the code.",
       "code": "Pairing code: {{code}}",
-      "waiting": "Phone sync needs AxoTube's TV service. On a Samsung TV, open this panel again in a few seconds. On other devices, phone sync is not available."
+      "waiting": "Phone sync needs AxoTube's TV service. On a Samsung TV, open this panel again in a few seconds. On other devices, phone sync is not available.",
+      "qrHint": "Scan this with your phone's camera. The code is in the QR, so there is nothing to type.",
+      "noQr": "No phone address found. Check that the TV is on the same Wi-Fi as your phone, then open this again."
     },
     "ttSettings": {
       "title": "AxoTube Settings",
@@ -120,13 +122,23 @@
     "playerControls": {
       "title": "Player controls",
       "subtitle": "Extra buttons in the player. Turn on the first option to use the others.",
-      "customize": "Customize player buttons",
+      "customize": "Extra player buttons",
       "previousNext": "Previous and next",
       "speed": "Speed button",
       "superThanks": "Super Thanks button",
       "miniPlayer": "Mini player button",
       "pipInsteadOfMini": "Use picture-in-picture instead of mini player",
-      "onePress": "One-press remote mode (OK plays or pauses, left and right skip 10 s)"
+      "onePress": "One-press remote mode (OK plays or pauses, left and right skip 10 s)",
+      "hints": {
+        "customize": "Master switch for the extra buttons below. Off shows YouTube's own player buttons only.",
+        "previousNext": "Adds previous and next buttons to the player. Needs the switch above.",
+        "speed": "Shows a button that changes the playback speed.",
+        "superThanks": "Shows or hides the Super Thanks button.",
+        "miniPlayer": "Adds a button that shrinks the video into a mini player.",
+        "pipInsteadOfMini": "That button opens picture-in-picture instead of the mini player.",
+        "paidPromotion": "Shows a notice on videos with paid promotion.",
+        "onePress": "Remote-friendly controls: OK plays or pauses, left and right skip 10 seconds."
+      }
     },
     "browsing": {
       "title": "Browsing",
@@ -285,23 +297,32 @@
       "title": "About AxoTube",
       "version": "Version {{version}}",
       "scanMessage": "Scan the QR code to open {{name}}.",
-      "subtitle": "Which AxoTube parts are running",
-      "userscript": "Userscript: running, version {{version}}",
-      "serviceOnline": "Service (port 8080): online, version {{version}}",
-      "serviceOffline": "Service (port 8080): not reachable",
-      "proxyOnline": "Proxy (port 8081): online, version {{version}}",
-      "proxyOffline": "Proxy (port 8081): not reachable",
-      "bundleCurrent": "App bundle: {{version}}",
-      "bundleUpdate": "App bundle: {{current}}, update {{latest}} available",
-      "bundleUnknown": "App bundle: not checked yet",
-      "launchMode": "Launch mode: {{mode}}",
-      "launchUnknown": "Launch mode: unknown while the service is not running"
+      "subtitle": "Versions and status",
+      "userscript": "✅ Userscript {{version}}, running",
+      "serviceOnline": "✅ Service {{version}}, online on port 8080",
+      "serviceOffline": "⚠️ Service not reachable on port 8080",
+      "proxyOnline": "✅ Proxy {{version}}, online on port 8081",
+      "proxyOffline": "⚠️ Proxy not reachable on port 8081",
+      "bundleCurrent": "📦 App bundle {{version}}",
+      "bundleUpdate": "📦 App bundle {{current}}, update {{latest}} ready",
+      "bundleUnknown": "📦 App bundle not checked yet",
+      "launchMode": "🚀 Launch mode: {{mode}}",
+      "launchUnknown": "🚀 Launch mode unknown while the service is not running",
+      "socials": {
+        "title": "🔗 Socials",
+        "subtitle": "Pick one to show its QR code.",
+        "githubHint": "Source code, releases and issues",
+        "discordHint": "Community chat"
+      }
     },
     "webConfig": {
       "title": "Web config",
       "subtitle": "Pairing code, phone address and service status",
       "online": "AxoTube service: online",
-      "offline": "AxoTube service is not running, so the web config page is not available."
+      "offline": "AxoTube service is not running, so the web config page is not available.",
+      "qrTitle": "📱 Pair with your phone",
+      "qrSubtitle": "Show a code for your phone to scan",
+      "rowHint": "Also on your phone: background image and more"
     },
     "status": {
       "checking": "Checking the services…"
@@ -329,6 +350,13 @@
         "saved": "Launch mode saved. It applies the next time AxoTube starts.",
         "failed": "Could not save the launch mode. Is AxoTube running?"
       }
+    },
+    "moreOnWeb": {
+      "text": "More settings, like a background image, are on the web config page."
+    },
+    "axotube": {
+      "title": "AxoTube",
+      "subtitle": "Web config, updates, who’s watching and startup behaviour of AxoTube"
     }
   },
   "welcomeMsg": {

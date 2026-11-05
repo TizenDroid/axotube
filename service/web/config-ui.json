@@ -1,0 +1,1276 @@
+{
+  "sections": [
+    {
+      "id": "ads",
+      "label": "Ads & SponsorBlock",
+      "description": "Ad blocking and segment skipping"
+    },
+    {
+      "id": "playback",
+      "label": "Playback",
+      "description": "Speed, quality and player controls"
+    },
+    {
+      "id": "browse",
+      "label": "Browsing & discovery",
+      "description": "Titles, thumbnails, Shorts and watched videos"
+    },
+    {
+      "id": "appearance",
+      "label": "Appearance",
+      "description": "Theme, background and text colour"
+    },
+    {
+      "id": "interface",
+      "label": "Interface & performance",
+      "description": "Remote behaviour, clock, dimming and memory use"
+    },
+    {
+      "id": "account",
+      "label": "Language & account",
+      "description": "Subtitles, language and profile menus"
+    },
+    {
+      "id": "system",
+      "label": "System & advanced",
+      "description": "Updates, device profile, startup and experimental options"
+    }
+  ],
+  "settings": {
+    "enableAdBlock": {
+      "label": "Block YouTube ads",
+      "description": "Remove video and banner ads.",
+      "section": "ads",
+      "group": "Ads",
+      "order": 1,
+      "control": "switch",
+      "searchAliases": [
+        "ads",
+        "advertising",
+        "adblock",
+        "commercials"
+      ]
+    },
+    "enableSponsorBlock": {
+      "label": "Use SponsorBlock",
+      "description": "Use community-submitted segment data to skip or highlight parts of videos.",
+      "section": "ads",
+      "group": "SponsorBlock",
+      "order": 2,
+      "control": "switch",
+      "searchAliases": [
+        "sponsorblock",
+        "sponsors",
+        "segments",
+        "skip"
+      ]
+    },
+    "enableSponsorBlockToasts": {
+      "label": "Show SponsorBlock notifications",
+      "description": "Show a short message when a segment is skipped.",
+      "section": "ads",
+      "group": "SponsorBlock",
+      "order": 3,
+      "control": "switch",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "toast",
+        "notification",
+        "message"
+      ]
+    },
+    "enableSponsorBlockSponsor": {
+      "label": "Sponsored segments",
+      "description": "Sponsorship messages inside a video.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 4,
+      "control": "segmentMode",
+      "segmentType": "sponsor",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "sponsor",
+        "ad read",
+        "promotion"
+      ]
+    },
+    "enableSponsorBlockIntro": {
+      "label": "Intros",
+      "description": "Opening sequences and intro animations.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 5,
+      "control": "segmentMode",
+      "segmentType": "intro",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "intro",
+        "opening"
+      ]
+    },
+    "enableSponsorBlockOutro": {
+      "label": "Outros",
+      "description": "End credits and outro sequences.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 6,
+      "control": "segmentMode",
+      "segmentType": "outro",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "outro",
+        "ending",
+        "end screen"
+      ]
+    },
+    "enableSponsorBlockInteraction": {
+      "label": "Interaction reminders",
+      "description": "Requests to like, subscribe or follow.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 7,
+      "control": "segmentMode",
+      "segmentType": "interaction",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "like",
+        "subscribe",
+        "reminder"
+      ]
+    },
+    "enableSponsorBlockSelfPromo": {
+      "label": "Self-promotion",
+      "description": "Creator plugs for their own merchandise, channels or other content.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 8,
+      "control": "segmentMode",
+      "segmentType": "selfpromo",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "selfpromo",
+        "merch",
+        "plug"
+      ]
+    },
+    "enableSponsorBlockPreview": {
+      "label": "Previews and recaps",
+      "description": "Previews of later content or recaps of earlier content.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 9,
+      "control": "segmentMode",
+      "segmentType": "preview",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "preview",
+        "recap",
+        "teaser"
+      ]
+    },
+    "enableSponsorBlockFiller": {
+      "label": "Filler tangents",
+      "description": "Content that does not add to the video's main topic.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 10,
+      "control": "segmentMode",
+      "segmentType": "filler",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "filler",
+        "tangent",
+        "off topic"
+      ]
+    },
+    "enableSponsorBlockMusicOfftopic": {
+      "label": "Off-topic music sections",
+      "description": "Non-music sections inside music videos.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 11,
+      "control": "segmentMode",
+      "segmentType": "music_offtopic",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "music",
+        "off topic",
+        "non-music"
+      ]
+    },
+    "enableSponsorBlockHighlight": {
+      "label": "Highlight marked moments",
+      "description": "Show the highlighted moment marked by SponsorBlock.",
+      "section": "ads",
+      "group": "Segment categories",
+      "order": 12,
+      "control": "switch",
+      "dependencies": [
+        "enableSponsorBlock"
+      ],
+      "searchAliases": [
+        "highlight",
+        "moment"
+      ]
+    },
+    "sponsorBlockManualSkips": {
+      "label": "Skip buttons",
+      "description": "Set per category above: Show skip button or Skip automatically.",
+      "section": "ads",
+      "group": "SponsorBlock",
+      "order": 90,
+      "control": "derived",
+      "searchAliases": [
+        "manual skip",
+        "skip button"
+      ]
+    },
+    "videoSpeed": {
+      "label": "Default playback speed",
+      "description": "The speed a video starts at.",
+      "section": "playback",
+      "group": "Speed",
+      "order": 1,
+      "control": "range",
+      "unit": "×",
+      "step": 0.05,
+      "searchAliases": [
+        "speed",
+        "rate",
+        "playback rate"
+      ]
+    },
+    "speedSettingsIncrement": {
+      "label": "Speed step",
+      "description": "How far each speed change moves in the speed menu.",
+      "section": "playback",
+      "group": "Speed",
+      "order": 2,
+      "control": "range",
+      "unit": "×",
+      "step": 0.01,
+      "searchAliases": [
+        "increment",
+        "step size"
+      ]
+    },
+    "enableSpeedControlsButton": {
+      "label": "Show speed button",
+      "description": "Show a speed button in the player.",
+      "section": "playback",
+      "group": "Player controls",
+      "order": 3,
+      "control": "switch",
+      "dependencies": [
+        "enablePatchingVideoPlayer"
+      ],
+      "searchAliases": [
+        "speed button"
+      ]
+    },
+    "preferredVideoQuality": {
+      "label": "Preferred video quality",
+      "description": "The quality to choose when it is available. Automatic lets YouTube decide.",
+      "section": "playback",
+      "group": "Quality",
+      "order": 4,
+      "control": "select",
+      "options": {
+        "auto": "Automatic",
+        "2160p": "2160p (4K)",
+        "1440p": "1440p (QHD)",
+        "1080p": "1080p (Full HD)",
+        "720p": "720p (HD)",
+        "480p": "480p",
+        "360p": "360p",
+        "240p": "240p",
+        "144p": "144p"
+      },
+      "searchAliases": [
+        "4k",
+        "1080p",
+        "resolution",
+        "quality",
+        "hd",
+        "qhd"
+      ]
+    },
+    "videoPreferredCodec": {
+      "label": "Preferred video codec",
+      "description": "The video format to prefer when several are offered.",
+      "section": "playback",
+      "group": "Quality",
+      "order": 5,
+      "control": "select",
+      "options": {
+        "any": "Any",
+        "vp9": "VP9",
+        "av01": "AV1",
+        "avc1": "H.264 / AVC"
+      },
+      "searchAliases": [
+        "codec",
+        "av1",
+        "vp9",
+        "h264",
+        "avc"
+      ]
+    },
+    "enablePreviousNextButtons": {
+      "label": "Previous and next buttons",
+      "description": "Show previous and next buttons in the player.",
+      "section": "playback",
+      "group": "Player controls",
+      "order": 6,
+      "control": "switch",
+      "dependencies": [
+        "enablePatchingVideoPlayer"
+      ],
+      "searchAliases": [
+        "skip track",
+        "previous",
+        "next"
+      ]
+    },
+    "enableMPButton": {
+      "label": "Show mini player button",
+      "description": "Show a button that opens the mini player.",
+      "section": "playback",
+      "group": "Player controls",
+      "order": 7,
+      "control": "switch",
+      "dependencies": [
+        "enablePatchingVideoPlayer"
+      ],
+      "searchAliases": [
+        "mini player",
+        "miniplayer"
+      ]
+    },
+    "enableSwapMPWithPIP": {
+      "label": "Use picture-in-picture instead",
+      "description": "Make the mini player button open picture-in-picture.",
+      "section": "playback",
+      "group": "Player controls",
+      "order": 8,
+      "control": "switch",
+      "dependencies": [
+        "enablePatchingVideoPlayer"
+      ],
+      "searchAliases": [
+        "pip",
+        "picture in picture"
+      ]
+    },
+    "enableSuperThanksButton": {
+      "label": "Show Super Thanks button",
+      "description": "Show the Super Thanks button under videos.",
+      "section": "playback",
+      "group": "Player controls",
+      "order": 9,
+      "control": "switch",
+      "dependencies": [
+        "enablePatchingVideoPlayer"
+      ],
+      "searchAliases": [
+        "thanks",
+        "donate"
+      ]
+    },
+    "enablePatchingVideoPlayer": {
+      "label": "Extra player buttons",
+      "description": "Master switch for the extra buttons below. Off shows YouTube's own player buttons only.",
+      "section": "playback",
+      "group": "Player controls",
+      "order": 10,
+      "control": "switch",
+      "searchAliases": [
+        "player",
+        "controls",
+        "patch"
+      ]
+    },
+    "enablePreviews": {
+      "label": "Hover previews",
+      "description": "Preview a video when you move over it.",
+      "section": "playback",
+      "group": "Previews",
+      "order": 11,
+      "control": "switch",
+      "searchAliases": [
+        "preview",
+        "hover",
+        "scrub"
+      ]
+    },
+    "previewLengthSeconds": {
+      "label": "Preview length",
+      "description": "How long a preview plays.",
+      "section": "playback",
+      "group": "Previews",
+      "order": 12,
+      "control": "range",
+      "unit": "s",
+      "step": 1,
+      "dependencies": [
+        "enablePreviews"
+      ],
+      "searchAliases": [
+        "preview duration"
+      ]
+    },
+    "enableRemainingTime": {
+      "label": "Show remaining time",
+      "description": "Show the time left instead of the total length.",
+      "section": "playback",
+      "group": "Player controls",
+      "order": 13,
+      "control": "switch",
+      "searchAliases": [
+        "time left",
+        "countdown",
+        "remaining"
+      ]
+    },
+    "enablePauseOnBlur": {
+      "label": "Pause when the window loses focus",
+      "description": "Pause playback when another window or app takes focus.",
+      "section": "playback",
+      "group": "Behaviour",
+      "order": 14,
+      "control": "switch",
+      "searchAliases": [
+        "blur",
+        "focus",
+        "pause"
+      ]
+    },
+    "enableOnePressMode": {
+      "label": "One-press remote controls",
+      "description": "Use the remote's OK, left and right keys to control playback while the player controls are hidden.",
+      "section": "playback",
+      "group": "Behaviour",
+      "order": 15,
+      "control": "switch",
+      "searchAliases": [
+        "remote",
+        "one press",
+        "keys",
+        "shortcuts"
+      ]
+    },
+    "autoFrameRate": {
+      "label": "Match display frame rate",
+      "description": "Switch the TV's frame rate to match the video.",
+      "section": "playback",
+      "group": "Frame rate",
+      "order": 16,
+      "control": "switch",
+      "searchAliases": [
+        "frame rate",
+        "fps",
+        "refresh rate",
+        "judder"
+      ]
+    },
+    "autoFrameRatePauseVideoFor": {
+      "label": "Pause during frame rate switch",
+      "description": "How long playback pauses while the TV changes frame rate.",
+      "section": "playback",
+      "group": "Frame rate",
+      "order": 17,
+      "control": "range",
+      "unit": "s",
+      "scale": 0.001,
+      "step": 0.1,
+      "dependencies": [
+        "autoFrameRate"
+      ],
+      "searchAliases": [
+        "pause",
+        "switch delay"
+      ]
+    },
+    "enablePaidPromotionOverlay": {
+      "label": "Paid promotion notice",
+      "description": "Show the paid promotion notice on videos that have one.",
+      "section": "playback",
+      "group": "Player controls",
+      "order": 18,
+      "control": "switch",
+      "searchAliases": [
+        "paid promotion",
+        "sponsored overlay",
+        "disclosure"
+      ]
+    },
+    "enableDeArrowTitles": {
+      "label": "Replace misleading titles",
+      "description": "Show community-submitted titles from DeArrow.",
+      "section": "browse",
+      "group": "DeArrow",
+      "order": 1,
+      "control": "switch",
+      "searchAliases": [
+        "dearrow",
+        "clickbait",
+        "titles"
+      ]
+    },
+    "enableDeArrowThumbnails": {
+      "label": "Replace misleading thumbnails",
+      "description": "Show community-submitted thumbnails from DeArrow.",
+      "section": "browse",
+      "group": "DeArrow",
+      "order": 2,
+      "control": "switch",
+      "searchAliases": [
+        "dearrow",
+        "thumbnails",
+        "clickbait"
+      ]
+    },
+    "enableDeArrowPeek": {
+      "label": "Peek at original titles",
+      "description": "Let you see the original title or thumbnail when DeArrow has replaced it.",
+      "section": "browse",
+      "group": "DeArrow",
+      "order": 3,
+      "control": "switch",
+      "searchAliases": [
+        "original",
+        "peek",
+        "dearrow"
+      ]
+    },
+    "enableHqThumbnails": {
+      "label": "High-quality thumbnails",
+      "description": "Load larger thumbnails when they are available.",
+      "section": "browse",
+      "group": "Thumbnails",
+      "order": 4,
+      "control": "switch",
+      "searchAliases": [
+        "hq",
+        "image quality",
+        "sharp"
+      ]
+    },
+    "enableShorts": {
+      "label": "Show Shorts",
+      "description": "Show YouTube Shorts in feeds and search results.",
+      "section": "browse",
+      "group": "Shorts",
+      "order": 5,
+      "control": "switch",
+      "searchAliases": [
+        "shorts",
+        "short videos"
+      ]
+    },
+    "enableHideWatchedVideos": {
+      "label": "Hide watched videos",
+      "description": "Hide videos you have mostly watched on the pages chosen below.",
+      "section": "browse",
+      "group": "Watched videos",
+      "order": 6,
+      "control": "switch",
+      "searchAliases": [
+        "watched",
+        "seen",
+        "hide"
+      ]
+    },
+    "hideWatchedVideosThreshold": {
+      "label": "Watched threshold",
+      "description": "A video counts as watched once this much of it has played.",
+      "section": "browse",
+      "group": "Watched videos",
+      "order": 7,
+      "control": "range",
+      "unit": "%",
+      "step": 1,
+      "dependencies": [
+        "enableHideWatchedVideos"
+      ],
+      "searchAliases": [
+        "percent",
+        "watched amount"
+      ]
+    },
+    "hideWatchedVideosPages": {
+      "label": "Pages to hide watched videos on",
+      "description": "Add pages such as home, search, subscriptions or history.",
+      "section": "browse",
+      "group": "Watched videos",
+      "order": 8,
+      "control": "tags",
+      "suggestions": [
+        "home",
+        "search",
+        "subscriptions",
+        "history"
+      ],
+      "dependencies": [
+        "enableHideWatchedVideos"
+      ],
+      "searchAliases": [
+        "pages",
+        "home",
+        "where"
+      ]
+    },
+    "enableHideEndScreenCards": {
+      "label": "Hide end-screen cards",
+      "description": "Hide the cards that appear at the end of a video.",
+      "section": "browse",
+      "group": "Cards",
+      "order": 9,
+      "control": "switch",
+      "searchAliases": [
+        "end screen",
+        "cards",
+        "suggestions"
+      ]
+    },
+    "themePreset": {
+      "label": "Theme preset",
+      "description": "A ready-made background colour.",
+      "section": "appearance",
+      "group": "Colours",
+      "order": 1,
+      "control": "select",
+      "options": {
+        "default": "Default",
+        "black": "Black",
+        "darkGray": "Dark gray",
+        "charcoal": "Charcoal",
+        "navy": "Navy",
+        "darkRed": "Dark red",
+        "darkGreen": "Dark green",
+        "darkPurple": "Dark purple"
+      },
+      "searchAliases": [
+        "theme",
+        "preset",
+        "colour",
+        "color"
+      ]
+    },
+    "routeColor": {
+      "label": "Background colour",
+      "description": "The main background colour. Choosing a preset sets this too.",
+      "section": "appearance",
+      "group": "Colours",
+      "order": 2,
+      "control": "themeColor",
+      "searchAliases": [
+        "background",
+        "color",
+        "colour",
+        "theme"
+      ]
+    },
+    "routeBackgroundUrl": {
+      "label": "Background image",
+      "description": "Address of an image to show behind the interface. Leave empty for none.",
+      "section": "appearance",
+      "group": "Background",
+      "order": 3,
+      "control": "url",
+      "searchAliases": [
+        "wallpaper",
+        "image",
+        "background",
+        "picture"
+      ]
+    },
+    "textTheme": {
+      "label": "Text colour",
+      "description": "The colour of text in the interface.",
+      "section": "appearance",
+      "group": "Colours",
+      "order": 4,
+      "control": "select",
+      "options": {
+        "default": "Default",
+        "white": "White",
+        "gray": "Gray",
+        "red": "Red",
+        "blue": "Blue",
+        "green": "Green",
+        "purple": "Purple",
+        "yellow": "Yellow"
+      },
+      "searchAliases": [
+        "text",
+        "font colour",
+        "color",
+        "readability"
+      ]
+    },
+    "enableLongPress": {
+      "label": "Long press for options",
+      "description": "Hold a remote button to open more options.",
+      "section": "interface",
+      "group": "Remote",
+      "order": 1,
+      "control": "switch",
+      "searchAliases": [
+        "hold",
+        "long press",
+        "options menu"
+      ]
+    },
+    "enableReducedMotion": {
+      "label": "Reduce motion",
+      "description": "Turn off most animations.",
+      "section": "interface",
+      "group": "Animation",
+      "order": 2,
+      "control": "switch",
+      "searchAliases": [
+        "animation",
+        "motion",
+        "accessibility"
+      ]
+    },
+    "enableFixedUI": {
+      "label": "Full interface animations",
+      "description": "Animate the interface. Turned off in reduced-motion and low-memory modes.",
+      "section": "interface",
+      "group": "Animation",
+      "order": 3,
+      "control": "switch",
+      "searchAliases": [
+        "animations",
+        "fixed ui",
+        "transitions"
+      ]
+    },
+    "enablePerformanceMode": {
+      "label": "Performance mode",
+      "description": "Trade some visual detail for smoother playback on slower TVs.",
+      "section": "interface",
+      "group": "Performance",
+      "order": 4,
+      "control": "switch",
+      "searchAliases": [
+        "speed",
+        "smooth",
+        "lag",
+        "slow"
+      ]
+    },
+    "enableLowMemoryMode": {
+      "label": "Reduce memory use",
+      "description": "Turn off some extra features to use less memory.",
+      "section": "interface",
+      "group": "Performance",
+      "order": 5,
+      "control": "switch",
+      "searchAliases": [
+        "memory",
+        "ram",
+        "low memory",
+        "crash"
+      ]
+    },
+    "enablePanelShrink": {
+      "label": "Shrink side panel",
+      "description": "Make the side panel smaller when it opens.",
+      "section": "interface",
+      "group": "Panels",
+      "order": 6,
+      "control": "switch",
+      "searchAliases": [
+        "panel",
+        "sidebar",
+        "shrink"
+      ]
+    },
+    "panelShrinkPercent": {
+      "label": "Panel shrink amount",
+      "description": "How much the side panel shrinks.",
+      "section": "interface",
+      "group": "Panels",
+      "order": 7,
+      "control": "select",
+      "options": {
+        "50": "50%",
+        "60": "60%",
+        "70": "70%"
+      },
+      "dependencies": [
+        "enablePanelShrink"
+      ],
+      "searchAliases": [
+        "panel size",
+        "shrink percent"
+      ]
+    },
+    "enableYouThereRenderer": {
+      "label": "Idle check prompt",
+      "description": "Handle YouTube's inactivity prompt so playback continues.",
+      "section": "interface",
+      "group": "Idle",
+      "order": 8,
+      "control": "switch",
+      "searchAliases": [
+        "are you there",
+        "idle",
+        "inactivity",
+        "still watching"
+      ]
+    },
+    "enableScreenDimming": {
+      "label": "Dim screen when idle",
+      "description": "Dim the screen after a period without input.",
+      "section": "interface",
+      "group": "Idle",
+      "order": 9,
+      "control": "switch",
+      "searchAliases": [
+        "dim",
+        "screensaver",
+        "burn-in",
+        "idle"
+      ]
+    },
+    "dimmingTimeout": {
+      "label": "Dim after",
+      "description": "How long to wait without input before the screen dims.",
+      "section": "interface",
+      "group": "Idle",
+      "order": 10,
+      "control": "range",
+      "unit": "s",
+      "step": 1,
+      "dependencies": [
+        "enableScreenDimming"
+      ],
+      "searchAliases": [
+        "timeout",
+        "delay"
+      ]
+    },
+    "dimmingOpacity": {
+      "label": "Dimming opacity",
+      "description": "The opacity the TV uses when the screen dims.",
+      "section": "interface",
+      "group": "Idle",
+      "order": 11,
+      "control": "range",
+      "unit": "%",
+      "scale": 100,
+      "step": 1,
+      "dependencies": [
+        "enableScreenDimming"
+      ],
+      "searchAliases": [
+        "brightness",
+        "dim level",
+        "darkness"
+      ]
+    },
+    "clockMode": {
+      "label": "Show clock",
+      "description": "When the clock appears on screen.",
+      "section": "interface",
+      "group": "Clock",
+      "order": 12,
+      "control": "select",
+      "options": {
+        "off": "Off",
+        "always": "Always",
+        "notPlaying": "When not playing"
+      },
+      "searchAliases": [
+        "time",
+        "clock",
+        "display time"
+      ]
+    },
+    "clockFormat": {
+      "label": "Clock format",
+      "description": "How the time is written.",
+      "section": "interface",
+      "group": "Clock",
+      "order": 13,
+      "control": "select",
+      "options": {
+        "24h": "24-hour",
+        "12h": "12-hour",
+        "12hNoAmPm": "12-hour, no AM/PM"
+      },
+      "dependencies": [
+        {
+          "key": "clockMode",
+          "notValue": "off"
+        }
+      ],
+      "searchAliases": [
+        "12 hour",
+        "24 hour",
+        "am pm"
+      ]
+    },
+    "clockPosition": {
+      "label": "Clock position",
+      "description": "Which corner the clock appears in.",
+      "section": "interface",
+      "group": "Clock",
+      "order": 14,
+      "control": "select",
+      "options": {
+        "topLeft": "Top left",
+        "topRight": "Top right",
+        "bottomLeft": "Bottom left",
+        "bottomRight": "Bottom right"
+      },
+      "dependencies": [
+        {
+          "key": "clockMode",
+          "notValue": "off"
+        }
+      ],
+      "searchAliases": [
+        "corner",
+        "position"
+      ]
+    },
+    "clockShowSeconds": {
+      "label": "Show seconds",
+      "description": "Include seconds in the clock.",
+      "section": "interface",
+      "group": "Clock",
+      "order": 15,
+      "control": "switch",
+      "dependencies": [
+        {
+          "key": "clockMode",
+          "notValue": "off"
+        }
+      ],
+      "searchAliases": [
+        "seconds"
+      ]
+    },
+    "showWelcomeToast": {
+      "label": "Welcome message",
+      "description": "Show a short welcome message when axotube starts.",
+      "section": "interface",
+      "group": "Start",
+      "order": 16,
+      "control": "switch",
+      "searchAliases": [
+        "welcome",
+        "toast",
+        "greeting"
+      ]
+    },
+    "sortSubscriptionsByAlphabet": {
+      "label": "Sort subscriptions A to Z",
+      "description": "List subscriptions alphabetically.",
+      "section": "interface",
+      "group": "Sidebar",
+      "order": 17,
+      "control": "switch",
+      "searchAliases": [
+        "alphabetical",
+        "subscriptions",
+        "sort"
+      ]
+    },
+    "disableChannelsOnSidebar": {
+      "label": "Hide channels in sidebar",
+      "description": "Remove the channels list from the sidebar.",
+      "section": "interface",
+      "group": "Sidebar",
+      "order": 18,
+      "control": "switch",
+      "searchAliases": [
+        "channels",
+        "sidebar"
+      ]
+    },
+    "disabledSidebarContents": {
+      "label": "Hidden sidebar items",
+      "description": "Sidebar items to remove, by their icon name.",
+      "section": "interface",
+      "group": "Sidebar",
+      "order": 19,
+      "control": "tags",
+      "suggestions": [],
+      "searchAliases": [
+        "sidebar",
+        "hide menu",
+        "remove items"
+      ]
+    },
+    "enableAutoSubtitles": {
+      "label": "Automatic subtitles",
+      "description": "Turn on subtitles when a video starts.",
+      "section": "account",
+      "group": "Subtitles",
+      "order": 1,
+      "control": "switch",
+      "searchAliases": [
+        "subtitles",
+        "captions",
+        "cc"
+      ]
+    },
+    "autoSubtitleLanguage": {
+      "label": "Subtitle language",
+      "description": "The language to use for automatic subtitles.",
+      "section": "account",
+      "group": "Subtitles",
+      "order": 2,
+      "control": "select",
+      "options": {
+        "en": "English",
+        "hi": "Hindi",
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "pt": "Portuguese",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "ru": "Russian"
+      },
+      "dependencies": [
+        "enableAutoSubtitles"
+      ],
+      "searchAliases": [
+        "language",
+        "captions language"
+      ]
+    },
+    "autoSubtitleAllowAuto": {
+      "label": "Allow auto-generated subtitles",
+      "description": "Use subtitles that YouTube generated automatically when no others are available.",
+      "section": "account",
+      "group": "Subtitles",
+      "order": 3,
+      "control": "switch",
+      "dependencies": [
+        "enableAutoSubtitles"
+      ],
+      "searchAliases": [
+        "auto generated",
+        "asr",
+        "machine subtitles"
+      ]
+    },
+    "enableShowUserLanguage": {
+      "label": "Show my language",
+      "description": "Show your account language in the language menu.",
+      "section": "account",
+      "group": "Languages",
+      "order": 4,
+      "control": "switch",
+      "searchAliases": [
+        "language menu",
+        "my language",
+        "user language"
+      ]
+    },
+    "enableShowOtherLanguages": {
+      "label": "Show other languages",
+      "description": "Show languages other than your account language in the menu.",
+      "section": "account",
+      "group": "Languages",
+      "order": 5,
+      "control": "switch",
+      "searchAliases": [
+        "languages",
+        "other languages"
+      ]
+    },
+    "enableWhoIsWatchingMenu": {
+      "label": "Who's watching menu",
+      "description": "Show the profile picker when the app starts.",
+      "section": "account",
+      "group": "Profiles",
+      "order": 6,
+      "control": "switch",
+      "searchAliases": [
+        "profiles",
+        "who is watching",
+        "profile picker",
+        "switch user"
+      ]
+    },
+    "permanentlyEnableWhoIsWatchingMenu": {
+      "label": "Always show the profile picker",
+      "description": "Show the profile picker every time, not only sometimes.",
+      "section": "account",
+      "group": "Profiles",
+      "order": 7,
+      "control": "switch",
+      "dependencies": [
+        "enableWhoIsWatchingMenu"
+      ],
+      "searchAliases": [
+        "always",
+        "profiles"
+      ]
+    },
+    "enableWhosWatchingMenuOnAppExit": {
+      "label": "Show the profile picker on exit",
+      "description": "Show the profile picker when you leave the app.",
+      "section": "account",
+      "group": "Profiles",
+      "order": 8,
+      "control": "switch",
+      "dependencies": [
+        "enableWhoIsWatchingMenu"
+      ],
+      "searchAliases": [
+        "exit",
+        "close",
+        "profiles"
+      ]
+    },
+    "enableSigninReminder": {
+      "label": "Sign-in reminder",
+      "description": "Remind you to sign in when you are not signed in.",
+      "section": "account",
+      "group": "Account",
+      "order": 9,
+      "control": "switch",
+      "searchAliases": [
+        "sign in",
+        "login",
+        "account",
+        "reminder"
+      ]
+    },
+    "enableUpdater": {
+      "label": "Check for updates",
+      "description": "Check for axotube updates.",
+      "section": "system",
+      "group": "Updates",
+      "order": 1,
+      "control": "switch",
+      "searchAliases": [
+        "update",
+        "upgrade",
+        "new version"
+      ]
+    },
+    "dontCheckUpdateUntil": {
+      "label": "Update check timestamp",
+      "description": "Internal timestamp for the update check.",
+      "section": "system",
+      "group": "Updates",
+      "order": 2,
+      "control": "hidden",
+      "hiddenReason": "An internal value the updater writes. It is not a setting."
+    },
+    "userAgentProfile": {
+      "label": "Device profile",
+      "description": "How axotube identifies itself to YouTube.",
+      "section": "system",
+      "group": "Device",
+      "order": 3,
+      "control": "select",
+      "options": {
+        "auto": "Automatic",
+        "samsung": "Samsung TV",
+        "android": "Android"
+      },
+      "searchAliases": [
+        "user agent",
+        "device",
+        "samsung",
+        "android",
+        "profile"
+      ]
+    },
+    "reloadHomeOnStartup": {
+      "label": "Reload home on startup",
+      "description": "Load the home page each time YouTube opens.",
+      "section": "system",
+      "group": "Startup",
+      "order": 4,
+      "control": "switch",
+      "searchAliases": [
+        "home",
+        "startup",
+        "reload"
+      ]
+    },
+    "launchToOnStartup": {
+      "label": "Startup command",
+      "description": "Advanced. A JSON command that runs when YouTube opens. Leave empty for the default.",
+      "section": "system",
+      "group": "Startup",
+      "order": 5,
+      "control": "json",
+      "advanced": true,
+      "searchAliases": [
+        "launch",
+        "json",
+        "command",
+        "startup"
+      ]
+    },
+    "enableExperimentalResolution": {
+      "label": "Experimental higher resolutions",
+      "description": "Advanced. Allow resolutions above the normal limit. These may not work on every TV.",
+      "section": "system",
+      "group": "Experimental",
+      "order": 6,
+      "control": "switch",
+      "advanced": true,
+      "searchAliases": [
+        "experimental",
+        "4k",
+        "resolution",
+        "2160p",
+        "1440p"
+      ]
+    },
+    "experimentalMaxResolution": {
+      "label": "Highest experimental resolution",
+      "description": "Advanced. The highest resolution to allow when experimental resolutions are on.",
+      "section": "system",
+      "group": "Experimental",
+      "order": 7,
+      "control": "select",
+      "advanced": true,
+      "options": {
+        "1440p": "1440p (QHD)",
+        "2160p": "2160p (4K)"
+      },
+      "dependencies": [
+        "enableExperimentalResolution"
+      ],
+      "searchAliases": [
+        "max",
+        "4k",
+        "highest"
+      ]
+    }
+  }
+}

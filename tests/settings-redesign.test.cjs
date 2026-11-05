@@ -14,12 +14,15 @@ const resolveSrc = read("mods/resolveCommand.js");
 const uaSrc = read("mods/features/userAgentSpoofing.js");
 const en = JSON.parse(read("mods/translations/resources/en.json"));
 
-test("the three new pages are the first entries of the settings root, in order", () => {
-  const webAt = settingsSrc.indexOf('t("settings.webConfig.title")');
-  const aboutAt = settingsSrc.indexOf('t("settings.about.title")');
-  const advancedAt = settingsSrc.indexOf('t("settings.advanced.title")');
+test("the settings root is ordered by purpose, with AxoTube, Advanced and About last", () => {
+  const playbackAt = settingsSrc.indexOf('t("settings.playback.title")');
   const adsAt = settingsSrc.indexOf('t("settings.ads.title")');
-  assert.ok(webAt > 0 && aboutAt > webAt && advancedAt > aboutAt && adsAt > advancedAt);
+  const axotubeAt = settingsSrc.indexOf('t("settings.axotube.title")');
+  const advancedAt = settingsSrc.indexOf('t("settings.advanced.title")');
+  const aboutAt = settingsSrc.indexOf('t("settings.about.title")');
+  assert.ok(playbackAt > 0 && adsAt > playbackAt, "categories by purpose come first");
+  assert.ok(axotubeAt > adsAt && advancedAt > axotubeAt && aboutAt > advancedAt, "AxoTube, then Advanced and About last");
+  assert.ok(settingsSrc.indexOf('t("settings.webConfig.title")') > axotubeAt, "Web config lives in the AxoTube panel");
 });
 
 test("each new page has an icon from the YouTube icon list", () => {
@@ -108,4 +111,12 @@ test("every settings translation key used by the new code exists in en.json", ()
     if (typeof found !== "string") missing.push(key);
   }
   assert.deepEqual(missing, []);
+});
+
+test("every icon the TV settings use is in the YouTube icon list", () => {
+  const names = new Set(JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "ytContribIconNames.json"), "utf8")));
+  const used = new Set([...settingsSrc.matchAll(/icon: "([A-Z0-9_]+)"/g)].map((m) => m[1]));
+  for (const m of settingsSrc.matchAll(/(?:toggle|submenu|livePanel|launchChoice)\([^\n]*?"([A-Z0-9_]+)"/g)) used.add(m[1]);
+  const missing = [...used].filter((n) => !names.has(n));
+  assert.deepEqual(missing, [], "icons YouTube cannot draw");
 });

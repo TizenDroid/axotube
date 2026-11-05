@@ -8,12 +8,19 @@ const { pathToFileURL } = require("node:url");
 const ROOT = path.resolve(__dirname, "..");
 const { webConfigPage } = require(path.join(ROOT, "service", "webConfigPage.js"));
 
-test("the config page reads ?code= and pairs with it, without the startup load", () => {
-  // The regex must reach the browser with single backslashes (the page is a template literal).
-  assert.ok(webConfigPage.includes("/[?&]code=(\\d{6})(?:&|$)/"), "served regex has \\d");
-  assert.ok(webConfigPage.includes("function autoPairFromLink()"), "auto-pair function is served");
-  assert.ok(webConfigPage.includes("if (!autoPairFromLink()) load();"), "startup load is replaced, not raced");
-  assert.ok(webConfigPage.includes('history.replaceState(null, "", location.pathname)'), "code leaves the address bar");
+test("the config application reads ?code= and pairs with it, without the startup load", () => {
+  // The application is loaded from the release; its source is what matters here.
+  const app = require("node:fs").readFileSync(path.join(ROOT, "service", "web", "config.js"), "utf8");
+  assert.ok(app.includes("/[?&]code=(\\d{6})(?:&|$)/"), "regex has \\d");
+  assert.ok(app.includes("function autoPairFromLink()"), "auto-pair function exists");
+  assert.ok(app.includes("if (!autoPairFromLink()) load();"), "startup load is replaced, not raced");
+  assert.ok(app.includes('history.replaceState(null, "", location.pathname)'), "code leaves the address bar");
+});
+
+test("the served shell pins its assets with integrity hashes", () => {
+  assert.ok(webConfigPage.includes('integrity="sha384-'), "stylesheet and script carry SRI");
+  assert.ok(webConfigPage.includes('crossorigin="anonymous"'), "SRI requires CORS");
+  assert.ok(!webConfigPage.includes("__SRI_") && !webConfigPage.includes("__ASSET_BASE__"), "no placeholders left");
 });
 
 test("every script the config page serves parses as JavaScript", () => {

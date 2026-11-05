@@ -3,33 +3,96 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
 <title>axotube diagnostics</title>
 <style>
-  html, body { margin:0; background:#0f0f0f; color:#eee; font-family:Roboto, Arial, sans-serif; }
-  body { padding:40px 56px; box-sizing:border-box; min-height:100vh; }
-  h1 { font-size:40px; margin:0 0 16px; font-weight:500; }
-  .lines { font-size:22px; line-height:1.5; color:#ddd; white-space:pre-wrap; }
-  .note { font-size:20px; color:#8fd694; min-height:28px; margin:16px 0; }
-  .actions { display:flex; gap:16px; margin:12px 0 24px; }
-  button { font-size:22px; padding:12px 22px; border-radius:8px; border:2px solid #444; background:#222; color:#fff; font-family:inherit; }
-  button:focus { outline:none; border-color:#0DC1E9; background:#153b45; }
-  .log { font-size:18px; line-height:1.4; color:#bbb; white-space:pre-wrap; word-break:break-word; background:#151515; border:1px solid #2a2a2a; border-radius:8px; padding:16px; max-height:520px; overflow:auto; }
-  .hint { font-size:18px; color:#888; margin-top:14px; }
+  /* Same tokens as axotube Config. Sizes scale with the screen, so the page reads
+     at 10 feet on a TV and still fits a phone or a small window. */
+  :root {
+    --bg: #0f0f0f; --surface: #181818; --surface-2: #212121; --line: #303030;
+    --text: #f1f1f1; --muted: #aaaaaa; --accent: #3ea6ff; --accent-ink: #0f0f0f;
+    --ok: #81c995; --warn: #f6c26b; --err: #f28b82;
+    --base: clamp(16px, 0.6vw + 13px, 24px);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: Roboto, Arial, sans-serif; }
+  body { min-height: 100vh; font-size: var(--base); padding: 2.2em 3.2em 2.6em; }
+  button { font: inherit; font-size: 1em; min-height: 2.6em; padding: 0.4em 1.1em; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); cursor: pointer; }
+  button:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(62, 166, 255, 0.4); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+  .top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-bottom: 1em; border-bottom: 1px solid var(--line); }
+  .brand { font-size: 1.6em; font-weight: 600; }
+  .brand span { font-weight: 400; color: var(--muted); }
+  .status { color: var(--muted); font-size: 0.9em; }
+  .note { min-height: 1.6em; margin: 0.8em 0 0; color: var(--ok); font-size: 0.95em; }
+
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); margin-top: 0.8em; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1em 1.2em; min-width: 0; }
+  .panel h2 { margin: 0 0 0.6em; font-size: 0.85em; font-weight: 600; color: var(--muted); text-transform: none; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 0.5em 1em; margin: 0; }
+  .kv dt { color: var(--muted); font-size: 0.9em; }
+  .kv dd { margin: 0; overflow-wrap: anywhere; }
+  .warn { margin: 0.8em 0 0; color: var(--warn); font-size: 0.9em; }
+  .muted { color: var(--muted); font-size: 0.9em; margin: 0.6em 0 0; overflow-wrap: anywhere; }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 1.2em 0 0; }
+  .events { list-style: none; margin: 0; padding: 0; max-height: 14em; overflow: hidden; }
+  .events li { display: grid; grid-template-columns: auto auto 1fr; gap: 0.8em; padding: 0.4em 0; border-top: 1px solid var(--line); font-size: 0.85em; }
+  .events li:first-child { border-top: 0; }
+  .events time { color: var(--muted); white-space: nowrap; }
+  .events .lvl { font-weight: 600; white-space: nowrap; }
+  .events .lvl.warn { color: var(--warn); }
+  .events .lvl.error { color: var(--err); }
+  .events .msg { overflow-wrap: anywhere; color: var(--text); }
+  .hint { margin: 1.4em 0 0; color: var(--muted); font-size: 0.85em; }
+
+  /* Small screens and portrait: one column, buttons take the full width. */
+  @media (max-width: 720px) {
+    body { padding: 1.2em 1em 2em; }
+    .actions button { flex: 1 1 9em; }
+    .events li { grid-template-columns: 1fr; gap: 0.1em; }
+  }
 </style>
 </head>
 <body>
-<h1>axotube diagnostics</h1>
-<div id="versions" class="lines">Loading…</div>
-<div id="launch" class="lines"></div>
-<div id="uptime" class="lines"></div>
-<div id="note" class="note"></div>
+<header class="top">
+  <div class="brand">axotube <span>Diagnostics</span></div>
+  <div id="status" class="status">Loading…</div>
+</header>
+<p id="note" class="note" role="status"></p>
+
+<div class="grid">
+  <section class="panel">
+    <h2>Versions</h2>
+    <dl id="versions" class="kv"></dl>
+    <p id="versionWarn" class="warn" hidden></p>
+  </section>
+  <section class="panel">
+    <h2>Launch</h2>
+    <dl id="launch" class="kv"></dl>
+    <p id="launchReason" class="muted"></p>
+  </section>
+  <section class="panel">
+    <h2>Service</h2>
+    <dl id="service" class="kv"></dl>
+  </section>
+</div>
+
 <div class="actions">
-  <button id="retryBtn" type="button">Retry debugger launch</button>
+  <button id="retryBtn" class="primary" type="button">Retry debugger launch</button>
   <button id="refreshBtn" type="button">Refresh</button>
   <button id="backBtn" type="button">Back</button>
 </div>
-<pre id="events" class="log"></pre>
-<div class="hint">Arrow keys move between buttons. Enter presses. Back returns to the previous screen. Retry only clears a failed debugger launch; the next start tries again if the debugger launch is on.</div>
+
+<section class="panel" style="margin-top:16px">
+  <h2>Recent events</h2>
+  <ol id="events" class="events"></ol>
+  <p id="noEvents" class="muted" hidden>No events yet.</p>
+</section>
+
+<p class="hint">Arrow keys move between buttons. Enter presses one. Back returns to the previous screen. Retry only clears a failed debugger launch; the next start tries again if the debugger launch is on.</p>
+
 <script>
 (function () {
   "use strict";
@@ -39,35 +102,77 @@
 
   // True when version a is older than b (dotted numbers, missing parts are 0).
   function isOlder(a, b) {
-      var pa = String(a).split(".");
-      var pb = String(b).split(".");
-      for (var i = 0; i < 3; i++) {
-    var x = parseInt(pa[i], 10) || 0;
-    var y = parseInt(pb[i], 10) || 0;
-    if (x !== y) return x < y;
-      }
-      return false;
+    var pa = String(a).split(".");
+    var pb = String(b).split(".");
+    for (var i = 0; i < 3; i++) {
+      var x = parseInt(pa[i], 10) || 0;
+      var y = parseInt(pb[i], 10) || 0;
+      if (x !== y) return x < y;
+    }
+    return false;
   }
 
   function $(id) { return document.getElementById(id); }
   function note(text) { $("note").textContent = text; }
-  var buttons = [$("retryBtn"), $("refreshBtn"), $("backBtn")];
+
+  // Fills a definition list with [label, value] pairs.
+  function kv(container, pairs) {
+    container.textContent = "";
+    pairs.forEach(function (pair) {
+      var dt = document.createElement("dt");
+      dt.textContent = pair[0];
+      var dd = document.createElement("dd");
+      dd.textContent = pair[1];
+      container.appendChild(dt);
+      container.appendChild(dd);
+    });
+  }
 
   function render(d) {
     var s = d.service || {};
     var b = d.bundle || {};
     var l = d.launch || {};
-    var versions = "App " + (wgt || "?") + "   ·   Service " + (s.version || "?") + "   ·   Bundle " + (b.current || "?");
-    if (b.available) versions += " (update " + b.latest + " ready)";
-    if (wgt && s.version && isOlder(s.version, wgt)) versions += "\nThe service is older than the app. Reinstall the app.";
-    $("versions").textContent = versions;
-    $("launch").textContent = "Launch: " + (l.debugger ? "debugger" : "proxy") + "   ·   state " + (l.state || "?") +
-      (l.reason ? "\n" + l.reason : "");
-    $("uptime").textContent = "Service up " + (s.uptimeSeconds || 0) + " s   ·   " + (s.node || "");
+
+    kv($("versions"), [
+      ["App", wgt || "?"],
+      ["Service", s.version || "?"],
+      ["Bundle", (b.current || "?") + (b.available ? " (update " + b.latest + " ready)" : "")]
+    ]);
+    var warn = wgt && s.version && isOlder(s.version, wgt);
+    $("versionWarn").hidden = !warn;
+    $("versionWarn").textContent = warn ? "The service is older than the app. Reinstall the app." : "";
+
+    kv($("launch"), [
+      ["Mode", l.debugger ? "Debugger" : "Proxy"],
+      ["State", l.state || "?"]
+    ]);
+    $("launchReason").textContent = l.reason || "";
+
+    kv($("service"), [
+      ["Uptime", (s.uptimeSeconds || 0) + " s"],
+      ["Node", s.node || "?"]
+    ]);
+
     var events = (d.events || []).slice().reverse();
-    $("events").textContent = events.length
-      ? events.map(function (e) { return new Date(e.t).toLocaleTimeString() + "  " + e.level + "  " + e.message; }).join("\n")
-      : "No events yet.";
+    var list = $("events");
+    list.textContent = "";
+    events.forEach(function (e) {
+      var li = document.createElement("li");
+      var time = document.createElement("time");
+      time.textContent = new Date(e.t).toLocaleTimeString();
+      var lvl = document.createElement("span");
+      lvl.className = "lvl " + (e.level === "error" ? "error" : e.level === "warn" ? "warn" : "");
+      lvl.textContent = e.level || "info";
+      var msg = document.createElement("span");
+      msg.className = "msg";
+      msg.textContent = e.message || "";
+      li.appendChild(time);
+      li.appendChild(lvl);
+      li.appendChild(msg);
+      list.appendChild(li);
+    });
+    $("noEvents").hidden = events.length > 0;
+    $("status").textContent = "Updated " + new Date().toLocaleTimeString();
   }
 
   // Loads the data. It leaves the note alone, so a message from a retry stays visible.
@@ -78,7 +183,7 @@
         return r.json();
       })
       .then(render)
-      .catch(function (e) { note("Could not load diagnostics: " + (e.message || "error")); });
+      .catch(function (e) { note(""); $("status").textContent = "Could not load diagnostics: " + (e.message || "error"); });
   }
 
   function retry() {
@@ -100,6 +205,7 @@
     if (history.length > 1) history.back();
   }
 
+  var buttons = [$("retryBtn"), $("refreshBtn"), $("backBtn")];
   buttons[0].addEventListener("click", retry);
   buttons[1].addEventListener("click", load);
   buttons[2].addEventListener("click", goBack);
