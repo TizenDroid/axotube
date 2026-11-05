@@ -1,8 +1,9 @@
 // Entry point of the standalone core (standalone/service/dist/core.js). The loader
 // (service/loader.js, shipped as dist/index.js) chooses which core runs.
 // One bundle carries both the content proxy on 127.0.0.1:8081 and the control
-// server on 8080 (pairing, config sync, phone commands, DIAL casting), so the
+// server on 8090 (pairing, config sync, phone commands, DIAL casting), so the
 // standalone app and the Tizen module always run the same control code.
+require("./node4-compat.js");
 global.isAxoTubeStandalone = true;
 require("./proxy.js");
 require("./service.js");

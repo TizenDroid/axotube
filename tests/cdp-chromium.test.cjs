@@ -202,7 +202,7 @@ test("the injected wrapper runs early, the page script after it, and the main bu
     assert.equal(await evaluate(chromePort, "window.__earlyState"), "loading", "early runs before the DOM is ready");
     const main = await until(() => evaluate(chromePort, "window.__mainState"), 15000, "main bundle");
     assert.ok(main === "interactive" || main === "complete", "main ran after DOMContentLoaded, got " + main);
-    assert.equal(await evaluate(chromePort, "window.__axotubeServiceUrl"), "http://127.0.0.1:8080");
+    assert.equal(await evaluate(chromePort, "window.__axotubeServiceUrl"), "http://127.0.0.1:8090");
   } finally {
     if (session) session.close();
     server.close();
@@ -307,7 +307,7 @@ test("the launcher's own flow attaches to Chromium, registers the bundles and na
     );
     const parsed = JSON.parse(flags);
     assert.equal(parsed.cdp, true, "the injected wrapper ran");
-    assert.equal(parsed.url, "http://127.0.0.1:8080");
+    assert.equal(parsed.url, "http://127.0.0.1:8090");
     assert.equal(parsed.proxy, "http://127.0.0.1:8081", "the updater on youtube.com needs the proxy's address");
     assert.deepEqual(parsed.errors, [], "the early bundle ran without errors");
     const mainErrors = await evaluate(chromePort, "JSON.stringify(window.__axotubeErrors || [])");

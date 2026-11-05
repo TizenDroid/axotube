@@ -10,6 +10,8 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..");
 const SOURCES = [
   "service/service.js",
+  "service/loader.js",
+  "service/serviceUpdater.cjs",
   "service/proxy.js",
   "service/bundleUpdates.cjs",
   "service/standalone.js",
@@ -41,6 +43,15 @@ const FORBIDDEN = [
   [/mkdirSync\s*\([^)]*recursive/, "fs.mkdirSync({ recursive }) (Node 10.12)"],
   [/\buuid\.v4\s*\(/, "uuid.v4 (needs crypto.getRandomValues)"],
   [/\bnew URL\s*\(/, "the global URL constructor (Node 10)"],
+  [/\.padEnd\s*\(/, "String.prototype.padEnd (ES2017)"],
+  [/\bBuffer\.(from|alloc|allocUnsafe)\s*\(/, "Buffer.from/alloc/allocUnsafe (Node 4.5+); use new Buffer"],
+  [/\bglobalThis\b/, "globalThis (Node 12)"],
+  [/\bObject\.(entries|values|fromEntries)\s*\(/, "Object.entries/values/fromEntries (Node 7+)"],
+  [/\.(finally|allSettled|trimStart|trimEnd|flatMap|flat|replaceAll)\s*\(/, "a Promise or string/array method added after Node 4"],
+  [/\bfs\.promises\b|require\(["']fs\/promises["']\)/, "fs.promises (Node 10)"],
+  [/\bcrypto\.randomUUID\b|\brandomFillSync\b|\brandomFill\b/, "crypto.randomUUID / randomFill (Node 7+)"],
+  [/\bTextEncoder\b|\bTextDecoder\b|\bstructuredClone\b|\bAbortController\b/, "a Web API missing on Node 4"],
+  [/require\(["']uuid["']\)/, "the uuid package (ES2015+, does not load on Node 4)"],
 ];
 
 for (const file of SOURCES) {
@@ -51,6 +62,21 @@ for (const file of SOURCES) {
     }
   });
 }
+
+test("the device UUID is a local SHA-1 v5, the same bytes uuid.v5 produced", () => {
+  const src = code("service/service.js");
+  assert.ok(/function sha1Uuid\s*\(/.test(src), "sha1Uuid exists");
+  assert.ok(/sha1Uuid\(tizenid, "4bcbc514-bdd6-4163-8215-316526fd1d9b"\)/.test(src), "deviceUuid uses it with the same namespace");
+  const crypto = require("node:crypto");
+  const { createHash } = crypto;
+  const ns = Buffer.from("4bcbc514bdd641638215316526fd1d9b", "hex");
+  const hash = createHash("sha1").update(ns).update(Buffer.from("abc", "utf8")).digest();
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  const h = hash.toString("hex", 0, 16);
+  const out = [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20)].join("-");
+  assert.equal(out, "4436dfeb-1113-57ba-aa5e-dade725a8a6b", "matches uuid.v5(\"abc\", namespace)");
+});
 
 test("the UUID fallback is built from crypto.randomBytes", () => {
   const src = code("service/service.js");

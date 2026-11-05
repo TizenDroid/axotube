@@ -169,7 +169,7 @@ function openTvClient(origin, initialConfig) {
     .readFileSync(path.join(ROOT, "mods", "features", "webConfig.js"), "utf8")
     .replace(/import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";/g, "")
     .replace(/^import\s+[^\n;]+;\s*$/gm, "")
-    .replace("http://127.0.0.1:8080", origin);
+    .replace("http://127.0.0.1:8090", origin);
   const context = vm.createContext({
     nativeHost: () => ({}),
     configRead(key) {

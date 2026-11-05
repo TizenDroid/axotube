@@ -39,11 +39,11 @@ test("the pairing store keeps only a six-digit code and plain http(s) addresses"
 
   store.setPairingInfo({
     code: "123456",
-    urls: ["http://192.168.1.5:8080", "javascript:alert(1)", "http://a/b", "https://tv.local:8080"],
+    urls: ["http://192.168.1.5:8090", "javascript:alert(1)", "http://a/b", "https://tv.local:8090"],
   });
   assert.deepEqual(store.getPairingInfo(), {
     code: "123456",
-    urls: ["http://192.168.1.5:8080", "https://tv.local:8080"],
+    urls: ["http://192.168.1.5:8090", "https://tv.local:8090"],
   });
   assert.ok(store.pairingInfoAge() < 5000);
 

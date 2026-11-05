@@ -61,6 +61,6 @@ test("the native-parser rescan is bounded", () => {
 
 test("shared service guards its DIAL listen so a busy port cannot crash the process", () => {
   const src = read("service/service.js");
-  assert.ok(src.includes('dialListener.on("error"'), "error handler on the 8080 listener");
+  assert.ok(src.includes('dialListener.on("error"'), "error handler on the 8090 listener");
   assert.ok(src.includes("dialServer.start();"), "DIAL starts only after the port binds");
 });

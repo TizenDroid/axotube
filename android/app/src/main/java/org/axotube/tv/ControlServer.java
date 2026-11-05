@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Android port of the 8080 control server in service/service.js: pairing,
+ * Android port of the 8090 control server in service/service.js: pairing,
  * settings sync, phone commands, now-playing, and the phone web page.
  *
  * Not ported: DIAL casting (SSDP discovery and /dial). The Android app cannot
@@ -27,7 +27,7 @@ import java.util.concurrent.Executors;
  * not pretend to work.
  */
 final class ControlServer {
-    static final int DEFAULT_PORT = 8080;
+    static final int DEFAULT_PORT = 8090;
     private static final int MAX_BODY = 64 * 1024;
     private static final int MAX_HEADERS = 32 * 1024;
     private static final int MAX_COMMAND_QUEUE = 50;
@@ -74,7 +74,7 @@ final class ControlServer {
     /**
      * @param bindAddress "0.0.0.0" so phones on the LAN can reach the pairing page,
      *                    or "127.0.0.1" for tests.
-     * @param port        8080 in the app; 0 lets tests pick a free port.
+     * @param port        8090 in the app; 0 lets tests pick a free port.
      */
     ControlServer(String bindAddress, int port, ConfigStore store, String webPage) throws IOException {
         this.store = store;

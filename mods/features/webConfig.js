@@ -13,7 +13,7 @@ import { showToast } from "../ui/ytUI.js";
 import { fetchWithTimeout } from "../shared/fetch.js";
 import { setPairingInfo, pairingInfoAge } from "../shared/pairingInfo.js";
 
-const WEB_CONFIG_URL = "http://127.0.0.1:8080";
+const WEB_CONFIG_URL = "http://127.0.0.1:8090";
 const POLL_INTERVAL_MS = 5000;
 // How often the pairing code is re-read while the service answers. It changes only
 // when the service restarts, but the phone address can change with the network.

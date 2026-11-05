@@ -70,7 +70,7 @@ in each new [versioned release](https://github.com/TizenDroid/axotube/releases).
 The WGT starts a small Node service on the TV. That service proxies YouTube TV
 on port 8081, rewrites the URLs the page expects, and injects two scripts: an
 early bundle before YouTube's own scripts, and the main bundle at the end. A
-second listener on port 8080 handles DIAL casting and the phone configuration
+second listener on port 8090 handles DIAL casting and the phone configuration
 page. The proxy talks to YouTube, and the optional features talk to the services
 they need: SponsorBlock, DeArrow, and jsDelivr for bundle updates.
 
@@ -148,7 +148,7 @@ and losing its local app data. The workflow supports stable release signing with
 `ANDROID_KEY_PASSWORD` repository secrets. See [Android build instructions](android/README.md).
 
 Android's WebView, device codecs, DRM and sign-in have not been verified on every
-TV model. The Android APK does not yet provide the WGT's port 8080 DIAL casting
+TV model. The Android APK does not yet provide the WGT's port 8090 DIAL casting
 and phone configuration service.
 
 ## Settings
@@ -156,7 +156,7 @@ and phone configuration service.
 Open YouTube's settings and choose **AxoTube Settings**, or press the settings
 key on the remote. The menu uses YouTube's own panels, so Back and focus behave
 the way they do everywhere else. Everything is also available from the phone
-page at `http://<tv-ip>:8080` after pairing.
+page at `http://<tv-ip>:8090` after pairing.
 
 ## Build from source
 

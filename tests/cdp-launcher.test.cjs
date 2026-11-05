@@ -38,7 +38,7 @@ test("the injected source is ES5 and runs its bundles in order, in the main fram
   vm.runInContext(source, sandbox);
   assert.deepEqual(Array.from(sandbox.order), ["early", "main"]);
   assert.equal(sandbox.EARLY_GLOBAL, "  ok", "U+2028 survives the literal");
-  assert.equal(sandbox.__axotubeServiceUrl, "http://127.0.0.1:8080");
+  assert.equal(sandbox.__axotubeServiceUrl, "http://127.0.0.1:8090");
 
   // An iframe: its window.top is the parent, not itself.
   const frame = { document: { readyState: "complete", addEventListener() {} }, order: [] };
@@ -222,7 +222,7 @@ test("launch runs exit, debug start, attach, script registration and navigation 
   ]);
   const source = f.sent[2][1].source;
   assert.ok(source.indexOf('"EARLY_BUNDLE"') !== -1 && source.indexOf('"MAIN_BUNDLE"') !== -1);
-  assert.equal(f.sent[3][1].url, "https://www.youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8080%2Fdial%2Fapps%2FYouTube&lang=en");
+  assert.equal(f.sent[3][1].url, "https://www.youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8090%2Fdial%2Fapps%2FYouTube&lang=en");
 });
 
 test("without developer mode the launch goes straight to the proxy", () => {
@@ -304,7 +304,7 @@ test("a navigation Chromium refuses sends the page to the proxy itself", () => {
   assert.equal(ask(l).action, "proxy");
   const last = f.sent[f.sent.length - 1];
   assert.equal(last[0], "Page.navigate");
-  assert.equal(last[1].url, "http://localhost:8081/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8080%2Fdial%2Fapps%2FYouTube");
+  assert.equal(last[1].url, "http://localhost:8081/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8090%2Fdial%2Fapps%2FYouTube");
 });
 
 test("refreshScripts replaces the registered script, and the page gets the new bundle", () => {

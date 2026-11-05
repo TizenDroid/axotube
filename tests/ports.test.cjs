@@ -1,4 +1,4 @@
-// Ports are fixed: control 8080 (phones and the settings panel), content proxy 8081.
+// Ports are fixed: control 8090 (phones and the settings panel), content proxy 8081.
 // A stale port in any form (plain, URL-encoded as %3A8085, or inside a URL) breaks
 // one side silently, so scan every tracked source file rather than trusting a regex
 // with word boundaries, which misses %3A8085.
@@ -28,7 +28,7 @@ test("no old or experimental port appears in any tracked source file", () => {
 
 test("the splash and package.json send YouTube to the control port", () => {
   const html = fs.readFileSync(path.join(ROOT, "standalone/index.html"), "utf8");
-  assert.match(html, /var DIAL_URL = "http%3A%2F%2Flocalhost%3A8080%2Fdial%2Fapps%2FYouTube"/);
+  assert.match(html, /var DIAL_URL = "http%3A%2F%2Flocalhost%3A8090%2Fdial%2Fapps%2FYouTube"/);
   const pkg = fs.readFileSync(path.join(ROOT, "package.json"), "utf8");
-  assert.match(pkg, /localhost%3A8080%2Fdial%2Fapps%2FYouTube/);
+  assert.match(pkg, /localhost%3A8090%2Fdial%2Fapps%2FYouTube/);
 });

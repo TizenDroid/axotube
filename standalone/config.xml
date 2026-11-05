@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets"
-    id="https://axotube.github.io" version="1.41.0" viewmodes="maximized">
+    id="https://axotube.github.io" version="1.42.0" viewmodes="maximized">
     <access origin="*" subdomains="true"></access>
     <tizen:allow-navigation>localhost 127.0.0.1 youtube.com *.youtube.com google.com *.google.com accounts.google.com</tizen:allow-navigation>
     <tizen:content-security-policy>default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob:</tizen:content-security-policy>

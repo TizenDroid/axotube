@@ -28,11 +28,11 @@ var launchSettings = require("../launchSettings.js");
 // Set to false to keep every launch on the proxy path.
 var CDP_ENABLED = true;
 
-var SERVICE_URL = "http://127.0.0.1:8080";
+var SERVICE_URL = "http://127.0.0.1:8090";
 // The content proxy, for update checks. On this path the page is youtube.com, so
 // the page cannot name the proxy from its own origin.
 var PROXY_URL = "http://127.0.0.1:8081";
-var DIAL_URL = "http%3A%2F%2Flocalhost%3A8080%2Fdial%2Fapps%2FYouTube";
+var DIAL_URL = "http%3A%2F%2Flocalhost%3A8090%2Fdial%2Fapps%2FYouTube";
 var YOUTUBE_URL = "https://www.youtube.com/tv";
 var APP_SUFFIX = ".AxoTubeStandalone";
 var DEFAULT_APP_ID = "axotubeapp.AxoTubeStandalone";

@@ -18,7 +18,7 @@ const path = require("path");
 const ROOT = path.resolve(__dirname, "..");
 const NODE4_VERSION = "4.4.4";
 const PROXY_PORT = 8081;
-const CONTROL_PORT = 8080;
+const CONTROL_PORT = 8090;
 
 function fail(message) {
   console.error("node4-smoke: " + message);
@@ -245,6 +245,21 @@ async function main() {
     const restartBody = JSON.parse(restart.body);
     if (restart.status !== 200 || restartBody.ok !== true || restartBody.restarted !== true) fail("cast restart: " + restart.status + " " + restart.body);
     console.log("node4-smoke: cast discovery restarts from the ES5 build");
+
+    // The DIAL identity is a name-based UUID of the tizen id, so it is stable across starts.
+    // It must match uuid.v5 of the stubbed id, or the TV falls back to a random UUID.
+    const dd = await request("127.0.0.1", "GET", CONTROL_PORT, "/dial/ssdp/device-desc.xml", {}, "");
+    const expectedUuid = (function () {
+      const hash = crypto.createHash("sha1")
+        .update(Buffer.from("4bcbc514bdd641638215316526fd1d9b", "hex"))
+        .update(Buffer.from("SMOKE-TIZENID", "utf8")).digest();
+      hash[6] = (hash[6] & 0x0f) | 0x50;
+      hash[8] = (hash[8] & 0x3f) | 0x80;
+      const h = hash.toString("hex", 0, 16);
+      return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20)].join("-");
+    })();
+    if (dd.status !== 200 || dd.body.indexOf("uuid:" + expectedUuid) === -1) fail("DIAL device uuid is not the stable tizen-id uuid: " + dd.status);
+    console.log("node4-smoke: DIAL identity is the stable uuid of the tizen id");
 
     const digest = crypto.createHash("sha256").update(fs.readFileSync(path.join(layout, "service", "dist", "core.js"))).digest("hex");
     console.log("node4-smoke: passed (core sha256 " + digest.slice(0, 12) + ")");

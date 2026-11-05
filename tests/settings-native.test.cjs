@@ -283,7 +283,7 @@ test("every config key the built tree reads or writes is in the schema", () => {
 });
 
 test("phone sync shows the QR code, the address and the code from the live pairing store", () => {
-  const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8080"] });
+  const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8090"] });
   h.api.modernUI();
   const rows = openWebConfig(h);
   const shown = rows.map((r) => r.text || r.qr || r.title);
@@ -292,7 +292,7 @@ test("phone sync shows the QR code, the address and the code from the live pairi
   assert.ok(shown.includes("settings.phoneSync.code"));
   assert.ok(!rows.some((r) => r.qr), "the QR is in its own panel, not in the text panel");
   const qr = open(h, "settings.webConfig.qrTitle");
-  assert.ok(qr.some((r) => r.qr === "http://192.168.1.5:8080/?code=123456"), "the QR carries the pairing code");
+  assert.ok(qr.some((r) => r.qr === "http://192.168.1.5:8090/?code=123456"), "the QR carries the pairing code");
   assert.equal(qr.filter((r) => r.qr).length, 1, "the QR panel shows only the code");
 });
 
@@ -360,7 +360,7 @@ test("About shows checking until the first check has answered", () => {
 });
 
 test("Web config says the service is not running and shows no QR code", () => {
-  const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8080"] }, { checked: true, service: null, proxy: null });
+  const h = harness({}, { code: "123456", urls: ["http://192.168.1.5:8090"] }, { checked: true, service: null, proxy: null });
   h.api.modernUI();
   const rows = openWebConfig(h);
   assert.ok(texts(rows).includes("settings.webConfig.offline"));

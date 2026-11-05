@@ -1,4 +1,4 @@
-// What the settings panels show about AxoTube's own parts: the service on port 8080,
+// What the settings panels show about AxoTube's own parts: the service on port 8090,
 // the content proxy on 8081, and the launch mode the service stores. A panel asks for
 // a refresh when it opens and draws the last answer it had until the new one arrives,
 // so opening a panel never waits on the network before it appears.
@@ -9,7 +9,7 @@
 import { fetchWithTimeout } from "./fetch.js";
 import { setPairingInfo } from "./pairingInfo.js";
 
-const SERVICE_URL = "http://127.0.0.1:8080";
+const SERVICE_URL = "http://127.0.0.1:8090";
 const PROXY_URL = "http://127.0.0.1:8081";
 
 // service and proxy stay null until a check finds them. checked turns true after the

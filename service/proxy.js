@@ -492,9 +492,9 @@ app.all('*', function (req, res) {
                     // Early bundle first, right after <head>, so its overrides exist
                     // before YouTube reads them. The main bundle stays at the end.
                     // The marker tells the page that this AxoTube service answers on
-                    // 8080. The page checks it, not the user agent, so the APK and the
+                    // 8090. The page checks it, not the user agent, so the APK and the
                     // WGT both get the control features whatever their UA string is.
-                    var earlyTag = '<script>window.__axotubeServiceUrl="http://127.0.0.1:8080";</script>'
+                    var earlyTag = '<script>window.__axotubeServiceUrl="http://127.0.0.1:8090";</script>'
                         + '<script src="http://localhost:' + PORT + '/axotube/early.js"></script>';
                     text = /<head(\s[^>]*)?>/i.test(text)
                         ? text.replace(/<head(\s[^>]*)?>/i, function (m) { return m + earlyTag; })
@@ -511,7 +511,7 @@ app.all('*', function (req, res) {
         });
 });
 
-// The content proxy is intentionally loopback-only; DIAL/phone control stays on 8080.
+// The content proxy is intentionally loopback-only; DIAL/phone control stays on 8090.
 // Lets the loader (service/loader.js) know this copy is listening, and when it has
 // failed to. The loader rolls back a downloaded core that never gets here.
 global.axotubeListenStarted = true;

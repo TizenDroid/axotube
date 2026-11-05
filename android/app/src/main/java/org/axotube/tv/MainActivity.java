@@ -27,7 +27,7 @@ import android.util.Log;
 /** Android TV WebView shell; local service lives only while this app is running. */
 public final class MainActivity extends Activity {
     private static final String TAG = "AxoTube";
-    // The 8080 control server (pairing, settings sync, phone commands) runs here
+    // The 8090 control server (pairing, settings sync, phone commands) runs here
     // too. DIAL casting is still WGT-only: see ControlServer's header.
     private static final String URL = "http://localhost:8081/tv";
     private static final String TV_USER_AGENT =
@@ -67,7 +67,7 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * Starts the 8080 control server. A failure here is logged and does not stop
+     * Starts the 8090 control server. A failure here is logged and does not stop
      * the proxy or the browser: the video page still works, only phone pairing and
      * settings sync are unavailable.
      */

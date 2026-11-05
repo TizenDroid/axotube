@@ -1,3 +1,4 @@
+require("./node4-compat.js");
 function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
 function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
 function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
@@ -18,7 +19,6 @@ var fs = require("fs");
 var path = require("path");
 var os = require("os");
 var crypto = require("crypto");
-var uuid = require("uuid");
 var _require = require("../shared/configPolicy.js"),
   validateConfigValue = _require.validateConfigValue;
 var _require2 = require("./webConfigPage.js"),
@@ -82,7 +82,7 @@ app.use(cors({
 app.use(express.json({
   limit: "64kb"
 }));
-var PORT = 8080;
+var PORT = 8090;
 var STORE_DIR = function () {
   try {
     fs.accessSync(__dirname, fs.W_OK); // fs.constants is missing on Node 4
@@ -635,10 +635,21 @@ function randomUuidV4() {
   var h = b.toString("hex");
   return "".concat(h.slice(0, 8), "-").concat(h.slice(8, 12), "-").concat(h.slice(12, 16), "-").concat(h.slice(16, 20), "-").concat(h.slice(20));
 }
+// UUID v5 (name-based, SHA-1), the same bytes the uuid package produced. The package
+// is ES2015+ and does not load on Node 4, so the device identity fell back to a random
+// UUID on every start. This keeps the identity stable across restarts.
+function sha1Uuid(name, namespace) {
+  var ns = new Buffer(namespace.replace(/-/g, ""), "hex");
+  var hash = crypto.createHash("sha1").update(ns).update(new Buffer(String(name), "utf8")).digest();
+  hash[6] = hash[6] & 0x0f | 0x50;
+  hash[8] = hash[8] & 0x3f | 0x80;
+  var h = hash.toString("hex", 0, 16);
+  return "".concat(h.slice(0, 8), "-").concat(h.slice(8, 12), "-").concat(h.slice(12, 16), "-").concat(h.slice(16, 20), "-").concat(h.slice(20));
+}
 var deviceUuid = function () {
   try {
     var tizenid = tizen.systeminfo.getCapability("http://tizen.org/system/tizenid");
-    if (tizenid) return uuid.v5(tizenid, "4bcbc514-bdd6-4163-8215-316526fd1d9b");
+    if (tizenid) return sha1Uuid(tizenid, "4bcbc514-bdd6-4163-8215-316526fd1d9b");
   } catch (err) {
     console.warn("Could not read tizenid for stable uuid:", err.message);
   }
@@ -810,6 +821,7 @@ var dialListener = app.listen(PORT, function () {
 // content proxy on 8081 alive; DIAL and phone pairing simply stay off.
 dialListener.on("error", function (err) {
   console.error("[AxoTube:service] could not listen on port ".concat(PORT, ": ").concat(err.code));
+  diagnostics.record("error", "control port " + PORT + " is not available (" + err.code + "); phone pairing and DIAL casting are off");
 });
 
 // Only the standalone app has a page to show toasts. The proxy reaches the queue

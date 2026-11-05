@@ -38,7 +38,7 @@ Two local servers run while the app is open:
 
 * **Port 8081** (`LocalProxy.java`): serves the YouTube TV page through
   `http://localhost:8081/tv` and injects the page scripts. Listens on 127.0.0.1 only.
-* **Port 8080** (`ControlServer.java`): the same control API as the WGT service
+* **Port 8090** (`ControlServer.java`): the same control API as the WGT service
   (pairing, settings sync, phone commands, now-playing, and the phone web page).
   Listens on all interfaces so phones can pair, and every request except pairing
   needs the token. DIAL casting (SSDP discovery) is not implemented on Android yet,
@@ -79,7 +79,7 @@ Release signing and npm setup: see `docs/release-setup.md`.
 
 ## Current compatibility limits
 
-The Android app does **not** run the WGT's separate port-8080 DIAL service.
+The Android app does **not** run the WGT's separate port-8090 DIAL service.
 As a result, YouTube TV remote-casting and pairing through the WGT's
 `additionalDataUrl` are not available. The WebView opens `/tv` directly.
 Hardware D-pad and media-key forwarding are implemented; actual video codec,

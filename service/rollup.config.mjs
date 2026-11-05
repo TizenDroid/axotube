@@ -7,7 +7,7 @@ import terser from "@rollup/plugin-terser";
 import fs from "fs";
 
 // Two bundles come from one source tree:
-//   ../dist/service.js                       Tizen module (control server, 8080)
+//   ../dist/service.js                       Tizen module (control server, 8090)
 //   ../standalone/service/dist/core.js       standalone app (content proxy, 8081,
 //                                            plus the same control server)
 // Both are built here, so they cannot drift apart.
