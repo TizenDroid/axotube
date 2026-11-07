@@ -100,9 +100,28 @@ function isAllowedCorsTarget(parsed) {
     return hostname === 'googlevideo.com' || hostname.slice(-16) === '.googlevideo.com';
 }
 
+// A target that already went through this proxy comes back as a prefix in front of
+// the real URL: "http://localhost:8081/cors-bypass/...", or the malformed
+// "http//localhost:8081/cors-bypass/..." that a page can build. Keep only what
+// follows the last such prefix, so the request goes to the real host.
+// A target that already went through this proxy comes back as a prefix in front of
+// the real URL: "http://localhost:8081/cors-bypass/...", or the malformed
+// "http//localhost:8081/cors-bypass/..." that a page can build. Keep only what
+// follows the last such prefix, so the request goes to the real host.
 function parseCorsTarget(rawTarget) {
     var decoded = String(rawTarget || '');
     try { decoded = decodeURIComponent(decoded); } catch (e) {}
+    var SELF_CORS_PREFIX = /^(?:https?:\/\/)?(?:https?:?\/\/)?(?:localhost|127\.0\.0\.1)(?::\d+)?\/cors-bypass\//i;
+    function unwrapSelfCorsPrefix(target) {
+        var s = String(target || '');
+        var m = SELF_CORS_PREFIX.exec(s);
+        while (m) {
+            s = s.substring(m[0].length);
+            m = SELF_CORS_PREFIX.exec(s);
+        }
+        return s;
+    }
+    decoded = unwrapSelfCorsPrefix(decoded);
     if (decoded.indexOf('://') === -1) decoded = 'https://' + decoded;
     // Plain http to an allowed host is upgraded here, not refused. Runtime code
     // (and Chrome's HSTS upgrade) can produce http:// URLs for these hosts, and
@@ -119,7 +138,9 @@ function parseCorsTarget(rawTarget) {
 function fetchUpstream(url, options, retriesLeft) {
     return fetch(url, options).catch(function (err) {
         var stale = err && (err.code === 'ECONNRESET' || err.code === 'EPIPE' || /socket hang up/i.test(String(err.message || '')));
-        if (stale && retriesLeft > 0 && !options.body) return fetchUpstream(url, options, retriesLeft - 1);
+        // A buffered body can be sent again. A stream cannot, so only those are not retried.
+        var replayable = !options.body || Buffer.isBuffer(options.body);
+        if (stale && retriesLeft > 0 && replayable) return fetchUpstream(url, options, retriesLeft - 1);
         throw err;
     });
 }
@@ -348,7 +369,7 @@ function rewriteTrustedText(text) {
     // Only rewrite a value that cannot span an argument list: no commas, parens or
     // braces, or a plain name() call. A call such as f(x,y) is left alone rather
     // than cut at its inner comma, which used to produce invalid JavaScript.
-    text = text.replace(/euri:(?!"")(?:[^,(){}]+|[\w$.]+\(\)),/g, 'euri:document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com"),');
+    text = text.replace(/euri:(?:[^,(){}]+|[\w$.]+\(\)),/g, 'euri:document.location.toString().replace("http://localhost:' + PORT + '", "https://www.youtube.com"),');
     text = text.replace(/https:\/\/s\.youtube\.com/g, proxyPrefix + 'https://s.youtube.com');
     // A bare hostname only: skip one already preceded by a URL character. The
     // googlevideo rules above have already prefixed "https://redirector...", and
@@ -363,6 +384,11 @@ function rewriteTrustedText(text) {
     text = text.replace(/"\/\/yt3\.googleusercontent\.com/g, '"' + proxyPrefix + 'https://yt3.googleusercontent.com');
     text = text.replace(/=window\.location\.href;/, '=window.location.href.replace("http://localhost:' + PORT + '", "https://www.youtube.com");');
     text = text.replace(/=document\.location\.href/, '=document.location.href.replace("http://localhost:' + PORT + '", "https://www.youtube.com")');
+    // The rules above can wrap a host that is already behind the prefix. A second
+    // pass over the same text must not stack the prefix, so collapse any repeat.
+    var doubled = 'http://localhost:' + PORT + '/cors-bypass/http://localhost:' + PORT + '/cors-bypass/';
+    var single = 'http://localhost:' + PORT + '/cors-bypass/';
+    while (text.indexOf(doubled) !== -1) text = text.split(doubled).join(single);
     return text;
 }
 
@@ -400,6 +426,35 @@ app.use(function (req, res, next) {
     Promise.race([firstBundleCheck, cap]).then(function () { next(); });
 });
 
+// Reads a POST, PUT or PATCH body into memory before it is forwarded. Playback
+// seeks send these (the player's segment requests), and a body held in a buffer
+// can be sent again when the upstream socket was reset. A stream could not be.
+var MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
+app.use(function (req, res, next) {
+    if (['POST', 'PUT', 'PATCH'].indexOf(req.method) === -1) return next();
+    var chunks = [];
+    var size = 0;
+    var failed = false;
+    req.on('data', function (chunk) {
+        size += chunk.length;
+        if (size > MAX_REQUEST_BODY_BYTES) {
+            failed = true;
+            if (!res.headersSent) res.status(413).send('Request body too large');
+            req.resume();
+            return;
+        }
+        chunks.push(chunk);
+    });
+    req.on('end', function () {
+        if (failed) return;
+        req.rawBody = Buffer.concat(chunks);
+        next();
+    });
+    req.on('error', function () {
+        if (!res.headersSent) res.status(400).send('Bad request body');
+    });
+});
+
 app.all('*', function (req, res) {
     var isCorsBypass = req.path.indexOf('/cors-bypass/') === 0;
     var parsedTarget;
@@ -416,7 +471,7 @@ app.all('*', function (req, res) {
     var fetchOptions = {
         method: req.method,
         headers: buildUpstreamHeaders(req, parsedTarget, isCorsBypass),
-        body: hasBody ? req : undefined,
+        body: hasBody ? req.rawBody : undefined,
         redirect: 'manual',
         timeout: UPSTREAM_TIMEOUT_MS,
         agent: upstreamAgent

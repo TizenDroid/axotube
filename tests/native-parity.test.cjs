@@ -57,10 +57,10 @@ test("authorization is still dropped on cors-bypass, even for YouTube hosts", ()
   assert.equal(build(withAuth, host("www.youtube.com"), true).authorization, undefined);
 });
 
-test("an empty euri stays empty, as it is on the native page", () => {
+test("an empty euri is rewritten to the youtube.com origin (the rule that played video)", () => {
   const rewrite = loadRewriteTrustedText();
-  const input = '{euri:"",c:1}';
-  assert.equal(rewrite(input), input);
+  const out = rewrite('{euri:"",c:1}');
+  assert.ok(out.includes("euri:document.location.toString()"), out);
 });
 
 test("a non-empty simple euri is still rewritten to the youtube.com origin", () => {

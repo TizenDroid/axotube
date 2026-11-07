@@ -276,6 +276,10 @@ function start() {
   var stateFile = cacheDir ? path.join(cacheDir, STATE_NAME) : null;
 
   // The core reports through these hooks. They must never throw into the service.
+  // The launch mode file lives in the shipped folder, not beside whichever core
+  // copy is running. A downloaded copy in service-cache would otherwise keep the
+  // mode in a different file, and a restart that runs the shipped core reads proxy.
+  global.axotubeDataDir = SHIPPED_DIR;
   global.axotubeServiceVersion = choice.version;
   global.axotubeServiceShippedVersion = shippedVersion;
   global.axotubeServiceCacheDir = cacheDir;

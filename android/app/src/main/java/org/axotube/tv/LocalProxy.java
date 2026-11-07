@@ -469,7 +469,7 @@ final class LocalProxy {
         text = text.replace(":document.location.toString()",
                 ":document.location.toString().replace(\"" + ORIGIN + "\", \"https://www.youtube.com\")");
         // Same rule as proxy.js: never rewrite a value that spans an argument list.
-        text = replace(text, "euri:(?!\"\")(?:[^,(){}]+|[\\w$.]+\\(\\)),",
+        text = replace(text, "euri:(?:[^,(){}]+|[\\w$.]+\\(\\)),",
                 Matcher.quoteReplacement("euri:document.location.toString().replace(\"" + ORIGIN
                         + "\", \"https://www.youtube.com\"),"));
         text = text.replace("this.scheme=\"https\"", "this.scheme=\"http\"")

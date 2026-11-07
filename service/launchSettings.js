@@ -13,13 +13,23 @@ var path = require("path");
 
 var FILE_NAME = "axotube-launch.json";
 
-function storeDir() {
+function writable(dir) {
   try {
-    fs.accessSync(__dirname, fs.W_OK); // fs.constants is missing on Node 4
-    return __dirname;
+    fs.accessSync(dir, fs.W_OK); // fs.constants is missing on Node 4
+    return true;
   } catch (e) {
-    return os.tmpdir();
+    return false;
   }
+}
+
+// The loader names one folder (the shipped one) for every core copy, so the mode
+// survives a switch between the shipped and the downloaded core. Without a loader,
+// the folder of this file is used.
+function storeDir() {
+  var shared = global.axotubeDataDir;
+  if (shared && writable(shared)) return shared;
+  if (writable(__dirname)) return __dirname;
+  return os.tmpdir();
 }
 
 // AXOTUBE_LAUNCH_FILE lets the tests use their own file. The TV never sets it.

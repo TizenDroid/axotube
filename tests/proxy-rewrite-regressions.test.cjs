@@ -56,7 +56,7 @@ test("a simple euri value is still rewritten to the youtube.com origin, and stay
 
 test("the Java proxy uses the same euri rule as the Node proxy", () => {
   const java = read("android/app/src/main/java/org/axotube/tv/LocalProxy.java");
-  assert.ok(java.includes('"euri:(?!\\"\\")(?:[^,(){}]+|[\\\\w$.]+\\\\(\\\\)),"'), "Java euri pattern matches proxy.js");
+  assert.ok(java.includes('"euri:(?:[^,(){}]+|[\\\\w$.]+\\\\(\\\\)),"'), "Java euri pattern matches proxy.js");
   assert.ok(!java.includes('"euri:[^,]+,"'), "old unanchored pattern removed");
 });
 
