@@ -87,3 +87,40 @@ test("the UUID fallback is built from crypto.randomBytes", () => {
 test("the web config page answers the favicon request", () => {
   assert.ok(/app\.get\("\/favicon\.ico"/.test(code("service/service.js")), "favicon route");
 });
+
+// Node 4 has no url.URL, so node-fetch falls back to whatwg-url 5, which rejects the
+// googlevideo media hosts (rr3---sn-...). This runs the same load order on a runtime
+// where url.URL is missing: the shim first, then node-fetch. Before the shim, the
+// constructor threw "Invalid URL" for every media host.
+test("node-fetch accepts googlevideo media hosts when url.URL is missing (Node 4)", async () => {
+  const url = require("node:url");
+  const saved = url.URL;
+  const compat = path.join(ROOT, "service/node4-compat.js");
+  const fetchPath = path.join(ROOT, "service/node_modules/node-fetch");
+  let fetch;
+  try {
+    delete url.URL;
+    delete require.cache[require.resolve(compat)];
+    require(compat);
+    assert.equal(typeof url.URL, "function", "the shim defines url.URL");
+    delete require.cache[require.resolve(fetchPath)];
+    fetch = require(fetchPath);
+    const u = new url.URL("https://rr3---sn-cvh76nlk.googlevideo.com/videoplayback?rn=5");
+    assert.equal(u.hostname, "rr3---sn-cvh76nlk.googlevideo.com");
+    assert.equal(u.protocol, "https:");
+    assert.equal(
+      new url.URL("/x?y=1", "https://rr1---sn-abc.googlevideo.com/videoplayback").toString(),
+      "https://rr1---sn-abc.googlevideo.com/x?y=1",
+      "relative redirects resolve against the base",
+    );
+  } finally {
+    url.URL = saved;
+  }
+  // node-fetch read the URL class when it loaded, so the request below uses the shim
+  // even though url.URL is restored. Any network outcome is fine; the parse error is not.
+  const err = await fetch("https://rr1---sn-abc.googlevideo.com/videoplayback?rn=1", { timeout: 3000 }).then(
+    () => null,
+    (e) => e,
+  );
+  assert.ok(!err || !/Invalid URL/.test(err.message), `node-fetch rejected the host: ${err && err.message}`);
+});

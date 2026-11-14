@@ -97,7 +97,9 @@ test("the SponsorBlock segment controls cover every segment type the TV handles"
 test("the pinned assets in the shell match the files on disk", () => {
   const page = fs.readFileSync(path.join(ROOT, "service", "webConfigPage.js"), "utf8");
   for (const asset of pages.ASSETS) {
-    const digest = crypto.createHash("sha384").update(fs.readFileSync(path.join(WEB, asset.file))).digest("base64");
+    // The release serves the LF git blob, so hash LF bytes even on a CRLF checkout.
+    const lf = fs.readFileSync(path.join(WEB, asset.file), "utf8").replace(/\r\n/g, "\n");
+    const digest = crypto.createHash("sha384").update(lf, "utf8").digest("base64");
     assert.ok(page.includes("sha384-" + digest), asset.file + " hash is stale; run node scripts/build-web-pages.cjs");
   }
 });

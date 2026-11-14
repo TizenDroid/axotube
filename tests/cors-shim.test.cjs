@@ -116,7 +116,29 @@ test("rewrites a GET Request object and drops cookies", () => {
   assert.deepStrictEqual(win.fetchCalls[0].init, { mode: "cors" });
 });
 
-test("leaves a POST Request object with a body on its original URL", () => {
+test("rewrites a POST Request built with the page's Request constructor, body included", () => {
+  const { win } = load("http://localhost:8081");
+  const req = new win.Request("https://rr1---sn-abc.googlevideo.com/videoplayback?rn=5", {
+    method: "POST",
+    body: "seek",
+    headers: { "content-type": "application/octet-stream" },
+    credentials: "include",
+  });
+  assert.strictEqual(req.url, "http://localhost:8081/cors-bypass/https://rr1---sn-abc.googlevideo.com/videoplayback?rn=5");
+  assert.strictEqual(req.method, "POST");
+  assert.strictEqual(req.credentials, "include");
+  assert.ok(req instanceof win.Request);
+  win.fetch(req);
+  assert.strictEqual(win.fetchCalls[0].input, req);
+});
+
+test("a POST built on a non-allowlisted host is left on its own URL", () => {
+  const { win } = load("http://localhost:8081");
+  const req = new win.Request("https://example.com/upload", { method: "POST", body: "x" });
+  assert.strictEqual(req.url, "https://example.com/upload");
+});
+
+test("leaves a POST Request object built outside the shim on its original URL", () => {
   const { win } = load("http://localhost:8081");
   const post = { url: "https://www.youtube.com/api/x", method: "POST" };
   win.fetch(post);

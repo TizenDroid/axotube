@@ -46,8 +46,13 @@ function assetBase() {
   return "https://cdn.jsdelivr.net/gh/" + REPO + "@v" + version + "/service/web";
 }
 
+// The hash covers the bytes jsDelivr serves from the release tag, which are the git
+// blob (LF, because the repo sets text=auto). A Windows checkout holds CRLF copies,
+// and hashing those gave pins that no served file matches: the Config page refused
+// its own stylesheet and script in v1.42.1.
 function integrity(file) {
-  const digest = crypto.createHash("sha384").update(fs.readFileSync(path.join(WEB, file))).digest("base64");
+  const text = fs.readFileSync(path.join(WEB, file), "utf8").replace(/\r\n/g, "\n");
+  const digest = crypto.createHash("sha384").update(text, "utf8").digest("base64");
   return "sha384-" + digest;
 }
 

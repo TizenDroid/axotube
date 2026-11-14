@@ -114,3 +114,31 @@ if (!works(function () { return Array.from(new Set([1, 2])).length === 2; })) {
     return out;
   });
 }
+
+// node-fetch 2.7 builds a URL object for every absolute URL it requests. Node 4 has
+// no url.URL, so node-fetch falls back to whatwg-url 5, whose IDNA check rejects any
+// host with "---" in it. Every googlevideo media host has that shape (rr3---sn-...),
+// so on the TV each media request died with "Invalid URL" and the proxy answered
+// 502. Node's legacy url.parse accepts those hosts. This class covers the three
+// things node-fetch reads: the constructor (with an optional base for redirects),
+// toString(), and hostname/protocol for the same-origin checks.
+var urlModule = require("url");
+if (typeof urlModule.URL !== "function") {
+  define(urlModule, "URL", function URL(input, base) {
+    if (!(this instanceof URL)) return new URL(input, base);
+    var text = String(input);
+    if (base !== undefined) text = urlModule.resolve(String(base), text);
+    var parsed = urlModule.parse(text);
+    if (!parsed.protocol || !parsed.host) throw new TypeError("Invalid URL");
+    this.href = parsed.href;
+    this.protocol = parsed.protocol;
+    this.host = parsed.host;
+    this.hostname = parsed.hostname;
+    this.port = parsed.port || "";
+    this.pathname = parsed.pathname || "/";
+    this.search = parsed.search || "";
+    this.hash = parsed.hash || "";
+  });
+  define(urlModule.URL.prototype, "toString", function toString() { return this.href; });
+  define(urlModule.URL.prototype, "toJSON", function toJSON() { return this.href; });
+}

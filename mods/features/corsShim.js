@@ -49,6 +49,29 @@ export function installCorsShim(win) {
   if (!win || win.__axotubeCorsShim) return;
   win.__axotubeCorsShim = true;
 
+  // A Request is rewritten when it is constructed, before any body is attached. A
+  // body cannot be copied onto a new Request after the fact, so the fetch wrapper
+  // below cannot safely rewrite a POST. Playback seeks are POSTs to googlevideo; a
+  // POST left on its original URL goes straight out and fails CORS.
+  var OrigRequest = win.Request;
+  if (typeof OrigRequest === "function") {
+    var ShimRequest = function (input, init) {
+      var target = input;
+      if (typeof input === "string") {
+        try {
+          var rewrittenUrl = rewriteForProxy(win, input);
+          if (rewrittenUrl) target = rewrittenUrl;
+        } catch (e) {
+          // Fall back to the URL the page made.
+        }
+      }
+      return new OrigRequest(target, init);
+    };
+    // Shares the prototype so instanceof and the Request methods keep working.
+    ShimRequest.prototype = OrigRequest.prototype;
+    win.Request = ShimRequest;
+  }
+
   if (typeof win.fetch === "function") {
     var origFetch = win.fetch;
     win.fetch = function (input, init) {
@@ -59,8 +82,8 @@ export function installCorsShim(win) {
           if (!isRequest) {
             input = rewritten;
           } else if (input.method === "GET" || input.method === "HEAD") {
-            // Carry over the simple fields. A body would need a stream copy, so
-            // requests with a body keep their original URL.
+            // Rebuilds a GET or HEAD made outside the wrapped constructor. A
+            // Request the page built through win.Request already has the proxied URL.
             input = new win.Request(rewritten, {
               method: input.method,
               headers: input.headers,
