@@ -29,9 +29,17 @@ test("upstream host allowlist matches between proxy.js and LocalProxy.java", () 
 });
 
 // Routes only the Tizen build has: the debugger launch (SDB and CDP do not exist on
-// Android) and the diagnostics page and data. Anything else must match the Android side.
-const TIZEN_ONLY_PROXY_ROUTES = ["/axotube/launch/next", "/axotube/launch/reset", "/axotube/diagnostics", "/axotube/diagnostics.json"];
-const TIZEN_ONLY_CONTROL_ROUTES = ["/api/launch", "/api/diagnostics"];
+// Android), the diagnostics page and data, and the plain-text/QR export of the report.
+// Anything else must match the Android side.
+const TIZEN_ONLY_PROXY_ROUTES = [
+  "/axotube/launch/next",
+  "/axotube/launch/reset",
+  "/axotube/diagnostics",
+  "/axotube/diagnostics.json",
+  "/axotube/diagnostics.txt",
+  "/axotube/diagnostics/qr",
+];
+const TIZEN_ONLY_CONTROL_ROUTES = ["/api/launch", "/api/diagnostics", "/api/diagnostics/export", "/api/diagnostics/qr"];
 
 test("proxy routes match between proxy.js and LocalProxy.java", () => {
   const js = quoted(read("service/proxy.js"), /'(\/axotube\/[a-zA-Z0-9/.]+)'/g);

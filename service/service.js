@@ -396,6 +396,16 @@ app.post("/api/launch", function (req, res) {
 app.get("/api/diagnostics", function (req, res) {
   res.json(diagnostics.summary());
 });
+// Every error and log line as plain text, for copying or reading on a phone.
+app.get("/api/diagnostics/export", function (req, res) {
+  res.type("text/plain; charset=utf-8").send(diagnostics.exportText(diagnostics.lanAddress()));
+});
+// The QR code of the export link, as a GIF (the same encoder the userscript's QR uses).
+app.get("/api/diagnostics/qr", function (req, res) {
+  var gif = diagnostics.qrGif();
+  if (!gif) return res.status(503).type("text/plain").send("No LAN address: the TV is not on a network.");
+  res.type("image/gif").send(gif);
+});
 app.get("/api/config", function (req, res) {
   res.json({
     revision: configRevision,

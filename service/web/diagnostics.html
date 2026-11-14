@@ -82,8 +82,20 @@
 <div class="actions">
   <button id="retryBtn" class="primary" type="button">Retry debugger launch</button>
   <button id="refreshBtn" type="button">Refresh</button>
+  <button id="qrBtn" type="button">QR code</button>
+  <button id="copyBtn" type="button">Copy all</button>
   <button id="backBtn" type="button">Back</button>
 </div>
+
+<section id="qrPanel" class="panel" style="margin-top:16px" hidden>
+  <h2>Report link</h2>
+  <p class="muted">Scan the code with a phone on the same network to read every error and log line.</p>
+  <img id="qrImg" alt="QR code of the diagnostics report link" width="240" height="240" />
+  <p id="exportLink" class="muted"></p>
+  <button id="copyLinkBtn" type="button">Copy link</button>
+</section>
+
+<p id="copyNote" class="note" role="status"></p>
 
 <section class="panel" style="margin-top:16px">
   <h2>Recent events</h2>
@@ -176,13 +188,19 @@
   }
 
   // Loads the data. It leaves the note alone, so a message from a retry stays visible.
+  var exportLink = null;
+
   function load() {
     fetch("/axotube/diagnostics.json", { cache: "no-store" })
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
       })
-      .then(render)
+      .then(function (d) {
+        exportLink = d.exportUrl || null;
+        $("exportLink").textContent = exportLink || "No network address: the report link needs the TV to be on a network.";
+        render(d);
+      })
       .catch(function (e) { note(""); $("status").textContent = "Could not load diagnostics: " + (e.message || "error"); });
   }
 
@@ -205,12 +223,73 @@
     if (history.length > 1) history.back();
   }
 
-  var buttons = [$("retryBtn"), $("refreshBtn"), $("backBtn")];
-  buttons[0].addEventListener("click", retry);
-  buttons[1].addEventListener("click", load);
-  buttons[2].addEventListener("click", goBack);
+  // Puts text on the clipboard. Tizen's browser may lack the async clipboard API, so
+  // a hidden textarea and the copy command are the fallback. Says which one worked.
+  function copyText(text, what) {
+    function done(ok) {
+      $("copyNote").textContent = ok
+        ? "Copied " + what + " (" + text.split("\n").length + " lines)."
+        : "Copy is not available on this TV. Scan the QR code with a phone instead.";
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { fallback(); });
+      return;
+    }
+    fallback();
+    function fallback() {
+      var area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      document.body.removeChild(area);
+      done(ok);
+    }
+  }
+
+  function toggleQr() {
+    var panel = $("qrPanel");
+    var showing = panel.hidden;
+    panel.hidden = !showing;
+    if (showing) {
+      // A new image each time, so a changed report or address is shown.
+      $("qrImg").src = "/axotube/diagnostics/qr?t=" + Date.now();
+      $("qrImg").onerror = function () { $("copyNote").textContent = "The QR code could not be made: the TV has no network address."; };
+    }
+  }
+
+  function copyAll() {
+    fetch("/axotube/diagnostics.txt", { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      })
+      .then(function (text) { copyText(text, "the full report"); })
+      .catch(function (e) { $("copyNote").textContent = "Could not read the report: " + (e.message || "error"); });
+  }
+
+  // The buttons the arrow keys can reach: every visible button, in page order.
+  function navButtons() {
+    var all = Array.prototype.slice.call(document.querySelectorAll("button"));
+    return all.filter(function (b) { return b.offsetParent !== null; });
+  }
+
+  $("retryBtn").addEventListener("click", retry);
+  $("refreshBtn").addEventListener("click", load);
+  $("qrBtn").addEventListener("click", toggleQr);
+  $("copyBtn").addEventListener("click", copyAll);
+  $("copyLinkBtn").addEventListener("click", function () {
+    if (exportLink) copyText(exportLink, "the report link");
+    else $("copyNote").textContent = "There is no report link: the TV has no network address.";
+  });
+  $("backBtn").addEventListener("click", goBack);
 
   function move(step) {
+    var buttons = navButtons();
     var index = buttons.indexOf(document.activeElement);
     var next = (index + step + buttons.length) % buttons.length;
     buttons[next].focus();
@@ -226,7 +305,7 @@
     }
   });
 
-  buttons[0].focus();
+  $("retryBtn").focus();
   load();
 })();
 </script>

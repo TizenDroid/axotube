@@ -321,7 +321,23 @@ app.get('/axotube/diagnostics', function (req, res) {
 
 app.get('/axotube/diagnostics.json', function (req, res) {
     diagnostics.setBundle(bundleUpdater.status());
-    res.json(diagnostics.summary());
+    var summary = diagnostics.summary();
+    // The phone-readable report and its QR code. Null when the TV has no LAN address.
+    summary.exportUrl = diagnostics.exportUrl();
+    res.json(summary);
+});
+
+// The same report as plain text, for the page's copy button (same origin as the page).
+app.get('/axotube/diagnostics.txt', function (req, res) {
+    diagnostics.setBundle(bundleUpdater.status());
+    res.type('text/plain; charset=utf-8').send(diagnostics.exportText(diagnostics.lanAddress()));
+});
+
+// The QR code of the export link, for the page.
+app.get('/axotube/diagnostics/qr', function (req, res) {
+    var gif = diagnostics.qrGif();
+    if (!gif) return res.status(503).type('text/plain').send('No LAN address');
+    res.type('image/gif').send(gif);
 });
 
 // Hosts that get the page's login cookies on cors-bypass requests. Without a

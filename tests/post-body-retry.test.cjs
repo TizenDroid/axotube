@@ -7,7 +7,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const ROOT = path.resolve(__dirname, "..");
-const code = fs.readFileSync(path.join(ROOT, "service/proxy.js"), "utf8");
+// Normalise first: a Windows checkout holds CRLF, and the slice below looks for "\n}\n".
+const code = fs.readFileSync(path.join(ROOT, "service/proxy.js"), "utf8").replace(/\r\n/g, "\n");
 
 function loadFetchUpstream(fakeFetch) {
   const start = code.indexOf("function fetchUpstream(url, options, retriesLeft)");

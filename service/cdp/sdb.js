@@ -35,6 +35,26 @@ function parseDebugPort(text) {
   return port >= PORT_MIN && port <= PORT_MAX ? port : null;
 }
 
+// What SDB sent, shortened for a diagnostics line: control characters escaped,
+// at most REPLY_EXCERPT_CHARS characters. An empty reply reads as "(no reply)".
+var REPLY_EXCERPT_CHARS = 200;
+function excerpt(text) {
+  if (!text) return "(no reply)";
+  var shown = String(text).replace(/[\x00-\x1f\x7f]/g, function (c) {
+    return c === "\n" ? "\\n" : c === "\r" ? "\\r" : "\\x" + ("0" + c.charCodeAt(0).toString(16)).slice(-2);
+  });
+  return shown.length > REPLY_EXCERPT_CHARS ? shown.slice(0, REPLY_EXCERPT_CHARS) + "..." : shown;
+}
+
+// An error that names the stage it failed at and what SDB sent, so the diagnostics
+// page says what happened rather than only that it did.
+function sdbError(message, stage, startedAt, reply) {
+  var err = new Error(message + " (stage " + stage + ", " + (Date.now() - startedAt) + " ms; reply: " + excerpt(reply) + ")");
+  err.stage = stage;
+  err.reply = excerpt(reply);
+  return err;
+}
+
 // callback(err, port). Ends the SDB stream a second after the port is read, as
 // the upstream standalone does.
 function debugLaunch(appId, options, callback) {
@@ -43,9 +63,10 @@ function debugLaunch(appId, options, callback) {
   var raw = "";
   var stage = "status";
   var finished = false;
+  var startedAt = Date.now();
 
   var timer = setTimeout(function () {
-    finish(new Error("SDB did not report a debug port in time"));
+    finish(sdbError("SDB sent no debug port within " + REPLY_TIMEOUT_MS / 1000 + " s", stage, startedAt, raw));
   }, REPLY_TIMEOUT_MS);
 
   function finish(err, port) {
@@ -69,11 +90,11 @@ function debugLaunch(appId, options, callback) {
       if (status === "FAIL") {
         if (raw.length < 8) return;
         var len = parseInt(raw.slice(4, 8), 16);
-        if (isNaN(len)) return finish(new Error("SDB sent a malformed failure"));
+        if (isNaN(len)) return finish(sdbError("SDB sent a malformed failure", "status", startedAt, raw));
         if (raw.length < 8 + len) return;
-        return finish(new Error("SDB refused the command: " + raw.slice(8, 8 + len)));
+        return finish(sdbError("SDB refused the command: " + raw.slice(8, 8 + len), "status", startedAt, raw));
       }
-      if (status !== "OKAY") return finish(new Error("unexpected SDB status " + status));
+      if (status !== "OKAY") return finish(sdbError("SDB sent an unexpected status " + excerpt(status), "status", startedAt, raw));
       raw = raw.slice(4);
       stage = "data";
     }
@@ -81,9 +102,17 @@ function debugLaunch(appId, options, callback) {
     if (port) finish(null, port);
   });
 
-  socket.on("error", function (err) { finish(err); });
+  socket.on("error", function (err) {
+    var code = err && err.code ? err.code : "error";
+    var hint = code === "ECONNREFUSED"
+      ? "nothing is listening on " + SDB_HOST + ":" + endpoints.sdbPort + ", so the TV's shell is down or developer mode is off"
+      : String(err && err.message ? err.message : err);
+    finish(sdbError("cannot use SDB (" + code + "): " + hint, stage, startedAt, raw));
+  });
   socket.on("close", function () {
-    finish(new Error("SDB closed before reporting a debug port"));
+    // The stream ended without a port. The reply says in what form, which is the
+    // only evidence of a format this parser does not read.
+    finish(sdbError("SDB closed without a debug port", stage, startedAt, raw));
   });
 }
 
