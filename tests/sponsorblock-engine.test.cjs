@@ -231,6 +231,13 @@ function makeWorld(opts = {}) {
     get watchersCount() {
       return watchers.length;
     },
+    // The decoder moves the playhead by itself (a keyframe settle) and reports `seeked`.
+    // The page did not seek, so `seeks` does not record it.
+    decoderSeek(target) {
+      ct = target;
+      seeking = true;
+      seekDone = true;
+    },
   };
 }
 
@@ -311,6 +318,15 @@ test("a keyframe snap-back is re-sought, then accepted, with no loop", async () 
     world.seeks.map((s) => s.to),
     [60, 60],
   );
+});
+
+test("a decoder settle back before a skipped segment does not skip it again", async () => {
+  const world = makeWorld({ entries: [seg("sponsor", 30, 60)] });
+  // Skip lands at 60. Right after, the decoder settles on a keyframe at 20, before the segment.
+  // Long enough for playback to reach the segment again if it were re-armed.
+  await play(world, 90000, [{ at: 30300, run: (w) => w.decoderSeek(20) }]);
+  assert.equal(skipToasts(world).length, 1);
+  assert.ok(world.seeks.every((s) => s.to === 60), JSON.stringify(world.seeks));
 });
 
 test("a manual (show) category is not skipped", async () => {

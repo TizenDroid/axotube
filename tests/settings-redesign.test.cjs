@@ -90,9 +90,9 @@ test("the user agent radio shows the default as checked and sends the phone agen
   assert.ok(/radio\(t\("settings\.advanced\.userAgent\.samsung"\), "userAgentProfile", "samsung", \["auto"\]\)/.test(settingsSrc));
   assert.ok(settingsSrc.includes("node.also.indexOf(stored) !== -1"));
   assert.ok(uaSrc.includes('configRead("userAgentProfile")'));
-  assert.ok(uaSrc.includes('if (profile === "android") return { ua: PHONE_USER_AGENT'));
-  assert.ok(uaSrc.includes('marker: "SamsungBrowser/2.1"'));
-  assert.ok(uaSrc.includes("const APPLIED_SESSION_KEY"));
+  assert.ok(uaSrc.includes('if (profile === "android") return PHONE_USER_AGENT'));
+  assert.ok(uaSrc.includes("const TRIED_SESSION_KEY"));
+  assert.ok(!uaSrc.includes("marker"), "matching is exact, not by a marker substring");
 });
 
 test("every settings translation key used by the new code exists in en.json", () => {

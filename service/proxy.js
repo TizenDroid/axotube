@@ -145,6 +145,33 @@ function fetchUpstream(url, options, retriesLeft) {
     });
 }
 
+
+// Node 4 has no AbortController, and node-fetch 2 accepts a signal only when its prototype
+// constructor is named AbortSignal. The name comes from a string, so a minifier cannot
+// rename the constructor (a plain function declaration was renamed, and every fetch failed).
+var AbortSignalType = new Function(
+    'return function AbortSignal() { this.aborted = false; this.listeners = []; };'
+)();
+AbortSignalType.prototype.addEventListener = function (type, fn) {
+    if (type === 'abort') this.listeners.push(fn);
+};
+AbortSignalType.prototype.removeEventListener = function (type, fn) {
+    var index = this.listeners.indexOf(fn);
+    if (index !== -1) this.listeners.splice(index, 1);
+};
+
+function createUpstreamAbort() {
+    var signal = new AbortSignalType();
+    return {
+        signal: signal,
+        abort: function () {
+            if (signal.aborted) return;
+            signal.aborted = true;
+            signal.listeners.slice().forEach(function (fn) { fn(); });
+        }
+    };
+}
+
 // Range requests that come back as errors or as a very small body are the seek
 // failures. Logged so the failing request can be matched with the player log.
 function logSuspiciousMedia(req, targetUrl, response) {
@@ -476,6 +503,14 @@ app.all('*', function (req, res) {
         timeout: UPSTREAM_TIMEOUT_MS,
         agent: upstreamAgent
     };
+    // The player closes its side when a seek moves on. Abort the upstream request then:
+    // otherwise its keep-alive socket stays busy until the whole body arrives, and the
+    // range requests of later seeks queue behind it in the socket pool.
+    var upstreamAbort = createUpstreamAbort();
+    fetchOptions.signal = upstreamAbort.signal;
+    res.on('close', function () {
+        if (!res.finished) upstreamAbort.abort();
+    });
 
     fetchUpstream(targetUrl, fetchOptions, 1)
         .then(function (response) {
@@ -537,8 +572,16 @@ app.all('*', function (req, res) {
                 contentType.indexOf('text/css') !== -1;
 
             if (!textLike) {
-                if (response.body) response.body.pipe(res);
-                else res.end();
+                if (response.body) {
+                    // A body that breaks mid-stream must end the response. Without this the
+                    // player waits on a response that never finishes, until its own timeout.
+                    response.body.on('error', function () {
+                        if (!res.finished) res.end();
+                    });
+                    response.body.pipe(res);
+                } else {
+                    res.end();
+                }
                 return;
             }
 

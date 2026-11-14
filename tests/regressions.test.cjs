@@ -42,7 +42,8 @@ test("default user agent is the Samsung TV string, set through tizen.websetting 
   const src = read("mods/features/userAgentSpoofing.js");
   has(src, "SamsungBrowser/2.1 TV Safari/537.3");
   has(src, "tizen.websetting.setUserAgentString(ua)");
-  has(src, "axotube-user-agent-applied");
+  has(src, "axotube-user-agent-tried");
+  has(src, "window.__axotubeUserAgent");
   has(src, "location.reload()");
   // The splash applies it before anything navigates to YouTube.
   const splash = read("standalone/index.html");

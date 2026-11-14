@@ -194,23 +194,71 @@ test("user agent: the webview gets the Samsung TV string once", () => {
   assert.equal(reloads, 1, "one reload so the page picks the agent up");
 });
 
-test("user agent: no reload when the page already has the Samsung string", () => {
-  const win = makeWindow({
-    navigator: { userAgent: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) SamsungBrowser/2.1 TV Safari/537.3" },
+const TV_AGENT = "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) AppleWebKit/537.3 (KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3";
+
+function runSpoofer({ navigatorUA, session = new Map(), profile = "auto" }) {
+  const win = makeWindow({ navigator: { userAgent: navigatorUA } });
+  const applied = [];
+  let reloads = 0;
+  win.tizen = { websetting: { setUserAgentString: (ua) => applied.push(ua) } };
+  win.location.reload = () => reloads++;
+  const ctx = vm.createContext({
+    window: win,
+    navigator: win.navigator,
+    sessionStorage: {
+      getItem: (k) => (session.has(k) ? session.get(k) : null),
+      setItem: (k, v) => session.set(k, String(v)),
+    },
+    location: win.location,
+    console: { log() {}, warn() {} },
   });
-  let applied = 0;
-  win.tizen = { websetting: { setUserAgentString: () => applied++ } };
+  ctx.window = win;
+  ctx.configRead = () => profile;
+  load("mods/features/userAgentSpoofing.js", ctx);
+  return { applied, reloads, status: win.__axotubeUserAgent && win.__axotubeUserAgent.status };
+}
+
+test("user agent: the exact agreed string is verified with no set and no reload", () => {
+  const r = runSpoofer({ navigatorUA: TV_AGENT });
+  assert.equal(r.applied.length, 0);
+  assert.equal(r.reloads, 0);
+  assert.equal(r.status, "applied");
+});
+
+test("user agent: a native string that only shares the marker is not trusted; the agreed string is set", () => {
+  // A native Tizen agent can contain "SamsungBrowser/2.1" without being the agreed string.
+  const r = runSpoofer({
+    navigatorUA: "Mozilla/5.0 (SMART-TV; Linux; Tizen 4.0.0.2) SamsungBrowser/2.1 Chrome/56.0.2924.0 TV Safari/537.36",
+  });
+  assert.deepEqual(r.applied, [TV_AGENT]);
+  assert.equal(r.reloads, 1);
+});
+
+test("user agent: if the platform still reports another string after the reload, no second reload", () => {
+  const session = new Map();
+  const native = "Mozilla/5.0 (SMART-TV; Linux; Tizen 4.0.0.2) SamsungBrowser/2.1 Chrome/56.0.2924.0 TV Safari/537.36";
+  // First page: the agent is set and the page reloads once.
+  const first = runSpoofer({ navigatorUA: native, session });
+  assert.equal(first.reloads, 1);
+  // The reloaded page still reports the native string: reported as not applied, no further reload.
+  const second = runSpoofer({ navigatorUA: native, session });
+  assert.equal(second.reloads, 0);
+  assert.equal(second.status, "not-applied");
+});
+
+test("user agent: an unavailable setter is reported, not silently ignored", () => {
+  const win = makeWindow({ navigator: { userAgent: "Mozilla/5.0 (Linux) Chrome/56" } });
   const ctx = vm.createContext({
     window: win,
     navigator: win.navigator,
     sessionStorage: { getItem: () => null, setItem() {} },
     location: win.location,
-    console,
+    console: { log() {}, warn() {} },
   });
   ctx.window = win;
   ctx.configRead = () => "auto";
   load("mods/features/userAgentSpoofing.js", ctx);
-  assert.equal(applied, 0);
+  assert.equal(win.__axotubeUserAgent.status, "unavailable");
 });
 
 

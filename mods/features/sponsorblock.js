@@ -42,6 +42,12 @@ const LANDING_MAX_MS = 2000;
 const UNDO_WINDOW_S = 10;
 // A seek that never reports `seeked` stops blocking skips after this long.
 const SEEK_STUCK_MS = 2000;
+// After a skip lands, the decoder may settle on a keyframe before the skip's start and
+// report `seeked` by itself. For this long, such a report is the skip settling, not the
+// viewer: the playhead goes back to the landing, and the segments it covered stay done.
+const SETTLE_MS = 3000;
+// How far before a skip's start a keyframe settle can land (a keyframe interval).
+const KEYFRAME_SLACK_S = 10;
 // The segments of a video are the same when the element plays a video this long.
 const DURATION_TOLERANCE_S = 3;
 const FETCH_TIMEOUT_MS = 4000;
@@ -291,6 +297,8 @@ class SponsorBlockHandler {
     this.lastSkip = null;
     // The seek a skip issued and the retries its landing may still need.
     this.landing = null;
+    // { from, to, until, retries }: the window in which the decoder may settle after a skip.
+    this.settle = null;
     this.suppressRearm = false;
     this.lastT = 0;
     this.videoDuration = 0;
@@ -421,7 +429,7 @@ class SponsorBlockHandler {
       return;
     }
     // Time going backwards with no seek event is a replay: segments ahead are armed again.
-    if (time < this.lastT - REARM_MARGIN_S) this.rearm(time);
+    if (time < this.lastT - REARM_MARGIN_S && !this.settling(time)) this.rearm(time);
     this.lastT = time;
 
     const index = this.dueIndex(time);
@@ -500,6 +508,12 @@ class SponsorBlockHandler {
 
     this.lastSkip = { from: seg.start, to: jump.to, names: jump.names };
     this.landing = { to: jump.to, retries: 0, at: Date.now() };
+    this.settle = {
+      from: seg.start,
+      to: jump.to,
+      until: Date.now() + SETTLE_MS,
+      retries: 0,
+    };
     this.seekTo(jump.to);
 
     if (configRead("enableSponsorBlockToasts")) {
@@ -538,6 +552,15 @@ class SponsorBlockHandler {
     if (!landing) {
       if (this.suppressRearm) {
         this.suppressRearm = false;
+      } else if (this.settling(time)) {
+        // The decoder settled back into the skip's range by itself. Put the playhead back
+        // at the landing, a bounded number of times; the skipped segments stay done.
+        const settle = this.settle;
+        if (time < settle.to - 1.5 && settle.retries < LANDING_RETRIES) {
+          settle.retries += 1;
+          this.seekTo(settle.to);
+          return;
+        }
       } else {
         this.rearm(time);
         this.lastSkip = null;
@@ -546,6 +569,14 @@ class SponsorBlockHandler {
     this.lastT = time;
     this.redrawBar();
     this.tick();
+  }
+
+  // Whether a time report belongs to the skip that just landed rather than to the viewer:
+  // inside the skip's range, or up to a keyframe interval before its start, within the window.
+  settling(time) {
+    const settle = this.settle;
+    if (!settle || Date.now() > settle.until) return false;
+    return time >= settle.from - KEYFRAME_SLACK_S && time <= settle.to;
   }
 
   // A viewer seek back before a segment makes it skippable again.
@@ -575,6 +606,7 @@ class SponsorBlockHandler {
     if (since < 0 || since > UNDO_WINDOW_S) return false;
     this.lastSkip = null;
     this.landing = null;
+    this.settle = null;
     this.suppressRearm = true;
     this.seekTo(last.from);
     if (configRead("enableSponsorBlockToasts")) {

@@ -415,3 +415,21 @@ test("the diagnostics status follows the launcher's state", () => {
   ask(l);
   assert.equal(diagnostics.getLaunchStatus().state, "exiting");
 });
+
+test("a failed debugger launch is tried again on a later start, three times, then the proxy stays", () => {
+  const f = fakeDeps({ debugLaunch: (id, cb) => cb(new Error("SDB refused"), null) });
+  const l = launcher.createLauncher(f.deps);
+  const actions = [];
+  // Each WGT start asks once. An "exit" answer makes the WGT exit, and the debug launch then fails.
+  for (let start = 0; start < 7; start++) {
+    const body = ask(l);
+    actions.push(body.action);
+    if (body.action === "exit") {
+      f.state.running = false;
+      f.flush();
+    }
+  }
+  // The start after each failure gets the proxy; the one after tries the debugger again.
+  // The third failure ends the retries, so the proxy stays for good.
+  assert.deepEqual(actions, ["exit", "proxy", "exit", "proxy", "exit", "proxy", "proxy"]);
+});

@@ -15,9 +15,10 @@
 //      under the debugger. SDB reports the debug port.
 //   3. The service attaches over CDP, registers the scripts, and navigates the
 //      WGT to YouTube. Meanwhile index.html gets "wait", then "attached".
-//   4. Any failure leads to "proxy". index.html then loads the localhost proxy as
-//      before. States only move forward within one service run, so a failure
-//      cannot loop. A failure is sticky until the service restarts.
+//   4. Any failure leads to "proxy" for that WGT start. The next start tries the
+//      debugger again, at most MAX_FAILED_ATTEMPTS failures in a row. After that the
+//      proxy stays until the setting changes or the diagnostics page asks to retry.
+//      A success clears the count.
 //   A later launch after the WGT closed (the CDP socket closes) starts again at 1.
 
 var sdb = require("./sdb.js");
@@ -156,6 +157,15 @@ function createLauncher(deps) {
   var attachedSession = null;
   var scriptId = null;
   var seenRevision = null;
+  // Debugger launches that failed in a row. A failed launch keeps the proxy for that
+  // WGT start only; the next start tries the debugger again, up to this many times.
+  // A soft reset of the TV can fail one attempt for a reason that is gone a moment
+  // later, so one failure must not pin the proxy until the service restarts.
+  var MAX_FAILED_ATTEMPTS = 3;
+  var failedAttempts = 0;
+  // The WGT start right after a failed launch (the normal relaunch) gets the proxy, so
+  // the app opens at once instead of exiting again. The start after that tries again.
+  var serveProxyOnce = false;
 
   function publish() {
     diagnostics.setLaunchStatus({ state: state, reason: reason });
@@ -164,6 +174,8 @@ function createLauncher(deps) {
   function fail(message) {
     log("using the proxy path: " + message);
     state = "failed";
+    failedAttempts += 1;
+    serveProxyOnce = true;
     reason = message;
     publish();
     if (pendingSession) {
@@ -276,6 +288,7 @@ function createLauncher(deps) {
       if (err) return fail(err.message);
       pendingSession = null;
       attachedSession = session;
+      failedAttempts = 0;
       state = "attached";
       publish();
       session.setOnClose(function () {
@@ -296,6 +309,7 @@ function createLauncher(deps) {
     var settings = deps.readSettings();
     if (seenRevision !== null && settings.revision !== seenRevision && state === "failed") {
       log("launch mode changed; the earlier failure is cleared");
+      failedAttempts = 0;
       state = "idle";
       reason = "";
       publish();
@@ -310,6 +324,7 @@ function createLauncher(deps) {
     if (attachedSession && !attachedSession.closed) return false;
     if (state === "failed" || state === "idle") {
       log("retry requested from the diagnostics page");
+      failedAttempts = 0;
       state = "idle";
       reason = "";
       publish();
@@ -336,6 +351,13 @@ function createLauncher(deps) {
     }
     if (!settings.debugger) {
       return respond({ action: "proxy", mode: "proxy", state: state, reason: "" });
+    }
+    if (state === "failed" && serveProxyOnce) {
+      serveProxyOnce = false;
+    } else if (state === "failed" && failedAttempts < MAX_FAILED_ATTEMPTS) {
+      log("retrying the debugger launch (failure " + failedAttempts + " of " + MAX_FAILED_ATTEMPTS + ")");
+      state = "idle";
+      publish();
     }
     if (state === "idle") {
       state = "checking";
