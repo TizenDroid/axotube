@@ -1,6 +1,12 @@
 {
   "defaults": {
     "enableAdBlock": true,
+    "blockPlayerAdTracking": true,
+    "blockAdTelemetry": true,
+    "blockViewStatsTelemetry": false,
+    "removeLiveVideos": false,
+    "removeTopLiveGames": false,
+    "removeMostRelevant": false,
     "enableSponsorBlock": true,
     "enableSponsorBlockToasts": true,
     "sponsorBlockManualSkips": ["intro", "outro", "filler"],

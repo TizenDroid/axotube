@@ -2,41 +2,10 @@
 // YouTube payloads. The filter is captured from the response pipeline stub.
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
-
-const ROOT = path.resolve(__dirname, "..");
+const { loadBundle } = require("./helpers/adblockBundle.cjs");
 
 function loadFilter(settings) {
-  const captured = [];
-  const identity = (items) => items;
-  const ctx = vm.createContext({
-    configRead: (k) => settings[k],
-    timelyAction: () => ({}),
-    ButtonRenderer: () => ({}),
-    ShelfRenderer: () => ({}),
-    TileRenderer: () => ({}),
-    PatchSettings() {},
-    t: (s) => s,
-    deArrowify() {},
-    hqify() {},
-    addLongPress() {},
-    addPreviews() {},
-    hideVideo: identity,
-    filterGuideItems: (r) => r,
-    installResponsePipeline: (filters) => {
-      captured.push(...filters);
-    },
-    window: { queuedVideos: { videos: [] }, sponsorblock: null, JSON },
-    JSON,
-    console,
-  });
-  let src = fs
-    .readFileSync(path.join(ROOT, "mods/features/adblock.js"), "utf8")
-    .replace(/^import[\s\S]*?from\s+["'][^"']+["'];?\s*$/gm, "");
-  vm.runInContext(src, ctx, { filename: "adblock.js" });
-  return captured[0];
+  return loadBundle(settings).filters[0];
 }
 
 const tile = (id) => ({ tileRenderer: { contentId: id } });

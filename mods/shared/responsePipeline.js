@@ -24,7 +24,8 @@ export function installResponsePipeline(filters) {
 
     for (let i = 0; i < filters.length; i++) {
       try {
-        filters[i](result);
+        // The raw text lets filters skip work when it has no ad structures.
+        filters[i](result, text);
       } catch (err) {
         if (!reportedErrors[i]) {
           reportedErrors[i] = true;

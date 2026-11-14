@@ -60,12 +60,17 @@ function runtime(overrides = {}) {
   function evaluate(name) {
     const source = read(name)
       .replace(/^import\s+[\s\S]*?;\s*$/gm, "")
-      .replace(/^export\s+(?=function\s+)/gm, "");
+      .replace(/^export\s+(?=(function|const|let|var)\b)/gm, "");
     vm.runInContext(source, ctx, { filename: name });
   }
 
   evaluate("mods/ui/customGuideAction.js");
   evaluate("mods/shared/responsePipeline.js");
+  // Feature modules first, in the order the bundler resolves them; the
+  // orchestrator (adblock.js) is last because it installs the pipeline filters.
+  for (const name of require("./helpers/adblockBundle.cjs").MODULES) {
+    if (name !== "mods/features/adblock.js") evaluate(name);
+  }
   evaluate("mods/features/adblock.js");
   return { json, nativeParse, nativeStringify, settings, ctx, timers, errors, listeners };
 }

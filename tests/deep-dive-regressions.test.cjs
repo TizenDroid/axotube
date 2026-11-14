@@ -30,7 +30,7 @@ test("remote input does not write screen opacity when dimming is already inactiv
 });
 
 test("SponsorBlock manual actions preserve native timely actions", () => {
-  const src = read("mods/features/adblock.js");
+  const src = read("mods/features/sponsorBlockActions.js");
   has(src, "function isAxotubeSponsorTimelyAction");
   has(src, "filter((action) => !isAxotubeSponsorTimelyAction(action))");
   assert.ok(!src.includes("timelyActionRenderers = []"));
@@ -119,7 +119,7 @@ test("standalone health check has a per-request deadline", () => {
 });
 
 test("AdBlock stringify hook restores caller objects after serialization", () => {
-  const src = read("mods/features/adblock.js");
+  const src = read("mods/features/playbackContextStringify.js");
   const stringify = between(src, "JSON.stringify = function", "window.JSON.stringify");
   has(stringify, "finally");
   has(stringify, "delete playbackContext.isInlinePlaybackNoAd");

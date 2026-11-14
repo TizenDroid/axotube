@@ -1,223 +1,162 @@
 /**
- * adblock.js – response filter & patch orchestrator.
+ * adblock.js – response filter orchestrator.
  *
- * The shared response pipeline owns JSON.parse, and this module owns the
- * JSON.stringify playback-context fix. Per-feature helpers live
- * in their own modules and are imported here:
+ * This file only decides which feature runs on each response, in a fixed
+ * order. The logic lives in the modules it imports:
  *
- *   - Ad / paid-promo / endscreen / you-there / codec filter  (inline below)
- *   - DeArrow titles + thumbnails  -> ./deArrow.js
- *   - HQ thumbnails                -> ./hqThumbnails.js
- *   - Long-press video menu        -> ./longPressMenu.js
- *   - Inline video previews        -> ./videoPreviews.js
- *   - Hide watched videos          -> ./hideWatchedVideos.js
- *   - SponsorBlock skip buttons    -> inline below
+ *   ads/rules.js            recognition rules (pure)
+ *   ads/responseAds.js      top-level ad fields and browse ad slots
+ *   ads/player.js           player attestation / ad-break tracking
+ *   ads/shelves.js          shelf and item processing, empty-shelf cleanup
+ *   ads/fallback.js         bounded search for ad keys on large responses
+ *   ads/breaker.js          per-section error isolation
+ *   ads/stats.js            counters and debug-only logging
+ *   telemetry/endpoints.js  telemetry URL rules
+ *   telemetry/hooks.js      XHR / fetch / beacon hooks
+ *   streamFormats.js        preferred video codec
+ *   playerNotices.js        paid promo, end screens, you-there, sign-in prompts
+ *   sponsorBlockActions.js  SponsorBlock skip buttons
+ *   queuedVideosShelf.js    queued videos shelf
+ *   playbackContextStringify.js  JSON.stringify playback fix
+ *
+ * Guide filtering is registered alongside these filters in the response pipeline.
  */
 import { configRead } from "../config.js";
-import { timelyAction, ButtonRenderer, ShelfRenderer, TileRenderer } from "../ui/ytUI.js";
 import { PatchSettings } from "../ui/customYTSettings.js";
-import { t } from "i18next";
-import { deArrowify } from "./deArrow.js";
-import { hqify } from "./hqThumbnails.js";
-import { addLongPress } from "./longPressMenu.js";
-import { addPreviews } from "./videoPreviews.js";
-import { hideVideo } from "./hideWatchedVideos.js";
 import { filterGuideItems } from "../ui/customGuideAction.js";
 import { installResponsePipeline } from "../shared/responsePipeline.js";
+import { hasKnownTopLevelKey, textMayHaveAds } from "./ads/rules.js";
+import { runGuarded } from "./ads/breaker.js";
+import { bump, debugLog } from "./ads/stats.js";
+import { applyTopLevelAdFields, removeBrowseAdSlots } from "./ads/responseAds.js";
+import { stripPlayerTracking } from "./ads/player.js";
+import { processShelves, decorateItems } from "./ads/shelves.js";
+import { boundedAdSearch, FALLBACK_MIN_TEXT_LENGTH } from "./ads/fallback.js";
+import { applyStreamFormatFilter } from "./streamFormats.js";
+import { applyPlayerNotices, applySigninPromptFilter } from "./playerNotices.js";
+import { applySponsorBlockActions } from "./sponsorBlockActions.js";
+import { injectQueuedVideosShelf } from "./queuedVideosShelf.js";
+import { installPlaybackStringifyFix } from "./playbackContextStringify.js";
+import { installTelemetryHooks } from "./telemetry/hooks.js";
 
-function isAxotubeSponsorTimelyAction(action) {
-  const buttons = action?.timelyActionRenderer?.actionButtons;
-  if (!Array.isArray(buttons)) return false;
-  return buttons.some(
-    (button) =>
-      button?.buttonRenderer?.command?.showEngagementPanelEndpoint?.customAction?.action === "SKIP",
-  );
+// Settings are read once per response, not once per section.
+function readFlags() {
+  return {
+    adBlock: !!configRead("enableAdBlock"),
+    signin: !!configRead("enableSigninReminder"),
+    paidPromo: !!configRead("enablePaidPromotionOverlay"),
+    hideEndScreens: !!configRead("enableHideEndScreenCards"),
+    youThere: !!configRead("enableYouThereRenderer"),
+    shorts: !!configRead("enableShorts"),
+    sortSubscriptions: !!configRead("sortSubscriptionsByAlphabet"),
+    preferredCodec: configRead("videoPreferredCodec"),
+    blockPlayerTracking: configRead("blockPlayerAdTracking") !== false,
+    removeLiveVideos: !!configRead("removeLiveVideos"),
+    removeTopLiveGames: !!configRead("removeTopLiveGames"),
+    removeMostRelevant: !!configRead("removeMostRelevant"),
+    sponsorManualSkips: configRead("sponsorBlockManualSkips"),
+    sponsorHighlight: !!configRead("enableSponsorBlockHighlight"),
+  };
 }
 
-function mergeSponsorTimelyActions(renderer, axotubeActions) {
-  const existing = Array.isArray(renderer.timelyActionRenderers)
-    ? renderer.timelyActionRenderers
-    : [];
-  const nativeActions = existing.filter((action) => !isAxotubeSponsorTimelyAction(action));
-  renderer.timelyActionRenderers = nativeActions.concat(axotubeActions);
+function shelfOptions(flags, adsOn, previews) {
+  return {
+    removeAds: adsOn,
+    removeShorts: !flags.shorts,
+    addPreviews: previews,
+    optional: {
+      live: flags.removeLiveVideos,
+      topLiveGames: flags.removeTopLiveGames,
+      mostRelevant: flags.removeMostRelevant,
+    },
+  };
 }
 
-/**
- * This is a minimal reimplementation of the following uBlock Origin rule:
- * https://github.com/uBlockOrigin/uAssets/blob/3497eebd440f4871830b9b45af0afc406c6eb593/filters/filters.txt#L116
- */
-function filterYoutubeResponse(r) {
-  // Most JSON.parse calls are unrelated to YouTube response renderers.
-  if (
-    !r.adPlacements &&
-    !r.playerAds &&
-    !r.adSlots &&
-    !r.paidContentOverlay &&
-    !r.streamingData &&
-    !r.contents &&
-    !r.endscreen &&
-    !r.messages &&
-    !r.entries &&
-    !r.title &&
-    !r.continuationContents &&
-    !r.playerOverlays &&
-    !r.transportControls
-  )
-    return;
-  const adBlockEnabled = configRead("enableAdBlock");
-  const signinReminderEnabled = configRead("enableSigninReminder");
+function sortSecondaryNavTabs(tabs) {
+  tabs.sort((a, b) => {
+    const aTitle = a?.tabRenderer?.title;
+    const bTitle = b?.tabRenderer?.title;
+    if (a.tabRenderer?.selected && !b.tabRenderer?.selected) return -1;
+    if (!a.tabRenderer?.selected && b.tabRenderer?.selected) return 1;
+    if (aTitle && bTitle) return aTitle.localeCompare(bTitle);
+    return 0;
+  });
+}
 
-  if (r.adPlacements && adBlockEnabled) r.adPlacements = [];
-  if (r.playerAds && adBlockEnabled) r.playerAds = false;
-  if (r.adSlots && adBlockEnabled) r.adSlots = [];
+function filterYoutubeResponse(r, text) {
+  if (!hasKnownTopLevelKey(r)) return;
 
-  if (r.paidContentOverlay && !configRead("enablePaidPromotionOverlay")) {
-    r.paidContentOverlay = null;
+  const flags = readFlags();
+  // The text pre-scan skips ad work for responses that cannot contain ad structures.
+  const scanAds = textMayHaveAds(text);
+  const adsOn = flags.adBlock && scanAds;
+
+  if (adsOn) runGuarded("topLevelAds", () => applyTopLevelAdFields(r));
+  if (scanAds && flags.blockPlayerTracking) {
+    runGuarded("playerTracking", () => stripPlayerTracking(r));
   }
+  runGuarded("streamFormats", () => applyStreamFormatFilter(r, flags.preferredCodec));
+  runGuarded("playerNotices", () => applyPlayerNotices(r, flags));
 
-  if (r?.streamingData?.adaptiveFormats && configRead("videoPreferredCodec") !== "any") {
-    const preferredCodec = configRead("videoPreferredCodec");
-    const hasPreferredCodec = r.streamingData.adaptiveFormats.find(
-      (format) => format.mimeType && format.mimeType.includes(preferredCodec),
-    );
-    if (hasPreferredCodec) {
-      r.streamingData.adaptiveFormats = r.streamingData.adaptiveFormats.filter((format) => {
-        if (format.mimeType && format.mimeType.startsWith("audio/")) return true;
-        return format.mimeType && format.mimeType.includes(preferredCodec);
-      });
-    }
-  }
-
-  if (
-    r?.contents?.tvBrowseRenderer?.content?.tvSurfaceContentRenderer?.content?.sectionListRenderer
-      ?.contents
-  ) {
-    if (!signinReminderEnabled) {
-      r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents =
-        r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents.filter(
-          (elm) => !elm.feedNudgeRenderer,
-        );
-    }
-
-    if (adBlockEnabled) {
-      r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents =
-        r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents.filter(
-          (elm) => !elm.adSlotRenderer,
-        );
-
-      for (const shelve of r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content
-        .sectionListRenderer.contents) {
-        if (shelve.shelfRenderer && shelve.shelfRenderer.content?.horizontalListRenderer?.items) {
-          shelve.shelfRenderer.content.horizontalListRenderer.items =
-            shelve.shelfRenderer.content.horizontalListRenderer.items.filter(
-              (item) => !item.adSlotRenderer,
-            );
-        }
-      }
-    }
-
-    processShelves(
-      r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer
-        .contents,
-    );
-  }
-
-  if (r.endscreen && configRead("enableHideEndScreenCards")) {
-    r.endscreen = null;
-  }
-
-  if (r.messages && Array.isArray(r.messages) && !configRead("enableYouThereRenderer")) {
-    r.messages = r.messages.filter((msg) => !msg?.youThereRenderer);
-  }
-
-  if (!Array.isArray(r) && r?.entries && adBlockEnabled) {
-    r.entries = r.entries?.filter((elm) => !elm?.command?.reelWatchEndpoint?.adClientParams?.isAd);
+  const browseList = r?.contents?.tvBrowseRenderer?.content?.tvSurfaceContentRenderer?.content
+    ?.sectionListRenderer;
+  if (browseList?.contents) {
+    runGuarded("browse", () => {
+      browseList.contents = applySigninPromptFilter(browseList.contents, "feedNudgeRenderer", flags);
+      if (adsOn) browseList.contents = removeBrowseAdSlots(browseList.contents);
+      processShelves(browseList.contents, shelfOptions(flags, adsOn, true));
+    });
   }
 
   if (r?.title?.runs) PatchSettings(r);
 
   if (r?.contents?.sectionListRenderer?.contents) {
-    processShelves(r.contents.sectionListRenderer.contents);
+    runGuarded("sectionList", () =>
+      processShelves(r.contents.sectionListRenderer.contents, shelfOptions(flags, adsOn, true)),
+    );
   }
 
   if (r?.continuationContents?.sectionListContinuation?.contents) {
-    processShelves(r.continuationContents.sectionListContinuation.contents);
+    runGuarded("sectionContinuation", () =>
+      processShelves(
+        r.continuationContents.sectionListContinuation.contents,
+        shelfOptions(flags, adsOn, true),
+      ),
+    );
   }
 
   if (r?.continuationContents?.horizontalListContinuation?.items) {
-    const items = r.continuationContents.horizontalListContinuation.items;
-    hqify(items);
-    deArrowify(items);
-    addLongPress(items);
-    r.continuationContents.horizontalListContinuation.items = hideVideo(items);
+    runGuarded("horizontalContinuation", () => {
+      const list = r.continuationContents.horizontalListContinuation;
+      list.items = decorateItems(list.items, false);
+    });
   }
 
-  if (r?.contents?.tvBrowseRenderer?.content?.tvSecondaryNavRenderer?.sections) {
-    for (
-      let i = 0;
-      i < r.contents.tvBrowseRenderer.content.tvSecondaryNavRenderer.sections.length;
-      i++
-    ) {
-      const section =
-        r.contents.tvBrowseRenderer.content.tvSecondaryNavRenderer.sections[i]
-          .tvSecondaryNavSectionRenderer;
-      if (!section || !section.tabs) continue;
-      if (configRead("sortSubscriptionsByAlphabet")) {
-        section.tabs.sort((a, b) => {
-          const aTitle = a?.tabRenderer?.title;
-          const bTitle = b?.tabRenderer?.title;
-          if (a.tabRenderer?.selected && !b.tabRenderer?.selected) return -1;
-          if (!a.tabRenderer?.selected && b.tabRenderer?.selected) return 1;
-          if (aTitle && bTitle) return aTitle.localeCompare(bTitle);
-          return 0;
-        });
-      }
-      for (let j = 0; j < section.tabs.length; j++) {
-        const tab = section.tabs[j];
-        if (
-          tab.tabRenderer.content?.tvSurfaceContentRenderer?.content?.sectionListRenderer?.contents
-        ) {
-          const index = section.tabs.indexOf(tab);
-          const clone =
-            tab.tabRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents;
-          processShelves(clone);
-          section.tabs[
-            index
-          ].tabRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents =
-            clone;
+  const secondaryNav = r?.contents?.tvBrowseRenderer?.content?.tvSecondaryNavRenderer?.sections;
+  if (secondaryNav) {
+    runGuarded("secondaryNav", () => {
+      for (let i = 0; i < secondaryNav.length; i++) {
+        const section = secondaryNav[i].tvSecondaryNavSectionRenderer;
+        if (!section || !section.tabs) continue;
+        if (flags.sortSubscriptions) sortSecondaryNavTabs(section.tabs);
+        for (let j = 0; j < section.tabs.length; j++) {
+          const tab = section.tabs[j];
+          const surface = tab.tabRenderer.content?.tvSurfaceContentRenderer?.content;
+          if (surface?.sectionListRenderer?.contents) {
+            processShelves(surface.sectionListRenderer.contents, shelfOptions(flags, adsOn, true));
+          }
         }
       }
-    }
+    });
   }
 
-  if (r?.contents?.singleColumnWatchNextResults?.pivot?.sectionListRenderer) {
-    if (!signinReminderEnabled) {
-      r.contents.singleColumnWatchNextResults.pivot.sectionListRenderer.contents =
-        r.contents.singleColumnWatchNextResults.pivot.sectionListRenderer.contents.filter(
-          (elm) => !elm.alertWithActionsRenderer,
-        );
-    }
-    processShelves(
-      r.contents.singleColumnWatchNextResults.pivot.sectionListRenderer.contents,
-      false,
-    );
-    if (window.queuedVideos.videos.length > 0) {
-      const queuedVideosClone = window.queuedVideos.videos.slice();
-      queuedVideosClone.unshift(
-        TileRenderer("Clear Queue", {
-          customAction: { action: "CLEAR_QUEUE" },
-        }),
-      );
-      r.contents.singleColumnWatchNextResults.pivot.sectionListRenderer.contents.unshift(
-        ShelfRenderer(
-          "Queued Videos",
-          queuedVideosClone,
-          queuedVideosClone.findIndex((v) => v.contentId === window.queuedVideos.lastVideoId) !== -1
-            ? queuedVideosClone.findIndex((v) => v.contentId === window.queuedVideos.lastVideoId)
-            : 0,
-        ),
-      );
-    }
+  const watchNext = r?.contents?.singleColumnWatchNextResults?.pivot?.sectionListRenderer;
+  if (watchNext) {
+    runGuarded("watchNext", () => {
+      watchNext.contents = applySigninPromptFilter(watchNext.contents, "alertWithActionsRenderer", flags);
+      processShelves(watchNext.contents, shelfOptions(flags, adsOn, false));
+      injectQueuedVideosShelf(watchNext.contents);
+    });
   }
 
   /*
@@ -225,156 +164,23 @@ function filterYoutubeResponse(r) {
     (see commented version in git history)
     */
 
-  const overlayRenderer = r?.playerOverlays?.playerOverlayRenderer;
-  if (overlayRenderer) {
-    const manualSkippedSegments = configRead("sponsorBlockManualSkips");
-    const timelyActions = [];
-    if (
-      Array.isArray(manualSkippedSegments) &&
-      manualSkippedSegments.length > 0 &&
-      window?.sponsorblock?.segments
-    ) {
-      for (const segment of window.sponsorblock.segments) {
-        if (manualSkippedSegments.includes(segment.category)) {
-          timelyActions.push(
-            timelyAction(
-              t("sponsorblock.toasts.skip", {
-                segment: t(`sponsorblock.segments.${segment.category}`),
-              }),
-              "SKIP_NEXT",
-              {
-                clickTrackingParams: null,
-                showEngagementPanelEndpoint: {
-                  customAction: {
-                    action: "SKIP",
-                    parameters: { time: segment.segment[1] },
-                  },
-                },
-              },
-              segment.segment[0] * 1000,
-              segment.segment[1] * 1000 - segment.segment[0] * 1000,
-            ),
-          );
-        }
-      }
-    }
-    mergeSponsorTimelyActions(overlayRenderer, timelyActions);
-  }
+  runGuarded("sponsorBlock", () => applySponsorBlockActions(r, flags));
 
-  if (
-    r?.transportControls?.transportControlsRenderer?.promotedActions &&
-    configRead("enableSponsorBlockHighlight")
-  ) {
-    if (window?.sponsorblock?.segments) {
-      const category = window.sponsorblock.segments.find((seg) => seg.category === "poi_highlight");
-      if (category) {
-        r.transportControls.transportControlsRenderer.promotedActions.push({
-          type: "TRANSPORT_CONTROLS_BUTTON_TYPE_SPONSORBLOCK_HIGHLIGHT",
-          button: {
-            buttonRenderer: ButtonRenderer(
-              false,
-              t("sponsorblock.toasts.skipToHighlight"),
-              "SKIP_NEXT",
-              {
-                clickTrackingParams: null,
-                customAction: {
-                  action: "SKIP",
-                  parameters: { time: category.segment[0] },
-                },
-              },
-            ),
-          },
-        });
+  // Last step: the marker text is still present, so the large-response search
+  // runs for keys the known paths did not catch. Everything it finds is a miss
+  // to report.
+  if (adsOn && typeof text === "string" && text.length >= FALLBACK_MIN_TEXT_LENGTH) {
+    runGuarded("fallback", () => {
+      const result = boundedAdSearch(r, { player: flags.blockPlayerTracking });
+      if (result.removed) {
+        bump("knownPathMiss", result.removed);
+        bump("fallbackRemoved", result.removed);
+        debugLog("fallback removed", result.removed, "entries from", result.nodes, "nodes");
       }
-    }
+    });
   }
 }
 
+installTelemetryHooks(typeof window !== "undefined" ? window : null);
 installResponsePipeline([filterYoutubeResponse, filterGuideItems]);
-
-// Fix playback issues without leaving caller-owned request objects mutated.
-const origStringify = JSON.stringify;
-JSON.stringify = function (value, replacer, space) {
-  const playbackContext = value?.playbackContext?.contentPlaybackContext;
-  if (playbackContext && !playbackContext.isInlinePlaybackNoAd) {
-    const hadOwnValue = Object.prototype.hasOwnProperty.call(
-      playbackContext,
-      "isInlinePlaybackNoAd",
-    );
-    const previousValue = playbackContext.isInlinePlaybackNoAd;
-    try {
-      playbackContext.isInlinePlaybackNoAd = true;
-      return origStringify.apply(this, arguments);
-    } finally {
-      if (hadOwnValue) playbackContext.isInlinePlaybackNoAd = previousValue;
-      else delete playbackContext.isInlinePlaybackNoAd;
-    }
-  }
-  return origStringify.apply(this, arguments);
-};
-window.JSON.stringify = JSON.stringify;
-
-// Shelf-level filter shared by browse, search, watch-next and continuation
-// responses. Ad and Shorts removal happens before any per-item work, so the
-// (comparatively expensive) thumbnail, DeArrow and preview passes never run on
-// content that is about to be dropped.
-function isAdItem(item) {
-  return !!(item && item.adSlotRenderer);
-}
-
-function isShortsItem(item) {
-  return !!(
-    item &&
-    item.tileRenderer &&
-    (item.tileRenderer.tvhtml5ShelfRendererType === "TVHTML5_TILE_RENDERER_TYPE_SHORTS" ||
-      item.tileRenderer.onSelectCommand?.reelWatchEndpoint)
-  );
-}
-
-function isAdShelf(shelve) {
-  if (!shelve || typeof shelve !== "object") return false;
-  // promoShelfRenderer and similar promotional containers.
-  if (Object.keys(shelve).some((k) => k.toLowerCase().indexOf("promo") !== -1)) return true;
-  // Premium upsell shelves are flagged with hideLogo.
-  return !!shelve.shelfRenderer?.tvhtml5Metadata?.hideLogo;
-}
-
-function processShelves(shelves, shouldAddPreviews = true) {
-  const removeShorts = !configRead("enableShorts");
-  const removeAds = !!configRead("enableAdBlock");
-  for (let i = shelves.length - 1; i >= 0; i--) {
-    const shelve = shelves[i];
-    if (!shelve || typeof shelve !== "object") continue;
-
-    if (removeAds && isAdShelf(shelve)) {
-      shelves.splice(i, 1);
-      continue;
-    }
-    if (!shelve.shelfRenderer) continue;
-    const list = shelve.shelfRenderer.content?.horizontalListRenderer;
-    if (!list || !list.items) continue;
-
-    if (
-      removeShorts &&
-      shelve.shelfRenderer.tvhtml5ShelfRendererType === "TVHTML5_SHELF_RENDERER_TYPE_SHORTS"
-    ) {
-      shelves.splice(i, 1);
-      continue;
-    }
-
-    // One pass drops ads and (when disabled) Shorts before any item processing.
-    let items = list.items;
-    if (removeAds || removeShorts) {
-      items = items.filter(
-        (item) => !(removeAds && isAdItem(item)) && !(removeShorts && isShortsItem(item)),
-      );
-      list.items = items;
-    }
-
-    hqify(items);
-    deArrowify(items);
-    addLongPress(items);
-    if (shouldAddPreviews) addPreviews(items);
-    list.items = hideVideo(items);
-  }
-}
+installPlaybackStringifyFix();

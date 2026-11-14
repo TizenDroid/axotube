@@ -31,7 +31,9 @@ test("core feature defaults stay enabled", () => {
 });
 
 test("AdBlock still handles core ad response shapes", () => {
-  const src = read("mods/features/adblock.js");
+  const src = ["mods/features/adblock.js", "mods/features/ads/rules.js", "mods/features/ads/responseAds.js"]
+    .map(read)
+    .join("\n");
   for (const key of ["adPlacements", "playerAds", "adSlots", "adSlotRenderer", "promo"])
     has(src, key);
 });
@@ -126,7 +128,7 @@ test("guide JSON patch fails open on mixed arrays", () => {
   assert.ok(!src.includes("JSON.parse ="), "guide filter must not install a second JSON hook");
   const pipeline = read("mods/shared/responsePipeline.js");
   has(pipeline, "JSON.parse = parse");
-  has(pipeline, "filters[i](result)");
+  has(pipeline, "filters[i](result, text)");
 });
 
 test("config validates values and never clears unrelated storage", () => {

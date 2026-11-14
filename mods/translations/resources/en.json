@@ -34,6 +34,12 @@
       "blockAds": "Block ads",
       "paidPromotion": "Show paid promotion notices",
       "sponsorBlock": "Enable SponsorBlock",
+      "playerTracking": "Block player ad tracking",
+      "adTelemetry": "Block ad telemetry",
+      "viewStats": "Block view statistics",
+      "liveVideos": "Hide Live shelf",
+      "topLiveGames": "Hide Top Live Games shelf",
+      "mostRelevant": "Hide Most Relevant shelf",
       "segmentTypes": {
         "title": "Segment types",
         "subtitle": "Press OK to change a type. It cycles through: skip automatically, show a skip button, off."

@@ -51,6 +51,80 @@
         "commercials"
       ]
     },
+    "blockPlayerAdTracking": {
+      "label": "Block player ad tracking",
+      "description": "Remove ad-break tracking from the player response.",
+      "section": "ads",
+      "group": "Ads",
+      "order": 101,
+      "control": "switch",
+      "searchAliases": [
+        "ads",
+        "tracking",
+        "attestation"
+      ]
+    },
+    "blockAdTelemetry": {
+      "label": "Block ad telemetry",
+      "description": "Block requests to ad-tracking endpoints.",
+      "section": "ads",
+      "group": "Ads",
+      "order": 102,
+      "control": "switch",
+      "searchAliases": [
+        "ads",
+        "tracking",
+        "pagead"
+      ]
+    },
+    "blockViewStatsTelemetry": {
+      "label": "Block view statistics",
+      "description": "Block watch-time, playback and quality statistics. Off by default.",
+      "section": "ads",
+      "group": "Ads",
+      "order": 103,
+      "control": "switch",
+      "searchAliases": [
+        "statistics",
+        "watchtime",
+        "telemetry"
+      ]
+    },
+    "removeLiveVideos": {
+      "label": "Hide Live shelf",
+      "description": "Hide the Live shelf on the home screen.",
+      "section": "ads",
+      "group": "Ads",
+      "order": 104,
+      "control": "switch",
+      "searchAliases": [
+        "live",
+        "live now"
+      ]
+    },
+    "removeTopLiveGames": {
+      "label": "Hide Top Live Games shelf",
+      "description": "Hide the Top Live Games shelf.",
+      "section": "ads",
+      "group": "Ads",
+      "order": 105,
+      "control": "switch",
+      "searchAliases": [
+        "live games",
+        "gaming"
+      ]
+    },
+    "removeMostRelevant": {
+      "label": "Hide Most Relevant shelf",
+      "description": "Hide the Most Relevant shelf.",
+      "section": "ads",
+      "group": "Ads",
+      "order": 106,
+      "control": "switch",
+      "searchAliases": [
+        "most relevant"
+      ]
+    },
     "enableSponsorBlock": {
       "label": "Use SponsorBlock",
       "description": "Use community-submitted segment data to skip or highlight parts of videos.",

@@ -463,6 +463,12 @@ export function buildSettingsTree() {
       "SLASH_CIRCLE_LEFT",
       [
         toggle(t("settings.ads.blockAds"), "enableAdBlock", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.ads.playerTracking"), "blockPlayerAdTracking", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.ads.adTelemetry"), "blockAdTelemetry", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.ads.viewStats"), "blockViewStatsTelemetry", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.ads.liveVideos"), "removeLiveVideos", "VISIBILITY_OFF"),
+        toggle(t("settings.ads.topLiveGames"), "removeTopLiveGames", "VISIBILITY_OFF"),
+        toggle(t("settings.ads.mostRelevant"), "removeMostRelevant", "VISIBILITY_OFF"),
         toggle(t("settings.ads.sponsorBlock"), "enableSponsorBlock", "SPONSORSHIP_STAR"),
         submenu(
           t("settings.ads.segmentTypes.title"),
