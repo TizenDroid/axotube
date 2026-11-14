@@ -1,77 +1,95 @@
-import sha256 from "../tiny-sha256.js";
+// SponsorBlock: skips the segments the community marked, and draws them on the progress bar.
+//
+// How it works:
+//  - One request per video, by its full ID, sent the moment the video opens. Both
+//    servers are asked at once and the first answer wins.
+//  - Every category has one mode, read from the settings that already exist:
+//    skip (skipped automatically), show (a skip button, see sponsorBlockActions.js)
+//    or off. The settings UI is unchanged.
+//  - A skip is one seek to the end of the segment, extended over any segment that
+//    touches it. A run of segments is one seek and one toast.
+//  - A segment is skipped at most once per pass. A viewer seek back before it
+//    re-arms it, so rewinding past a skipped segment skips it again.
+//  - The progress bar is redrawn after every seek, on duration changes and once a
+//    second, so the segments come back when YouTube redraws its bar.
+//
+// The module is loaded through the userScript bundle; it only touches the DOM and
+// the <video> element, so it runs on the Chromium the TV ships with.
 import { configRead, configChangeEmitter } from "../config.js";
 import { showToast } from "../ui/ytUI.js";
 import { t } from "i18next";
 import { getCurrentVideo, watchVideo } from "../shared/playerLifecycle.js";
 import { getJSON } from "../shared/getJSON.js";
 import { createBoundedCache } from "../shared/boundedCache.js";
-// Segments are judged against media time, never wall-clock timers, so playback
-// speed, buffering stalls and AFR pauses cannot shift where a skip lands.
-// A segment starting within this window of the playhead is skipped now, which
-// compensates for coarse timeupdate cadence on the TV.
-const SKIP_LOOKAHEAD_S = 0.5;
-const END_EPSILON_S = 0.05;
-// Our own seeks can land a little off target after keyframe snapping.
-const OWN_SEEK_TOLERANCE_S = 1.5;
-const REVERT_TOAST_WINDOW_MS = 1000;
-// A skip whose landing snapped back inside its own segment is retried this many
-// times before we accept the landing. Bounded so a stuck seek cannot loop.
-const MAX_LANDING_RETRIES = 2;
-// A seek we did not make may re-arm the same segment at most this many times.
-const MAX_REARMS_PER_SEGMENT = 3;
-// Re-check interval used only while a segment is still ahead. It backs up
-// timeupdate, so a slow update cadence cannot make a skip land late.
-// Wakeups are scheduled for the next segment, not polled. MIN_WAKE_MS keeps a
-// burst of timeupdates from producing a flood of tiny timers.
-const MIN_WAKE_MS = 50;
-// A seek we issued is treated as ours until its seeked event. This is the
-// fallback clear, so a seek that never reports seeked cannot leave the flag set.
-const OWN_SEEK_PENDING_MAX_MS = 1500;
-// Back undoes the last skip only within this much media time after it landed.
+
+// Times are in media seconds.
+// A segment is skipped this far before its start, so its first frames never play.
+const LEAD_S = 0.1;
+// Segments starting this close to where a skip lands are part of the same jump.
+const CHAIN_GAP_S = 0.25;
+// A jump shorter than this is not worth a seek.
+const MIN_MOVE_S = 0.25;
+// A jump never lands in the last half second; the video then ends on its own.
+const END_CLAMP_S = 0.5;
+// A viewer seek this far before a segment re-arms it.
+const REARM_MARGIN_S = 1;
+// Within this of the next segment, the check runs every frame instead of per timeupdate.
+const NEAR_S = 1.5;
+// A skip that keyframe-snapped back before its landing is re-sought this many times.
+const LANDING_RETRIES = 2;
+const LANDING_MAX_MS = 2000;
+// Back undoes the last skip only this long (media seconds) after it landed.
 const UNDO_WINDOW_S = 10;
+// A seek that never reports `seeked` stops blocking skips after this long.
+const SEEK_STUCK_MS = 2000;
+// The segments of a video are the same when the element plays a video this long.
+const DURATION_TOLERANCE_S = 3;
+const FETCH_TIMEOUT_MS = 4000;
+// While playing, the bar is checked from timeupdate at most this often (no timers).
+const BAR_REFRESH_MS = 1000;
 // Samsung TV remote Back key.
 const KEY_BACK = 10009;
-// The API request waits this long after a video opens, so a video closed
-// within a second never reaches the network at all.
-const FETCH_DELAY_MS = 1000;
-const FETCH_TIMEOUT_MS = 5000;
-// Results are reused when the same video is opened again.
-const SEGMENT_CACHE_SIZE = 20;
-// The bar is re-checked while chapter pieces may still be rendering.
-// Chapter pieces can render after the bar; retry a few times, then stop.
-const BAR_RETRY_MS = 1000;
-const MAX_BAR_RETRIES = 4;
-// Bumped when SponsorBlock config changes, so handlers re-read their cache.
-let configGeneration = 0;
 
-const barTypes = {
-  sponsor: { color: "#00d400", name: t("sponsorblock.segments.sponsor") || "sponsored segment" },
-  intro: { color: "#00ffff", name: t("sponsorblock.segments.intro") || "intro" },
-  outro: { color: "#0202ed", name: t("sponsorblock.segments.outro") || "outro" },
-  interaction: {
-    color: "#cc00ff",
-    name: t("sponsorblock.segments.interaction") || "interaction reminder",
-  },
-  selfpromo: { color: "#ffff00", name: t("sponsorblock.segments.selfpromo") || "self-promotion" },
-  preview: { color: "#008fd6", name: t("sponsorblock.segments.preview") || "recap or preview" },
-  filler: { color: "#7300FF", name: t("sponsorblock.segments.filler") || "tangents" },
-  music_offtopic: {
-    color: "#ff9900",
-    name: t("sponsorblock.segments.music_offtopic") || "non-music part",
-  },
-  poi_highlight: {
-    color: "#9b044c",
-    name: t("sponsorblock.segments.poi_highlight") || "highlight",
-  },
+const SERVERS = ["https://sponsor.ajay.app/api", "https://sponsorblock.inf.re/api"];
+const CATEGORIES = [
+  "sponsor",
+  "intro",
+  "outro",
+  "interaction",
+  "selfpromo",
+  "preview",
+  "filler",
+  "music_offtopic",
+  "poi_highlight",
+];
+// The settings key that enables each skippable category.
+const ENABLE_KEYS = {
+  sponsor: "enableSponsorBlockSponsor",
+  intro: "enableSponsorBlockIntro",
+  outro: "enableSponsorBlockOutro",
+  interaction: "enableSponsorBlockInteraction",
+  selfpromo: "enableSponsorBlockSelfPromo",
+  preview: "enableSponsorBlockPreview",
+  filler: "enableSponsorBlockFiller",
+  music_offtopic: "enableSponsorBlockMusicOfftopic",
+};
+const COLORS = {
+  sponsor: "#00d400",
+  intro: "#00ffff",
+  outro: "#0202ed",
+  interaction: "#cc00ff",
+  selfpromo: "#ffff00",
+  preview: "#008fd6",
+  filler: "#7300FF",
+  music_offtopic: "#ff9900",
+  poi_highlight: "#9b044c",
 };
 
-const sponsorblockAPI = "https://sponsor.ajay.app/api";
-const segmentCache = createBoundedCache(SEGMENT_CACHE_SIZE);
+const segmentCache = createBoundedCache(20);
 
 // Segments are drawn with CSS on the progress bar's slider, the same way
 // VacuumTube does it. The rules live in a <style> element in <head>, so a bar
-// that leanback re-renders on seek keeps them; an element appended to the bar
-// (the previous approach) was lost whenever that subtree was replaced.
+// that leanback re-renders keeps them.
 const STYLE_ID = "axotube-sponsorblock-segments";
 const SLIDER_SELECTOR = 'ytlr-progress-bar [idomkey="slider"]';
 const CHAPTER_PIECE_SELECTOR =
@@ -79,6 +97,113 @@ const CHAPTER_PIECE_SELECTOR =
 const CHAPTER_SELECTOR = 'ytlr-multi-markers-player-bar-renderer [idomkey^="chapter-"]';
 const BAR_BASE_RULE = `${SLIDER_SELECTOR}::after, ${CHAPTER_SELECTOR}::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.7; }`;
 
+function colorOf(category) {
+  return COLORS[category] || "blue";
+}
+
+function categoryName(category) {
+  return t(`sponsorblock.segments.${category}`) || category;
+}
+
+// Names without repeats, joined for a toast: "sponsored segment, self-promotion".
+function joinNames(names) {
+  const unique = [];
+  for (let i = 0; i < names.length; i++) {
+    if (unique.indexOf(names[i]) === -1) unique.push(names[i]);
+  }
+  return unique.join(", ");
+}
+
+// What a category does now. A category the settings disable is "off"; one listed in
+// sponsorBlockManualSkips is "show"; the rest are "skip".
+function modeOf(category, manual) {
+  if (category === "poi_highlight") {
+    return configRead("enableSponsorBlockHighlight") ? "highlight" : "off";
+  }
+  const key = ENABLE_KEYS[category];
+  if (!key || !configRead(key)) return "off";
+  return manual.indexOf(category) !== -1 ? "show" : "skip";
+}
+
+// Keeps only usable segments from the API's answer for one video, sorted by start
+// (then longest first, so an enclosing segment comes before the ones inside it).
+// Mutes and full-video labels are not segments to skip, and a segment the community
+// has voted down is hidden, as the extension hides it.
+function normalize(entries) {
+  const out = [];
+  let videoDuration = 0;
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    if (!entry || typeof entry.category !== "string" || !Array.isArray(entry.segment)) continue;
+    const start = entry.segment[0];
+    const end = entry.segment[1];
+    if (typeof start !== "number" || typeof end !== "number") continue;
+    if (!(start >= 0) || !(end > start)) continue;
+    if (entry.actionType && entry.actionType !== "skip") continue;
+    if (typeof entry.votes === "number" && entry.votes < 0) continue;
+    if (typeof entry.videoDuration === "number" && entry.videoDuration > videoDuration) {
+      videoDuration = entry.videoDuration;
+    }
+    out.push({
+      key: String(entry.UUID || `${entry.category}:${start}:${end}`),
+      category: entry.category,
+      segment: [start, end],
+      start,
+      end,
+      mode: "off",
+    });
+  }
+  out.sort((a, b) => a.start - b.start || b.end - a.end);
+  out.videoDuration = videoDuration;
+  return out;
+}
+
+// Asks both servers for the segments of one video, by its full ID. The first answer
+// wins: a 404 is an answer (no segments), a list is an answer, a failure is not.
+// Resolves null only when neither server answered. abort() drops both requests.
+function requestSegments(videoID) {
+  const requests = [];
+  let settled = false;
+  const abortAll = () => {
+    for (let i = 0; i < requests.length; i++) requests[i].abort();
+  };
+  const query = `videoID=${encodeURIComponent(videoID)}&service=YouTube&categories=${encodeURIComponent(
+    JSON.stringify(CATEGORIES),
+  )}`;
+
+  const promise = new Promise((resolve) => {
+    let failures = 0;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      abortAll();
+      resolve(value);
+    };
+    const fail = () => {
+      failures += 1;
+      if (failures === SERVERS.length) finish(null);
+    };
+    for (let i = 0; i < SERVERS.length; i++) {
+      const request = getJSON(`${SERVERS[i]}/skipSegments?${query}`, FETCH_TIMEOUT_MS);
+      requests.push(request);
+      request.promise.then((data) => {
+        if (data === null) finish([]);
+        else if (Array.isArray(data)) finish(data);
+        else fail();
+      }, fail);
+    }
+  });
+
+  return {
+    promise,
+    abort() {
+      settled = true;
+      abortAll();
+    },
+  };
+}
+
+// The progress bar: the CSS rules for the segments, and where its chapter pieces are.
 function setSegmentStyle(css) {
   let style = document.getElementById(STYLE_ID);
   if (!css) {
@@ -93,8 +218,7 @@ function setSegmentStyle(css) {
   if (style.textContent !== css) style.textContent = css;
 }
 
-// Gradient stops for the segments inside [from, to] of the bar, as percentages
-// of that range. Earlier layers paint on top, so the caller sorts shortest first.
+// Gradient stops for the segments inside [from, to] of the bar, as percentages of that range.
 function layersFor(items, from, to) {
   const layers = [];
   for (let i = 0; i < items.length; i++) {
@@ -133,488 +257,371 @@ function getChapters(duration) {
   return chapters;
 }
 
-function buildSegmentCss(segments, duration, chapters) {
-  if (!segments || segments.length === 0 || !(duration > 0)) return "";
-
-  const items = segments
-    .map((seg) => ({
-      start: seg.segment[0],
-      end: seg.segment[1],
-      color: barTypes[seg.category] ? barTypes[seg.category].color : "blue",
-    }))
-    .sort((a, b) => a.end - a.start - (b.end - b.start)); // shorter segments on top
-
-  let css = `${BAR_BASE_RULE} ${SLIDER_SELECTOR}::after { background: ${layersFor(items, 0, duration)}; }`;
+function buildSegmentCss(items, duration, chapters) {
+  if (!items || items.length === 0 || !(duration > 0)) return "";
+  // Shorter segments on top, so a long one does not hide the short ones inside it.
+  const sorted = items.slice().sort((a, b) => a.end - a.start - (b.end - b.start));
+  let css = `${BAR_BASE_RULE} ${SLIDER_SELECTOR}::after { background: ${layersFor(sorted, 0, duration)}; }`;
   if (chapters) {
     for (let i = 0; i < chapters.length; i++) {
       const key = String(chapters[i].key).replace(/["\\]/g, "\\$&");
-      css += ` ytlr-multi-markers-player-bar-renderer [idomkey="${key}"]::after { background: ${layersFor(items, chapters[i].from, chapters[i].to)}; }`;
+      css += ` ytlr-multi-markers-player-bar-renderer [idomkey="${key}"]::after { background: ${layersFor(
+        sorted,
+        chapters[i].from,
+        chapters[i].to,
+      )}; }`;
     }
   }
   return css;
 }
 
-// Keeps only usable segments from the API's response for this video.
-// A missing or empty response (including 404) yields no segments.
-function pickSegments(results, videoID) {
-  if (!Array.isArray(results)) return [];
-  const result = results.find((v) => v.videoID === videoID);
-  if (!result || !Array.isArray(result.segments)) return [];
-  return result.segments.filter((seg) => {
-    if (!seg.segment || seg.segment.length < 2) return false;
-    const [start, end] = seg.segment;
-    return typeof start === "number" && typeof end === "number" && start < end && start >= 0;
-  });
-}
-
 class SponsorBlockHandler {
-  video = null;
-  active = true;
-  configGen = -1;
-  pendingSeekTimer = null;
-  fetchTimer = null;
-  request = null;
-  barRetryTimer = null;
-  barRetries = 0;
-  barCss = "";
-  wakeTimer = null;
-  scheduleSkipHandler = null;
-  durationChangeHandler = null;
-  seekedHandler = null;
-  segments = null;
-  skippableCategories = [];
-  manualSkippableCategories = [];
-  // UUID -> { start, end } for segments already skipped in this playback pass.
-  // A segment stays here until the viewer seeks back before its end, so a
-  // skip can never re-trigger on its own landing position.
-  handled = new Map();
-  ownSeekTarget = null;
-  notSkippingToasted = new Set();
-  lastSkipAt = 0;
-  lastSkipUUID = null;
-  lastSkipTarget = null;
-  // True from the moment we set currentTime until its seeked event arrives.
-  ownSeekPending = false;
-  lastSkipSegment = null;
-  landingRetries = 0;
-  // Set by Back, once per skip. Undone segments are never re-armed by a seek.
-  undoUsed = false;
-  undone = new Set();
-  // UUID -> number of times a seek we did not make re-armed that segment.
-  rearms = new Map();
-
   constructor(videoID) {
     this.videoID = videoID;
-    this.scheduleSkipHandler = () => this.scheduleSkip();
-    this.seekedHandler = () => this.onSeeked();
-    this.durationChangeHandler = () => this.renderSegmentBar();
+    this.destroyed = false;
+    // Every segment the API gave, sorted, each with its mode.
+    this.segments = [];
+    // The segments the engine acts on (skip or show), in start order.
+    this.active = [];
+    // The segments the bar shows.
+    this.drawn = [];
+    // key -> true once a segment has been skipped (or played through) in this pass.
+    this.done = {};
+    // { from, to, names } of the last skip, for Back.
+    this.lastSkip = null;
+    // The seek a skip issued and the retries its landing may still need.
+    this.landing = null;
+    this.suppressRearm = false;
+    this.lastT = 0;
+    this.videoDuration = 0;
+    this.video = null;
+    this.listeners = null;
+    this.request = null;
+    this.frameId = null;
+    this.seekIssuedAt = 0;
+    this.barAt = 0;
+
+    this.onTick = () => this.tick();
+    this.onSeeked = () => this.handleSeeked();
+    this.onDuration = () => {
+      this.redrawBar();
+      this.tick();
+    };
+    this.frame = () => {
+      this.frameId = null;
+      this.tick();
+    };
+
+    this.refresh();
   }
 
-  // Re-reads config only when it changed. Called on every timeupdate, so the
-  // category lists are cached rather than rebuilt each time.
-  refreshConfig() {
-    if (this.configGen === configGeneration) return;
-    const manual = configRead("sponsorBlockManualSkips");
-    this.manualSkippableCategories = Array.isArray(manual) ? manual : [];
-    this.skippableCategories = this.getSkippableCategories();
-    this.configGen = configGeneration;
-  }
-
-  // Schedules the lookup. Nothing is requested until the video has stayed
-  // open for FETCH_DELAY_MS; destroy() cancels a pending lookup.
-  init() {
-    this.fetchTimer = setTimeout(() => {
-      this.fetchTimer = null;
-      this.fetchSegments();
-    }, FETCH_DELAY_MS);
-  }
-
-  // At most one request per handler. destroy() aborts it, so leaving a video
-  // (or the API being down) never leaves a response waiting to arrive.
-  fetchSegments() {
-    if (!this.active) return;
-
+  // Fetches the segments, or reuses the ones already fetched for this video.
+  load() {
     const cached = segmentCache.get(this.videoID);
     if (cached) {
-      this.applySegments(cached);
+      this.apply(cached);
       return;
     }
-
-    const videoHash = sha256(this.videoID).substring(0, 4);
-    const categories = [
-      "sponsor",
-      "intro",
-      "outro",
-      "interaction",
-      "selfpromo",
-      "preview",
-      "filler",
-      "music_offtopic",
-      "poi_highlight",
-    ];
-    const request = getJSON(
-      `${sponsorblockAPI}/skipSegments/${videoHash}?categories=${encodeURIComponent(JSON.stringify(categories))}`,
-      FETCH_TIMEOUT_MS,
-    );
+    const request = requestSegments(this.videoID);
     this.request = request;
-
-    request.promise
-      .then((results) => {
-        if (this.request === request) this.request = null;
-        if (!this.active) return;
-        const segments = pickSegments(results, this.videoID);
+    request.promise.then(
+      (entries) => {
+        if (this.request !== request) return;
+        this.request = null;
+        if (this.destroyed || !entries) return;
+        const segments = normalize(entries);
         segmentCache.set(this.videoID, segments);
-        this.applySegments(segments);
-      })
-      .catch((err) => {
+        this.apply(segments);
+      },
+      () => {
         if (this.request === request) this.request = null;
-        if (this.active) console.error("[AxoTube:sponsorblock] SponsorBlock init error:", err);
-      });
-  }
-
-  applySegments(segments) {
-    if (!this.active || segments.length === 0) return;
-    this.segments = segments;
-    this.refreshConfig();
-    this.attachVideo();
-  }
-
-  getSkippableCategories() {
-    const categories = [];
-    if (configRead("enableSponsorBlockSponsor")) categories.push("sponsor");
-    if (configRead("enableSponsorBlockIntro")) categories.push("intro");
-    if (configRead("enableSponsorBlockOutro")) categories.push("outro");
-    if (configRead("enableSponsorBlockInteraction")) categories.push("interaction");
-    if (configRead("enableSponsorBlockSelfPromo")) categories.push("selfpromo");
-    if (configRead("enableSponsorBlockPreview")) categories.push("preview");
-    if (configRead("enableSponsorBlockFiller")) categories.push("filler");
-    if (configRead("enableSponsorBlockMusicOfftopic")) categories.push("music_offtopic");
-    return categories;
-  }
-
-  isAutoSkippable(category) {
-    return (
-      this.skippableCategories.includes(category) &&
-      !this.manualSkippableCategories.includes(category)
+      },
     );
   }
 
-  detachVideo() {
-    this.stopWake();
-    this.stopBarRetry();
-    if (!this.video) return;
-    try {
-      this.video.removeEventListener("ratechange", this.scheduleSkipHandler);
-      this.video.removeEventListener("play", this.scheduleSkipHandler);
-      this.video.removeEventListener("pause", this.scheduleSkipHandler);
-      this.video.removeEventListener("timeupdate", this.scheduleSkipHandler);
-      this.video.removeEventListener("seeked", this.seekedHandler);
-      this.video.removeEventListener("durationchange", this.durationChangeHandler);
-    } catch (e) {}
+  apply(segments) {
+    if (this.destroyed) return;
+    this.segments = segments;
+    this.videoDuration = segments.videoDuration || 0;
+    this.refresh();
+    this.tick();
   }
 
-  // Keeps "already skipped" state only for segments the playhead has not yet
-  // moved before. A new media element that resumes inside a segment we skipped
-  // must not skip it again, while one restarting before it must.
-  pruneHandled(now) {
-    for (const [uuid, range] of this.handled) {
-      if (now < range.start) this.handled.delete(uuid);
+  // Recomputes each segment's mode from the settings. Called on load and on any
+  // SponsorBlock setting change.
+  refresh() {
+    const manual = configRead("sponsorBlockManualSkips");
+    const list = Array.isArray(manual) ? manual : [];
+    const active = [];
+    const drawn = [];
+    for (let i = 0; i < this.segments.length; i++) {
+      const seg = this.segments[i];
+      seg.mode = modeOf(seg.category, list);
+      if (seg.mode === "skip" || seg.mode === "show") active.push(seg);
+      if (seg.mode !== "off") drawn.push(seg);
     }
+    this.active = active;
+    this.drawn = drawn;
+    this.redrawBar();
   }
 
-  attachVideo(nextVideo = getCurrentVideo()) {
-    if (!this.active) return;
-    if (currentSponsorVideoId() !== this.videoID) return;
+  // Follows the <video> element. Called when YouTube replaces it, and on creation.
+  attach(video) {
+    if (this.destroyed || video === this.video) return;
+    this.detach();
+    if (!video) return;
+    this.video = video;
+    this.lastT = video.currentTime || 0;
+    this.listeners = [
+      ["timeupdate", this.onTick],
+      ["play", this.onTick],
+      ["playing", this.onTick],
+      ["ratechange", this.onTick],
+      ["seeked", this.onSeeked],
+      ["durationchange", this.onDuration],
+      ["loadedmetadata", this.onDuration],
+    ];
+    for (let i = 0; i < this.listeners.length; i++) {
+      video.addEventListener(this.listeners[i][0], this.listeners[i][1]);
+    }
+    this.redrawBar();
+    this.tick();
+  }
 
-    if (nextVideo !== this.video) {
-      this.detachVideo();
-      this.video = nextVideo;
-      this.notSkippingToasted.clear();
-      this.ownSeekTarget = null;
-      this.barRetries = 0;
-      this.undone.clear();
-      this.undoUsed = false;
-      this.lastSkipSegment = null;
-      if (nextVideo) {
-        this.pruneHandled(nextVideo.currentTime);
-        nextVideo.addEventListener("ratechange", this.scheduleSkipHandler);
-        nextVideo.addEventListener("play", this.scheduleSkipHandler);
-        nextVideo.addEventListener("pause", this.scheduleSkipHandler);
-        nextVideo.addEventListener("timeupdate", this.scheduleSkipHandler);
-        nextVideo.addEventListener("seeked", this.seekedHandler);
-        nextVideo.addEventListener("durationchange", this.durationChangeHandler);
+  detach() {
+    if (this.video && this.listeners) {
+      for (let i = 0; i < this.listeners.length; i++) {
+        this.video.removeEventListener(this.listeners[i][0], this.listeners[i][1]);
       }
     }
+    this.listeners = null;
+    this.video = null;
+    if (this.frameId !== null) {
+      cancelAnimationFrame(this.frameId);
+      this.frameId = null;
+    }
+  }
 
-    if (!nextVideo) {
-      // No element yet. watchVideo calls attachVideo again when one appears.
-      this.stopWake();
+  // The one decision point. Runs on timeupdate, play, seeked and, near a segment,
+  // every frame. Every decision is made from the current media time.
+  tick() {
+    const video = this.video;
+    if (this.destroyed || !video) return;
+    this.refreshBar();
+    if (video.paused) return;
+    if (video.seeking && Date.now() - this.seekIssuedAt < SEEK_STUCK_MS) return;
+    const time = video.currentTime;
+    if (!(time >= 0)) return;
+    // A different media element (an ad, or the video restarted) is not this video.
+    if (
+      this.videoDuration > 0 &&
+      isFinite(video.duration) &&
+      Math.abs(video.duration - this.videoDuration) > DURATION_TOLERANCE_S
+    ) {
       return;
     }
+    // Time going backwards with no seek event is a replay: segments ahead are armed again.
+    if (time < this.lastT - REARM_MARGIN_S) this.rearm(time);
+    this.lastT = time;
 
-    this.renderSegmentBar();
-    this.scheduleBarRetry();
-    this.scheduleSkip();
-  }
+    const index = this.dueIndex(time);
+    if (index !== -1) this.skipAt(index, time);
 
-  // Re-renders the bar a few times at most, for chapter pieces that appear late.
-  scheduleBarRetry() {
-    if (this.barRetryTimer !== null || this.barRetries >= MAX_BAR_RETRIES) return;
-    this.barRetries += 1;
-    this.barRetryTimer = setTimeout(() => {
-      this.barRetryTimer = null;
-      this.renderSegmentBar();
-      this.scheduleBarRetry();
-    }, BAR_RETRY_MS);
-  }
-
-  stopBarRetry() {
-    if (this.barRetryTimer !== null) clearTimeout(this.barRetryTimer);
-    this.barRetryTimer = null;
-  }
-
-  // Rewrites the segment rules only when they change, so the bar timer and the
-  // duration handler cost one string comparison when nothing moved.
-  renderSegmentBar() {
-    if (!this.active || !this.segments) return;
-    const video = this.video || getCurrentVideo();
-    const duration = video ? video.duration : 0;
-    const css = buildSegmentCss(this.segments, duration, getChapters(duration));
-    if (css === this.barCss) return;
-    this.barCss = css;
-    setSegmentStyle(css);
-  }
-
-  // Called on play, pause, timeupdate and attach. Finds the first unhandled
-  // segment the playhead has reached (or is about to reach) and skips it.
-  // No timers: every decision is made from current media time.
-  scheduleSkip() {
-    if (!this.active || !configRead("enableSponsorBlock") || !this.segments) return;
-    if (currentSponsorVideoId() !== this.videoID) return;
-
-    const currentVideo = getCurrentVideo();
-    if (currentVideo && currentVideo !== this.video) {
-      this.attachVideo();
-      return;
+    if (this.video && this.frameId === null && this.nearNext(this.video.currentTime)) {
+      this.frameId = requestAnimationFrame(this.frame);
     }
-    if (!this.video || this.video.paused) {
-      this.stopWake();
-      return;
-    }
+  }
 
-    this.refreshConfig();
-    const now = this.video.currentTime;
-    for (const seg of this.segments) {
-      const [start, end] = seg.segment;
-      if (end <= now + END_EPSILON_S) continue;
-      if (start > now + SKIP_LOOKAHEAD_S) continue;
-      if (!this.isAutoSkippable(seg.category)) continue;
-      if (this.handled.has(seg.UUID)) {
-        this.maybeToastRevert(seg, now);
-        continue;
+  // The first segment to skip at `time`, or -1. Sorted by start, so the scan stops at
+  // the first segment still ahead of the lead window. While the playhead is inside a
+  // manual ("show") segment nothing is skipped: the viewer is being shown that one.
+  dueIndex(time) {
+    if (this.inManual(time)) return -1;
+    for (let i = 0; i < this.active.length; i++) {
+      const seg = this.active[i];
+      if (seg.start - LEAD_S > time) break;
+      if (seg.mode !== "skip" || seg.end <= time || this.done[seg.key]) continue;
+      return i;
+    }
+    return -1;
+  }
+
+  inManual(time) {
+    for (let i = 0; i < this.active.length; i++) {
+      const seg = this.active[i];
+      if (seg.start > time) break;
+      if (seg.mode === "show" && seg.end > time) return true;
+    }
+    return false;
+  }
+
+  // Where a skip at `index` lands: the end of that segment, extended over the skip
+  // segments that follow it closely. A manual ("show") segment ahead of the playhead
+  // ends the jump at its start, so it is shown rather than skipped; a segment the jump
+  // only partly covers is left to be skipped after the manual one.
+  jumpTarget(index, time) {
+    const first = this.active[index];
+    let to = first.end;
+    let cut = false;
+    const members = [first];
+    for (let j = index + 1; j < this.active.length; j++) {
+      const next = this.active[j];
+      if (next.start > to + CHAIN_GAP_S) break;
+      if (next.mode === "show") {
+        if (next.start > time && next.start < to && next.start > first.start) {
+          to = next.start;
+          cut = true;
+        }
+        break;
       }
-      this.performSkip(seg, end);
-      return;
+      members.push(next);
+      if (next.end > to) to = next.end;
     }
-
-    this.scheduleWake(now);
-  }
-
-  // One timer for the next segment that still needs a skip, at its start minus
-  // the lookahead, scaled by playback rate. timeupdate still re-checks, so a
-  // coarse update cadence cannot make a skip land late.
-  scheduleWake(now) {
-    this.stopWake();
-    let nextStart = Infinity;
-    for (const seg of this.segments) {
-      const [start, end] = seg.segment;
-      if (end <= now + END_EPSILON_S || start <= now + SKIP_LOOKAHEAD_S) continue;
-      if (!this.isAutoSkippable(seg.category) || this.handled.has(seg.UUID)) continue;
-      if (start < nextStart) nextStart = start;
+    const duration = this.video ? this.video.duration : NaN;
+    if (duration > 0 && to >= duration - END_CLAMP_S) {
+      to = Math.max(0, duration - END_CLAMP_S);
     }
-    if (nextStart === Infinity) return;
-    const rate = Math.max(this.video.playbackRate || 1, 0.25);
-    const delayMs = Math.max(MIN_WAKE_MS, ((nextStart - SKIP_LOOKAHEAD_S - now) / rate) * 1000);
-    this.wakeTimer = setTimeout(() => {
-      this.wakeTimer = null;
-      this.scheduleSkip();
-    }, delayMs);
+    const keys = [];
+    const names = [];
+    for (let m = 0; m < members.length; m++) {
+      const seg = members[m];
+      if (seg.start >= to) continue;
+      names.push(categoryName(seg.category));
+      if (!cut || seg.end <= to) keys.push(seg.key);
+    }
+    return { to, keys, names };
   }
 
-  stopWake() {
-    if (this.wakeTimer !== null) clearTimeout(this.wakeTimer);
-    this.wakeTimer = null;
-  }
+  skipAt(index, time) {
+    const seg = this.active[index];
+    const jump = this.jumpTarget(index, time);
+    for (let i = 0; i < jump.keys.length; i++) this.done[jump.keys[i]] = true;
+    if (jump.to <= time + MIN_MOVE_S) return;
 
-  // Shows the "not skipping" notice once when playback re-enters a segment
-  // we just skipped (something reverted our seek).
-  maybeToastRevert(segment, now) {
-    const [start, end] = segment.segment;
-    if (segment.UUID !== this.lastSkipUUID) return;
-    if (Date.now() - this.lastSkipAt >= REVERT_TOAST_WINDOW_MS) return;
-    if (now < start || now >= end) return;
-    // Our own landing position is not a revert (tail segments land at end - 1).
-    if (this.ownSeekTarget === null && Math.abs(now - this.lastSkipTarget) <= OWN_SEEK_TOLERANCE_S)
-      return;
-    if (this.notSkippingToasted.has(segment.UUID)) return;
-    this.notSkippingToasted.add(segment.UUID);
+    this.lastSkip = { from: seg.start, to: jump.to, names: jump.names };
+    this.landing = { to: jump.to, retries: 0, at: Date.now() };
+    this.seekTo(jump.to);
+
     if (configRead("enableSponsorBlockToasts")) {
-      const skipName = barTypes[segment.category]?.name || segment.category;
       showToast(
         t("app.name"),
-        t("sponsorblock.toasts.notSkipping", { segment: skipName, count: 2 }),
+        t("sponsorblock.toasts.skipping", { segment: joinNames(jump.names) }),
       );
     }
   }
 
-  performSkip(segment, end) {
-    if (!this.active || !this.video) return;
-    if (getCurrentVideo() !== this.video || currentSponsorVideoId() !== this.videoID) {
-      this.attachVideo();
-      return;
-    }
-    if (this.video.paused) return;
-
-    this.refreshConfig();
-    if (!this.isAutoSkippable(segment.category) || this.handled.has(segment.UUID)) return;
-
-    const [start] = segment.segment;
-    // Mark handled before seeking so no re-entrant check can skip it again.
-    this.handled.set(segment.UUID, { start, end });
-
-    const skipName = barTypes[segment.category]?.name || segment.category;
-    if (configRead("enableSponsorBlockToasts")) {
-      showToast(t("app.name"), t("sponsorblock.toasts.skipping", { segment: skipName }));
-    }
-    this.lastSkipSegment = { start, end, UUID: segment.UUID, category: segment.category };
-    this.undoUsed = false;
-    if (segment.UUID !== this.lastSkipUUID) this.landingRetries = 0;
-    this.lastSkipUUID = segment.UUID;
-    this.lastSkipAt = Date.now();
-    this.seekToSegmentEnd(end);
-    this.scheduleSkip();
-  }
-
-  // A seek we issue that is not a skip (the undo). Marked as ours, so it does
-  // not re-arm anything.
-  seekRaw(target) {
-    this.ownSeekTarget = target;
-    this.ownSeekPending = true;
-    if (this.pendingSeekTimer !== null) clearTimeout(this.pendingSeekTimer);
-    this.pendingSeekTimer = setTimeout(() => {
-      this.pendingSeekTimer = null;
-      this.ownSeekPending = false;
-    }, OWN_SEEK_PENDING_MAX_MS);
+  seekTo(target) {
+    this.seekIssuedAt = Date.now();
     this.video.currentTime = target;
   }
 
-  // Back, once, shortly after a skip: go back to the start of the segment we
-  // just skipped. It plays through and is not skipped again in this pass.
-  // Returns false (and changes nothing) when there is nothing to undo.
+  // A seek ends. A skip's own seek is checked for keyframe snapping back short of its
+  // target. Any other seek is the viewer's: segments ahead of where it lands are armed again.
+  handleSeeked() {
+    const video = this.video;
+    if (this.destroyed || !video) return;
+    const time = video.currentTime;
+    const landing = this.landing;
+    this.landing = null;
+
+    if (
+      landing &&
+      Date.now() - landing.at < LANDING_MAX_MS &&
+      time < landing.to - 1.5 &&
+      landing.retries < LANDING_RETRIES
+    ) {
+      this.landing = { to: landing.to, retries: landing.retries + 1, at: Date.now() };
+      this.seekTo(landing.to);
+      return;
+    }
+
+    if (!landing) {
+      if (this.suppressRearm) {
+        this.suppressRearm = false;
+      } else {
+        this.rearm(time);
+        this.lastSkip = null;
+      }
+    }
+    this.lastT = time;
+    this.redrawBar();
+    this.tick();
+  }
+
+  // A viewer seek back before a segment makes it skippable again.
+  rearm(time) {
+    for (let i = 0; i < this.active.length; i++) {
+      const seg = this.active[i];
+      if (seg.start > time + REARM_MARGIN_S) delete this.done[seg.key];
+    }
+  }
+
+  // Whether the next segment still to skip is close enough to check every frame.
+  nearNext(time) {
+    for (let i = 0; i < this.active.length; i++) {
+      const seg = this.active[i];
+      if (seg.mode !== "skip" || seg.end <= time || this.done[seg.key]) continue;
+      return seg.start - time < NEAR_S;
+    }
+    return false;
+  }
+
+  // Back, once after a skip: returns to where the skip began, and the segments it
+  // covered play through. Returns false (and does nothing) when there is nothing to undo.
   tryUndoLastSkip() {
-    const seg = this.lastSkipSegment;
-    if (!this.active || !this.video || !seg || this.undoUsed) return false;
-    const sinceLanding = this.video.currentTime - this.lastSkipTarget;
-    if (sinceLanding < 0 || sinceLanding > UNDO_WINDOW_S) return false;
-
-    this.undoUsed = true;
-    this.lastSkipSegment = null;
-    this.lastSkipUUID = null;
-    this.undone.add(seg.UUID);
-    this.seekRaw(seg.start);
-    this.scheduleSkip();
-
+    const last = this.lastSkip;
+    if (this.destroyed || !this.video || !last) return false;
+    const since = this.video.currentTime - last.to;
+    if (since < 0 || since > UNDO_WINDOW_S) return false;
+    this.lastSkip = null;
+    this.landing = null;
+    this.suppressRearm = true;
+    this.seekTo(last.from);
     if (configRead("enableSponsorBlockToasts")) {
-      const name = barTypes[seg.category]?.name || seg.category;
-      showToast(t("app.name"), t("sponsorblock.toasts.undone", { segment: name }));
+      showToast(t("app.name"), t("sponsorblock.toasts.undone", { segment: joinNames(last.names) }));
     }
     return true;
   }
 
-  // Our own skip seek. The flag stays set until its seeked event, however far
-  // the landing is from the target.
-  seekToSegmentEnd(end) {
-    const skipTarget = this.video.duration - end < 1 ? Math.max(end - 1, 0) : end;
-    this.ownSeekTarget = skipTarget;
-    this.lastSkipTarget = skipTarget;
-    this.ownSeekPending = true;
-    if (this.pendingSeekTimer !== null) clearTimeout(this.pendingSeekTimer);
-    this.pendingSeekTimer = setTimeout(() => {
-      this.pendingSeekTimer = null;
-      this.ownSeekPending = false;
-    }, OWN_SEEK_PENDING_MAX_MS);
-    this.video.currentTime = skipTarget;
+  // Re-draws the bar when the player may have rebuilt it. Runs from timeupdate, so it
+  // needs no timer of its own.
+  refreshBar() {
+    const now = Date.now();
+    if (now - this.barAt < BAR_REFRESH_MS) return;
+    this.barAt = now;
+    this.redrawBar();
   }
 
-  // A seek we did not make re-arms handled segments the playhead landed inside.
-  // Our own seek is recognised by the pending flag, not by distance, because
-  // keyframe snapping can land it well before the target.
-  onSeeked() {
-    if (!this.video) return;
-    const now = this.video.currentTime;
-    if (this.ownSeekPending) {
-      this.ownSeekPending = false;
-      this.ownSeekTarget = null;
-      if (this.pendingSeekTimer !== null) clearTimeout(this.pendingSeekTimer);
-      this.pendingSeekTimer = null;
-      const seg = this.lastSkipSegment;
-      // A snap-back into the segment is not a rewind: seek to the end again,
-      // a bounded number of times.
-      if (
-        seg &&
-        now >= seg.start &&
-        now < this.lastSkipTarget - OWN_SEEK_TOLERANCE_S &&
-        this.landingRetries < MAX_LANDING_RETRIES
-      ) {
-        this.landingRetries += 1;
-        this.seekToSegmentEnd(seg.end);
-      }
-      return;
+  redrawBar() {
+    if (this.destroyed) return;
+    const video = this.video || getCurrentVideo();
+    const duration = video ? video.duration : 0;
+    const items = [];
+    for (let i = 0; i < this.drawn.length; i++) {
+      const seg = this.drawn[i];
+      items.push({ start: seg.start, end: seg.end, color: colorOf(seg.category) });
     }
-    // A viewer seek moves the playhead away from the skip, so Back no longer undoes it.
-    this.lastSkipSegment = null;
-    for (const [uuid, range] of this.handled) {
-      if (now >= range.end - END_EPSILON_S) continue;
-      if (this.undone.has(uuid)) continue;
-      const count = this.rearms.get(uuid) || 0;
-      if (count >= MAX_REARMS_PER_SEGMENT) continue;
-      this.rearms.set(uuid, count + 1);
-      this.handled.delete(uuid);
-      this.notSkippingToasted.delete(uuid);
-    }
-    this.scheduleSkip();
+    setSegmentStyle(buildSegmentCss(items, duration, getChapters(duration)));
   }
 
   destroy() {
-    this.active = false;
-    this.stopWake();
-    this.stopBarRetry();
-    if (this.pendingSeekTimer !== null) clearTimeout(this.pendingSeekTimer);
-    this.pendingSeekTimer = null;
-    if (this.fetchTimer !== null) {
-      clearTimeout(this.fetchTimer);
-      this.fetchTimer = null;
-    }
-    if (this.request) {
-      const request = this.request;
-      this.request = null;
-      request.abort();
-    }
-    this.detachVideo();
-    this.video = null;
-    this.segments = null;
-    this.barCss = "";
+    if (this.destroyed) return;
+    this.destroyed = true;
+    const request = this.request;
+    this.request = null;
+    if (request) request.abort();
+    this.detach();
     setSegmentStyle("");
-    this.handled.clear();
-    this.rearms.clear();
-    this.notSkippingToasted.clear();
+    this.done = {};
+    this.lastSkip = null;
+    this.landing = null;
   }
 }
 
 window.sponsorblock = null;
 
-// Back undoes a skip only while SponsorBlock has one to undo. Any other Back
-// press goes to leanback unchanged. The keyup of a handled Back is swallowed too.
+// Back undoes a skip only while there is one to undo. Any other Back press goes to
+// leanback unchanged. The keyup of a handled Back is swallowed too.
 let backKeyUndone = false;
 window.addEventListener(
   "keydown",
@@ -641,55 +648,53 @@ window.addEventListener(
   true,
 );
 
-function currentSponsorVideoId() {
+function currentVideoID() {
   const match = /[?&]v=([^&]+)/.exec(location.hash);
   return match ? match[1] : null;
 }
 
+function destroyCurrent() {
+  const handler = window.sponsorblock;
+  if (!handler) return;
+  window.sponsorblock = null;
+  try {
+    handler.destroy();
+  } catch (err) {}
+}
+
+// One handler per watched video, none off the watch page or while disabled.
 function syncSponsorBlockForCurrentRoute() {
-  const videoID = currentSponsorVideoId();
-  const enabled = !!configRead("enableSponsorBlock");
-
-  if (!videoID || !enabled) {
-    if (window.sponsorblock) {
-      try {
-        window.sponsorblock.destroy();
-      } catch (err) {}
-      window.sponsorblock = null;
-    }
+  const videoID = currentVideoID();
+  if (!videoID || !configRead("enableSponsorBlock")) {
+    destroyCurrent();
     return;
   }
+  if (window.sponsorblock && window.sponsorblock.videoID === videoID) return;
 
-  if (window.sponsorblock && window.sponsorblock.videoID === videoID) {
-    window.sponsorblock.refreshConfig();
-    window.sponsorblock.scheduleSkip();
-    return;
-  }
-
-  if (window.sponsorblock) {
-    try {
-      window.sponsorblock.destroy();
-    } catch (err) {}
-  }
-  window.sponsorblock = new SponsorBlockHandler(videoID);
-  window.sponsorblock.init();
+  destroyCurrent();
+  const handler = new SponsorBlockHandler(videoID);
+  window.sponsorblock = handler;
+  handler.load();
+  handler.attach(getCurrentVideo());
 }
 
 window.addEventListener("hashchange", syncSponsorBlockForCurrentRoute, false);
+
 watchVideo((video) => {
   const handler = window.sponsorblock;
-  if (handler && video && handler.segments) handler.attachVideo(video);
+  if (handler) handler.attach(video);
 });
+
 configChangeEmitter.addEventListener("configChange", (event) => {
-  const key = event.detail?.key || "";
-  if (
-    key === "enableSponsorBlock" ||
-    key === "sponsorBlockManualSkips" ||
-    key.indexOf("enableSponsorBlock") === 0
-  ) {
-    configGeneration += 1;
+  const key = (event.detail && event.detail.key) || "";
+  if (key.indexOf("enableSponsorBlock") !== 0 && key !== "sponsorBlockManualSkips") return;
+  const handler = window.sponsorblock;
+  if (!handler || key === "enableSponsorBlock") {
     syncSponsorBlockForCurrentRoute();
+    return;
   }
+  handler.refresh();
+  handler.tick();
 });
 
 if (document.readyState === "loading") {

@@ -7,11 +7,11 @@ const path = require("node:path");
 const ROOT = path.resolve(__dirname, "..");
 const read = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
 
-test("SponsorBlock uses no polling timers: wakeups are scheduled per segment", () => {
+test("SponsorBlock runs from media events and owns no timers: the bar is refreshed from timeupdate", () => {
   const src = read("mods/features/sponsorblock.js");
   assert.ok(!src.includes("setInterval"), "no setInterval");
-  assert.ok(src.includes("scheduleWake(now)"));
-  assert.ok(src.includes("configGeneration"), "config is cached and invalidated by generation");
+  assert.ok(src.includes("refreshBar()"), "bar refreshed from timeupdate, not a timer");
+  assert.ok(src.includes("this.done["), "skips are tracked per segment");
 });
 
 test("preferred quality has no player polling; watchPlayer drives attachment", () => {

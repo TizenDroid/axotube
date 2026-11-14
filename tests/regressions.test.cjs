@@ -208,13 +208,13 @@ test("theme presets keep distinct colors and CSS inputs are sanitized", () => {
   has(theme, "function safeBackgroundUrl");
 });
 
-test("SponsorBlock initializes current route and clears pause scheduling", () => {
+test("SponsorBlock initializes current route and skips only from media time", () => {
   const src = read("mods/features/sponsorblock.js");
   has(src, "syncSponsorBlockForCurrentRoute()");
   has(src, 'DOMContentLoaded", syncSponsorBlockForCurrentRoute');
-  has(src, "if (this.video.paused)");
-  has(src, "this.handled.set(segment.UUID");
-  has(src, "end <= now + END_EPSILON_S");
+  has(src, "video.paused");
+  has(src, "const time = video.currentTime");
+  has(src, "this.done[");
   assert.doesNotMatch(
     src,
     /setTimeout\(\(\) => \{\s*this\.performSkip/,
