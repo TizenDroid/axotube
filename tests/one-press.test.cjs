@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -29,7 +30,7 @@ function build({ controlsShown = false, playing = true, duration = 600, start = 
   };
   const doc = { querySelector: (sel) => (sel === "ytlr-progress-bar" ? bar : null), querySelectorAll: () => [] };
   const player = { rates: [], setPlaybackRate(r) { this.rates.push(r); video.playbackRate = r; } };
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     window: win,
     document: doc,
     console,

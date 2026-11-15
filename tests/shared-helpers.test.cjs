@@ -3,13 +3,14 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(ROOT, name), "utf8");
 
 function loadBoundedCache() {
   const source = read("mods/shared/boundedCache.js").replace(/^export\s+/gm, "");
-  const ctx = vm.createContext({});
+  const ctx = chrome47.createContext({});
   vm.runInContext(source + "\n;globalThis.createBoundedCache = createBoundedCache;", ctx);
   return ctx.createBoundedCache;
 }

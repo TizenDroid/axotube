@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const source = fs
@@ -12,7 +13,7 @@ const source = fs
   .replace(/^import\s+[\s\S]*?;\s*$/gm, "")
   .replace(/^export\s+/gm, "")
   .replace(/^start\(\);\s*$/m, "");
-const ctx = vm.createContext({
+const ctx = chrome47.createContext({
   configRead: () => true,
   configChangeEmitter: { addEventListener() {} },
   document: { body: null, getElementById: () => null, querySelector: () => null },

@@ -3,7 +3,7 @@
 // "Restart cast receiver" settings button. The service rate-limits restarts and
 // also watches for standby on its own, so the app only needs to ask.
 import { fetchWithTimeout } from "../shared/fetch.js";
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import { showToast } from "../ui/ytUI.js";
 
 const SERVICE_URL = "http://127.0.0.1:8090";

@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const ORIGINAL_THUMBS = [{ url: "original.jpg", width: 480, height: 360 }];
@@ -16,7 +17,7 @@ function run({ titles, thumbs, peek = true }) {
     .readFileSync(path.join(ROOT, "mods/features/deArrowPeek.js"), "utf8")
     .replace(/^import\s+[\s\S]*?;\s*$/gm, "")
     .replace(/^export\s+/gm, "");
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     configRead: (key) =>
       ({
         enableDeArrowPeek: peek,

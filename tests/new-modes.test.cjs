@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -58,7 +59,7 @@ test("experimental: 2160p/1440p report a larger container and sane codec params 
   };
   const cfg = { enableExperimentalResolution: true, experimentalMaxResolution: "2160p" };
   win.MediaSource = MediaSource; // in a browser window.MediaSource is MediaSource
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     nativeHost: () => null,
     window: win,
     MediaSource,
@@ -87,7 +88,7 @@ test("experimental: absurd params and HDR codecs on an SDR display are rejected"
   const MediaSource = { isTypeSupported: () => true };
   win.MediaSource = MediaSource;
   const cfg = { enableExperimentalResolution: true, experimentalMaxResolution: "1440p" };
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     window: win,
     MediaSource,
     console,
@@ -111,7 +112,7 @@ test("experimental: disabled leaves the platform untouched", () => {
   const MediaSource = { isTypeSupported: native };
   win.MediaSource = MediaSource;
   const cfg = { enableExperimentalResolution: false };
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     window: win,
     MediaSource,
     console,
@@ -136,7 +137,7 @@ function loadCodecPreference(preference) {
     },
   };
   win.MediaSource = MediaSource;
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     window: win,
     MediaSource,
     console,
@@ -175,7 +176,7 @@ test("user agent: the webview gets the Samsung TV string once", () => {
   const session = new Map();
   win.tizen = { websetting: { setUserAgentString: (ua) => applied.push(ua) } };
   win.location.reload = () => reloads++;
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,
     sessionStorage: {
@@ -202,7 +203,7 @@ function runSpoofer({ navigatorUA, session = new Map(), profile = "auto" }) {
   let reloads = 0;
   win.tizen = { websetting: { setUserAgentString: (ua) => applied.push(ua) } };
   win.location.reload = () => reloads++;
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,
     sessionStorage: {
@@ -248,7 +249,7 @@ test("user agent: if the platform still reports another string after the reload,
 
 test("user agent: an unavailable setter is reported, not silently ignored", () => {
   const win = makeWindow({ navigator: { userAgent: "Mozilla/5.0 (Linux) Chrome/56" } });
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,
     sessionStorage: { getItem: () => null, setItem() {} },
@@ -269,7 +270,7 @@ test("user agent: the android profile sends the phone agent, reloading once", ()
   const session = new Map();
   win.tizen = { websetting: { setUserAgentString: (ua) => applied.push(ua) } };
   win.location.reload = () => reloads++;
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,
     sessionStorage: {

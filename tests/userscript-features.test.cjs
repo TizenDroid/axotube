@@ -6,6 +6,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 function read(file) {
@@ -20,7 +21,7 @@ function extractFunction(src, name) {
 }
 
 const recoverySrc = read("mods/features/playbackRecovery.js");
-const helpers = vm.runInNewContext(
+const helpers = chrome47.runInNewContext(
   extractFunction(recoverySrc, "hashWithStartTime") + extractFunction(recoverySrc, "formatTime") +
     ";({ hashWithStartTime: hashWithStartTime, formatTime: formatTime })",
 );
@@ -58,7 +59,7 @@ function runDiagnosticsKey(href, port, extra) {
   };
   if (extra) Object.assign(sandbox.window, extra);
   sandbox.window.location = location;
-  vm.runInNewContext(src, sandbox);
+  chrome47.runInNewContext(src, sandbox);
   return {
     press: (keyCode) => {
       let stopped = false;

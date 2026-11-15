@@ -69,6 +69,25 @@ function sharedPlugins() {
   ];
 }
 
+// Babel wraps native superclasses (Error, Map, ...) with a helper that calls Reflect.construct
+// unconditionally. Reflect is missing on Node 4 (the TV), so the call is guarded: with no
+// Reflect, the native constructor is applied and the instance is re-parented onto the
+// subclass prototype, which keeps instanceof and the subclass methods working.
+function guardNativeSuperConstruct() {
+  const pattern = /Reflect\.construct\(([\w$.]+),arguments,this\.constructor\)/g;
+  return {
+    name: "guard-native-super-construct",
+    renderChunk(code) {
+      const guarded = code.replace(
+        pattern,
+        (match, target) =>
+          '(typeof Reflect!=="undefined"&&Reflect.construct?Reflect.construct(' + target + ',arguments,this.constructor):function(){var r=' + target + '.apply(this,arguments);return r&&typeof r==="object"?(Object.setPrototypeOf(r,Object.getPrototypeOf(this)),r):this}.apply(this,arguments))'
+      );
+      return { code: guarded };
+    },
+  };
+}
+
 function minify() {
   return terser({
     ecma: 5,
@@ -86,13 +105,13 @@ export default [
     input: "service.js",
     output: { file: "../dist/service.js", format: "cjs" },
     onwarn,
-    plugins: [...sharedPlugins(), minify()],
+    plugins: [...sharedPlugins(), minify(), guardNativeSuperConstruct()],
   },
   {
     // The core: the whole standalone service. index.js is the loader that starts it.
     input: "standalone.js",
     output: { file: "../standalone/service/dist/core.js", format: "cjs" },
     onwarn,
-    plugins: [...sharedPlugins(), standaloneNodeFetchPatches(), minify()],
+    plugins: [...sharedPlugins(), standaloneNodeFetchPatches(), minify(), guardNativeSuperConstruct()],
   },
 ];

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const read = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
@@ -11,7 +12,7 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
 function loadSubtitles(config) {
   const listeners = [];
   const timers = [];
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     configRead: (k) => config[k],
     getCurrentPlayer: () => ctx.__player,
     watchVideoId: (fn) => listeners.push(fn),

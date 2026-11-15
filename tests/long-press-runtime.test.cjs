@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -14,7 +15,7 @@ function loadLongPress() {
     .readFileSync(path.join(ROOT, "mods/features/longPressMenu.js"), "utf8")
     .replace(/^import\s+[\s\S]*?;\s*$/gm, "")
     .replace(/^export\s+/gm, "");
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     configRead: (key) => key === "enableLongPress",
     cloneJSON: (value) => JSON.parse(JSON.stringify(value)),
     longPressData: (data) => ({ longPress: data }),

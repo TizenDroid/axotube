@@ -1,6 +1,6 @@
 import { nativeHost } from "../shared/nativeHost.js";
 import AXOTUBE_VERSION from "../version.js";
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import configSchema from "../../config-schema.json";
 import { configRead } from "../config.js";
 import { writeClientSetting } from "../shared/clientSettings.js";

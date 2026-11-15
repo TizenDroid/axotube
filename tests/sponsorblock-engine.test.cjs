@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const SOURCE = fs
@@ -127,7 +128,7 @@ function makeWorld(opts = {}) {
   const defaultApi = () => Promise.resolve(opts.entries === undefined ? [] : opts.entries);
   const api = opts.api || defaultApi;
 
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     document: doc,
     window: win,
     location: win.location,

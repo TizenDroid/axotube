@@ -1,5 +1,5 @@
 import { timelyAction, ButtonRenderer } from "../ui/ytUI.js";
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 
 // SponsorBlock skip actions are added as timely actions and marked by the
 // engagement-panel SKIP command. Native timely actions are kept.

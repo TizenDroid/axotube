@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 const { createRequire } = require("node:module");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -170,7 +171,7 @@ function openTvClient(origin, initialConfig) {
     .replace(/import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";/g, "")
     .replace(/^import\s+[^\n;]+;\s*$/gm, "")
     .replace("http://127.0.0.1:8090", origin);
-  const context = vm.createContext({
+  const context = chrome47.createContext({
     nativeHost: () => ({}),
     configRead(key) {
       return state[key];

@@ -3,7 +3,7 @@
 // module asks the proxy and shows the popup. Applying an update re-checks in the
 // proxy and reloads the page, which picks up the new bundles. Outside the standalone app
 // there is no proxy, the request fails, and nothing is shown.
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import { buttonItem, showModal, showToast, overlayPanelItemListRenderer } from "../ui/ytUI.js";
 import { configRead } from "../config.js";
 

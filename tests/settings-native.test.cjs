@@ -7,6 +7,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const SOURCE = fs.readFileSync(path.join(ROOT, "mods/ui/settings.js"), "utf8");
@@ -30,7 +31,7 @@ function harness(initial = {}, pairing = null, status = { checked: true, service
   const shown = [];
   const writes = [];
   const hostWindow = { h5vcc: { tizentube: { GetVersion: () => "1.0", SetFrameRate() {} } } };
-  const ctx = vm.createContext({
+  const ctx = chrome47.createContext({
     t: (k) => k,
     AXOTUBE_VERSION: "test-version",
     configSchema: SCHEMA,

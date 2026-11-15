@@ -6,7 +6,7 @@
 // predates custom element support. Only the visible panel is in the DOM, and
 // focus is tracked by index, so YouTube's own focus handling is not involved.
 import { configRead } from "../config.js";
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import { dispatchNativeCommand } from "../shared/nativeCommand.js";
 import { writeClientSetting } from "../shared/clientSettings.js";
 import { generateQRCode } from "./qrCode.js";

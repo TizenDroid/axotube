@@ -3,12 +3,13 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const source = fs
   .readFileSync(path.join(ROOT, "mods/features/overlayState.js"), "utf8")
   .replace(/^export\s+/gm, "");
-const ctx = vm.createContext({});
+const ctx = chrome47.createContext({});
 vm.runInContext(source + "\n;globalThis.s = { isOverlayOpenCommand, classifyOverlayCommand };", ctx);
 const { isOverlayOpenCommand, classifyOverlayCommand } = ctx.s;
 

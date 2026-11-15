@@ -13,6 +13,11 @@
  *   • String.prototype.replaceAll
  *   • Object.fromEntries
  *   • queueMicrotask
+ *   • ES2015–ES2017 built-ins called directly by the app bundle (see the last section)
+ *
+ * Every polyfill is installed only when the engine lacks the feature, so modern engines
+ * keep their own implementation. Methods are defined non-enumerable: a plain assignment
+ * to a prototype would show up in for...in loops over arrays and strings in app code.
  *
  * This file must be imported BEFORE any application module.
  * It is intentionally written in plain ES5 so Babel/Terser cannot break it.
@@ -20,6 +25,11 @@
 
 /* eslint-disable no-var, prefer-arrow-callback, no-prototype-builtins */
 'use strict';
+
+// Defines a method or value without making it enumerable, like the built-ins themselves.
+function defineHidden(target, name, value) {
+  Object.defineProperty(target, name, { value: value, writable: true, configurable: true, enumerable: false });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // globalThis
@@ -36,9 +46,9 @@
     __globalThis__.globalThis = __globalThis__; // eslint-disable-line no-undef
     delete Object.prototype.__globalThis__;
   } catch (_e) {
-    // Fallback for environments where the trick above does not work
-    if (typeof window !== 'undefined')      window.globalThis  = window;
-    else if (typeof self !== 'undefined')   self.globalThis    = self;
+    // Fallback where Object.prototype cannot take the getter. Every block below uses
+    // window, so the page always has it.
+    window.globalThis = window;
   }
 }());
 
@@ -48,10 +58,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 (function () {
   if (window.NodeList && !NodeList.prototype.forEach) {
-    NodeList.prototype.forEach = Array.prototype.forEach;
+    defineHidden(NodeList.prototype, 'forEach', Array.prototype.forEach);
   }
   if (window.HTMLCollection && !HTMLCollection.prototype.forEach) {
-    HTMLCollection.prototype.forEach = Array.prototype.forEach;
+    defineHidden(HTMLCollection.prototype, 'forEach', Array.prototype.forEach);
   }
 }());
 
@@ -183,11 +193,10 @@
 // adblock.js:  fetch(url, …).finally(() => clearTimeout(id))
 // ─────────────────────────────────────────────────────────────────────────────
 (function () {
-  if (typeof Promise === 'undefined') return;
   if (typeof Promise.prototype['finally'] === 'function') return;
 
-  Promise.prototype['finally'] = function finallyPolyfill(onFinally) {
-    var C = this.constructor || Promise;
+  defineHidden(Promise.prototype, 'finally', function finallyPolyfill(onFinally) {
+    var C = this.constructor;
     return this.then(
       function (value) {
         return C.resolve(onFinally()).then(function () { return value; });
@@ -196,17 +205,16 @@
         return C.resolve(onFinally()).then(function () { throw reason; });
       }
     );
-  };
+  });
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Promise.allSettled
 // ─────────────────────────────────────────────────────────────────────────────
 (function () {
-  if (typeof Promise === 'undefined') return;
   if (typeof Promise.allSettled === 'function') return;
 
-  Promise.allSettled = function allSettledPolyfill(promises) {
+  defineHidden(Promise, 'allSettled', function allSettledPolyfill(promises) {
     return Promise.all(
       Array.prototype.map.call(promises, function (p) {
         return Promise.resolve(p).then(
@@ -215,7 +223,7 @@
         );
       })
     );
-  };
+  });
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -236,10 +244,10 @@
     return result;
   }
 
-  Array.prototype.flat = function flatPolyfill(depth) {
+  defineHidden(Array.prototype, 'flat', function flatPolyfill(depth) {
     depth = (depth === undefined) ? 1 : Math.floor(depth);
     return flatDeep(this, depth < 0 ? 0 : depth, []);
-  };
+  });
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -248,9 +256,9 @@
 (function () {
   if (typeof Array.prototype.flatMap === 'function') return;
 
-  Array.prototype.flatMap = function flatMapPolyfill(cb, thisArg) {
+  defineHidden(Array.prototype, 'flatMap', function flatMapPolyfill(cb, thisArg) {
     return Array.prototype.map.call(this, cb, thisArg).flat(1);
-  };
+  });
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -259,14 +267,16 @@
 (function () {
   if (typeof String.prototype.replaceAll === 'function') return;
 
-  String.prototype.replaceAll = function replaceAllPolyfill(search, replace) {
-    if (typeof search !== 'string') return this.replace(search, replace);
-    return this.split(search).join(
-      typeof replace === 'function'
-        ? replace(search, 0, String(this))
-        : String(replace)
-    );
-  };
+  // A global RegExp goes straight to replace. A string is escaped into a global pattern, so the
+  // engine applies the spec's replacer arguments (match, position, string) and $-substitutions.
+  defineHidden(String.prototype, 'replaceAll', function replaceAllPolyfill(search, replace) {
+    if (Object.prototype.toString.call(search) === '[object RegExp]') {
+      if (!search.global) throw new TypeError('replaceAll must be called with a global RegExp');
+      return this.replace(search, replace);
+    }
+    var escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return String(this).replace(new RegExp(escaped, 'g'), replace);
+  });
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -274,21 +284,23 @@
 // Chrome 47 (Tizen 4) lacks these; shipped natively in Chrome 54.
 // ─────────────────────────────────────────────────────────────────────────────
 (function () {
-  if (typeof Object.values === 'function' && typeof Object.entries === 'function') return;
+  if (typeof Object.values !== 'function') {
+    defineHidden(Object, 'values', function valuesPolyfill(obj) {
+      var keys = Object.keys(obj);
+      var out = [];
+      for (var i = 0; i < keys.length; i++) out.push(obj[keys[i]]);
+      return out;
+    });
+  }
 
-  Object.values = Object.values || function valuesPolyfill(obj) {
-    var keys = Object.keys(obj);
-    var out = [];
-    for (var i = 0; i < keys.length; i++) out.push(obj[keys[i]]);
-    return out;
-  };
-
-  Object.entries = Object.entries || function entriesPolyfill(obj) {
-    var keys = Object.keys(obj);
-    var out = [];
-    for (var i = 0; i < keys.length; i++) out.push([keys[i], obj[keys[i]]]);
-    return out;
-  };
+  if (typeof Object.entries !== 'function') {
+    defineHidden(Object, 'entries', function entriesPolyfill(obj) {
+      var keys = Object.keys(obj);
+      var out = [];
+      for (var i = 0; i < keys.length; i++) out.push([keys[i], obj[keys[i]]]);
+      return out;
+    });
+  }
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,21 +310,22 @@
 (function () {
   if (typeof Object.fromEntries === 'function') return;
 
-  Object.fromEntries = function fromEntriesPolyfill(iterable) {
-    var obj = Object.create(null);
-    // Handle plain arrays and anything with forEach (Map, etc.)
-    if (typeof iterable.forEach === 'function') {
-      iterable.forEach(function (pair) {
-        obj[pair[0]] = pair[1];
-      });
-    } else {
-      var arr = Array.isArray(iterable) ? iterable : Array.prototype.slice.call(iterable);
-      for (var i = 0; i < arr.length; i++) {
-        obj[arr[i][0]] = arr[i][1];
+  // Consumes any iterable of [key, value] pairs (arrays, Maps, generators), as the spec does.
+  defineHidden(Object, 'fromEntries', function fromEntriesPolyfill(iterable) {
+    if (iterable === null || iterable === undefined) throw new TypeError('Object.fromEntries requires an iterable');
+    var obj = {};
+    var iterator = iterable[Symbol.iterator]();
+    var step = iterator.next();
+    while (!step.done) {
+      var pair = step.value;
+      if (pair === null || (typeof pair !== 'object' && typeof pair !== 'function')) {
+        throw new TypeError('Iterator value is not an entry object');
       }
+      obj[pair[0]] = pair[1];
+      step = iterator.next();
     }
     return obj;
-  };
+  });
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -334,7 +347,7 @@
   if (!window.Element) return;
   if (typeof Element.prototype.closest === 'function') return;
 
-  Element.prototype.closest = function closestPolyfill(selector) {
+  defineHidden(Element.prototype, 'closest', function closestPolyfill(selector) {
     var el = this;
     while (el && el.nodeType === 1) {
       if (el.matches ? el.matches(selector) :
@@ -345,7 +358,7 @@
       el = el.parentElement || el.parentNode;
     }
     return null;
-  };
+  });
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -355,14 +368,14 @@
   if (!window.Element) return;
   var proto = Element.prototype;
   if (typeof proto.matches === 'function') return;
-  proto.matches = proto.msMatchesSelector ||
-                  proto.webkitMatchesSelector ||
-                  function matchesPolyfill(selector) {
-                    var matches = (this.document || this.ownerDocument).querySelectorAll(selector);
-                    var i = matches.length;
-                    while (--i >= 0 && matches.item(i) !== this) { /* empty */ }
-                    return i > -1;
-                  };
+  defineHidden(proto, 'matches', proto.msMatchesSelector ||
+                proto.webkitMatchesSelector ||
+                function matchesPolyfill(selector) {
+                  var matches = (this.document || this.ownerDocument).querySelectorAll(selector);
+                  var i = matches.length;
+                  while (--i >= 0 && matches.item(i) !== this) { /* empty */ }
+                  return i > -1;
+                });
 }());
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -391,4 +404,141 @@
   IntlLocalePolyfill.prototype.maximize = function () { return this; };
 
   Intl.Locale = IntlLocalePolyfill;
+}());
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ES2015–ES2017 built-ins the app bundle calls directly (Array.prototype.includes,
+// find, findIndex; Array.from; Object.assign; String includes and startsWith;
+// Number.isFinite, isSafeInteger and the safe-integer constants). Chromium 47 has all
+// of these natively, so each is a no-op there. The shims cover engines that lack them.
+// ─────────────────────────────────────────────────────────────────────────────
+(function () {
+  var MAX_SAFE = 9007199254740991;
+
+  // Installs a built-in only when the engine has none.
+  function defineIfMissing(target, name, value) {
+    if (target[name] !== undefined) return;
+    defineHidden(target, name, value);
+  }
+
+  function sameValueZero(a, b) {
+    return a === b || (a !== a && b !== b);
+  }
+
+  function rejectRegExp(value, method) {
+    if (Object.prototype.toString.call(value) === '[object RegExp]') {
+      throw new TypeError('First argument to String.prototype.' + method + ' must not be a regular expression');
+    }
+  }
+
+  function requireThis(value, method) {
+    if (value === null || value === undefined) {
+      throw new TypeError('String.prototype.' + method + ' called on null or undefined');
+    }
+  }
+
+  defineIfMissing(Array.prototype, 'includes', function includesPolyfill(search, fromIndex) {
+    var o = Object(this);
+    var len = o.length >>> 0;
+    var n = Number(fromIndex) || 0;
+    var k = n >= 0 ? Math.floor(n) : Math.max(len + Math.ceil(n), 0);
+    for (; k < len; k++) {
+      if (sameValueZero(o[k], search)) return true;
+    }
+    return false;
+  });
+
+  defineIfMissing(Array.prototype, 'findIndex', function findIndexPolyfill(predicate, thisArg) {
+    if (typeof predicate !== 'function') throw new TypeError('predicate must be a function');
+    var o = Object(this);
+    var len = o.length >>> 0;
+    for (var i = 0; i < len; i++) {
+      if (predicate.call(thisArg, o[i], i, o)) return i;
+    }
+    return -1;
+  });
+
+  defineIfMissing(Array.prototype, 'find', function findPolyfill(predicate, thisArg) {
+    if (typeof predicate !== 'function') throw new TypeError('predicate must be a function');
+    var o = Object(this);
+    var len = o.length >>> 0;
+    for (var i = 0; i < len; i++) {
+      if (predicate.call(thisArg, o[i], i, o)) return o[i];
+    }
+    return undefined;
+  });
+
+  // Accepts iterables (Map and Set iterators, strings) and array-like objects.
+  defineIfMissing(Array, 'from', function fromPolyfill(items, mapFn, thisArg) {
+    if (items === null || items === undefined) {
+      throw new TypeError('Array.from requires an array-like or iterable object');
+    }
+    if (mapFn !== undefined && typeof mapFn !== 'function') {
+      throw new TypeError('Array.from: mapFn must be a function');
+    }
+    var out = [];
+    var iterFn = items[Symbol.iterator];
+    if (typeof iterFn === 'function') {
+      var it = iterFn.call(items);
+      var step = it.next();
+      while (!step.done) {
+        out.push(step.value);
+        step = it.next();
+      }
+    } else {
+      var len = Object(items).length >>> 0;
+      for (var i = 0; i < len; i++) out.push(items[i]);
+    }
+    if (mapFn) {
+      for (var j = 0; j < out.length; j++) out[j] = mapFn.call(thisArg, out[j], j);
+    }
+    return out;
+  });
+
+  defineIfMissing(Object, 'assign', function assignPolyfill(target) {
+    if (target === null || target === undefined) {
+      throw new TypeError('Cannot convert undefined or null to object');
+    }
+    var to = Object(target);
+    for (var i = 1; i < arguments.length; i++) {
+      var source = arguments[i];
+      if (source === null || source === undefined) continue;
+      var from = Object(source);
+      var keys = Object.keys(from);
+      for (var k = 0; k < keys.length; k++) to[keys[k]] = from[keys[k]];
+    }
+    return to;
+  });
+
+  defineIfMissing(String.prototype, 'includes', function includesStringPolyfill(search, position) {
+    requireThis(this, 'includes');
+    rejectRegExp(search, 'includes');
+    var text = String(this);
+    var start = Number(position) || 0;
+    if (start < 0) start = 0;
+    return text.indexOf(String(search), start) !== -1;
+  });
+
+  defineIfMissing(String.prototype, 'startsWith', function startsWithPolyfill(search, position) {
+    requireThis(this, 'startsWith');
+    rejectRegExp(search, 'startsWith');
+    var text = String(this);
+    var needle = String(search);
+    var start = Number(position) || 0;
+    if (start < 0) start = 0;
+    if (start > text.length) start = text.length;
+    return text.substring(start, start + needle.length) === needle;
+  });
+
+  defineIfMissing(Number, 'isFinite', function isFinitePolyfill(value) {
+    return typeof value === 'number' && isFinite(value);
+  });
+
+  defineIfMissing(Number, 'isSafeInteger', function isSafeIntegerPolyfill(value) {
+    return typeof value === 'number' && isFinite(value) &&
+      Math.floor(value) === value && Math.abs(value) <= MAX_SAFE;
+  });
+
+  defineIfMissing(Number, 'MAX_SAFE_INTEGER', MAX_SAFE);
+  defineIfMissing(Number, 'MIN_SAFE_INTEGER', -MAX_SAFE);
 }());

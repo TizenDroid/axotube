@@ -1,5 +1,5 @@
 import { nativeHost } from "./shared/nativeHost.js";
-import { t } from "i18next";
+import { t } from "./translations/t.js";
 import { configWrite, configRead } from "./config.js";
 import { enablePip, cleanupPipStyles } from "./features/pictureInPicture.js";
 import { pauseForOpenedOverlay } from "./features/pauseOnBlur.js";

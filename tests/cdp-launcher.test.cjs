@@ -7,6 +7,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const acorn = require(path.join(ROOT, "mods", "node_modules", "acorn"));
@@ -34,7 +35,7 @@ test("the injected source is ES5 and runs its bundles in order, in the main fram
   sandbox.window = sandbox;
   sandbox.window.top = sandbox;
   sandbox.document = { readyState: "complete", addEventListener() {} };
-  vm.createContext(sandbox);
+  chrome47.createContext(sandbox);
   vm.runInContext(source, sandbox);
   assert.deepEqual(Array.from(sandbox.order), ["early", "main"]);
   assert.equal(sandbox.EARLY_GLOBAL, "  ok", "U+2028 survives the literal");
@@ -44,7 +45,7 @@ test("the injected source is ES5 and runs its bundles in order, in the main fram
   const frame = { document: { readyState: "complete", addEventListener() {} }, order: [] };
   frame.window = frame;
   frame.top = {};
-  vm.createContext(frame);
+  chrome47.createContext(frame);
   vm.runInContext(source, frame);
   assert.equal(frame.order.length, 0, "an iframe runs nothing");
 });
@@ -58,7 +59,7 @@ test("the main bundle waits for DOMContentLoaded when the page is still loading"
     readyState: "loading",
     addEventListener(name, fn) { listeners.push([name, fn]); },
   };
-  vm.createContext(sandbox);
+  chrome47.createContext(sandbox);
   vm.runInContext(launcher.buildInjectedSource("", "ran = true;"), sandbox);
   assert.equal(sandbox.ran, false);
   assert.equal(listeners[0][0], "DOMContentLoaded");

@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const src = fs.readFileSync(path.join(ROOT, "mods", "features", "updater.js"), "utf8");
@@ -16,7 +17,7 @@ const fnSource = /function proxyUrl\(path\) \{[\s\S]*?\r?\n\}\r?\n/.exec(src);
 function proxyUrlFor(win, p) {
   assert.ok(fnSource, "proxyUrl is defined in updater.js");
   const sandbox = { window: win };
-  vm.createContext(sandbox);
+  chrome47.createContext(sandbox);
   vm.runInContext(fnSource[0] + ";\nresult = proxyUrl(" + JSON.stringify(p) + ");", Object.assign(sandbox, { result: null }));
   return sandbox.result;
 }

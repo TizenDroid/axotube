@@ -6,7 +6,7 @@ import modernUI from "./settings.js";
 import resolveCommand, { patchResolveCommand } from "../resolveCommand.js";
 import { pipToFullscreen } from "../features/pictureInPicture.js";
 import getCommandExecutor from "./customCommandExecution.js";
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import AXOTUBE_VERSION from "../version.js";
 import { watchNativeResolverPatches } from "../shared/nativeCommand.js";
 import { isReducedMotion, isLowMemory } from "../shared/performanceMode.js";

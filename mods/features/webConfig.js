@@ -1,6 +1,6 @@
 import { nativeHost } from "../shared/nativeHost.js";
 // Web config sync + phone control bridge.
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import {
   configRead,
   configWrite,

@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -50,7 +51,7 @@ function load() {
     watchPlayer: (cb) => (playerCallback = cb),
   };
   sandbox.window = sandbox;
-  vm.createContext(sandbox);
+  chrome47.createContext(sandbox);
   vm.runInContext(source, sandbox);
   return {
     queue: sandbox.queuedVideos,

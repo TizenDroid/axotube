@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const nativeModule = import(
   pathToFileURL(path.join(__dirname, "../mods/shared/nativeCommand.js")).href
@@ -16,7 +17,7 @@ function loadPipWithFakeHost(host) {
     .readFileSync(path.join(__dirname, "../mods/features/pictureInPicture.js"), "utf8")
     .replace(/^import \{[^\n]+\} from "\.\.\/shared\/nativeCommand\.js";\s*/m, "")
     .replace(/^export \{[^\n]+\};\s*$/m, "");
-  const context = vm.createContext(host);
+  const context = chrome47.createContext(host);
   vm.runInContext(source, context, { filename: "pictureInPicture.js" });
   return context;
 }

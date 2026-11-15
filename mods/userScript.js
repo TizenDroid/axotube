@@ -27,7 +27,6 @@ import "./features/lowMemoryMode.js";
 // Before the player reads the container size and codec support.
 import "./features/experimentalResolution.js";
 import "./features/codecPreference.js";
-import "./translations/index.js";
 import "./domrect-polyfill";
 
 import "./features/adblock.js";

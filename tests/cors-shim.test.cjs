@@ -6,6 +6,7 @@ const assert = require("node:assert");
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.join(__dirname, "..");
 const src = fs.readFileSync(path.join(ROOT, "mods/features/corsShim.js"), "utf8").replace(/^export /gm, "");
@@ -37,7 +38,7 @@ function makeWindow(origin) {
 function load(origin) {
   const win = makeWindow(origin);
   const sandbox = { window: win, URL, Array, String, RegExp, Object, Error, win };
-  vm.createContext(sandbox);
+  chrome47.createContext(sandbox);
   vm.runInContext(src + "\n;installCorsShim(win);", sandbox);
   return { win, sandbox };
 }

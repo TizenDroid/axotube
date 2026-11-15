@@ -1,5 +1,5 @@
 import { SettingActionRenderer, SettingsCategory } from "./ytUI.js";
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 
 function PatchSettings(settingsObject) {
   const axotubeOpenAction = SettingActionRenderer(

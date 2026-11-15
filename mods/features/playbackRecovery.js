@@ -2,7 +2,7 @@
 // The blue key reloads the watch page with a start time, so playback resumes where
 // it stopped. The overlay is found by its class (.ytp-error), so a YouTube change
 // to that class would turn this off, and nothing else.
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import { showToast } from "../ui/ytUI.js";
 
 const KEY_BLUE = 406;

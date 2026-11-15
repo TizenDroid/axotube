@@ -17,7 +17,7 @@
 // the <video> element, so it runs on the Chromium the TV ships with.
 import { configRead, configChangeEmitter } from "../config.js";
 import { showToast } from "../ui/ytUI.js";
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import { getCurrentVideo, watchVideo } from "../shared/playerLifecycle.js";
 import { getJSON } from "../shared/getJSON.js";
 import { createBoundedCache } from "../shared/boundedCache.js";

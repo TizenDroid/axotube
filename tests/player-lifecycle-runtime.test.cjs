@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -86,7 +87,7 @@ function runtime() {
     }
     clock = until;
   }
-  const context = vm.createContext({
+  const context = chrome47.createContext({
     nativeHost: () => (window.h5vcc && window.h5vcc.tizentube) || null,
     document,
     window,

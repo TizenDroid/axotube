@@ -5,7 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "rollup -c rollup.config.js"
+    "build": "rollup -c rollup.config.js",
+    "generate:chrome47": "node scripts/generate-chrome47-gaps.cjs"
   },
   "keywords": [],
   "author": "Aayu5h (fork by Aayu5h, original by Reis Can)",
@@ -16,7 +17,6 @@
     "@rollup/plugin-terser": "^0.4.3",
     "esprima": "^4.0.1",
     "estraverse": "^5.3.0",
-    "i18next": "^25.8.18",
     "qrcode-npm": "^0.0.3",
     "rollup": "^3.26.2",
     "rollup-plugin-string": "^3.0.0",
@@ -31,6 +31,7 @@
     "@babel/plugin-transform-numeric-separator": "^7.22.0",
     "@babel/plugin-transform-object-rest-spread": "^7.22.0",
     "@babel/plugin-transform-optional-chaining": "^7.22.0",
+    "@mdn/browser-compat-data": "^8.1.9",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^16.0.3",

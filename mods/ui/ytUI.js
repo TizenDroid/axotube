@@ -1,4 +1,4 @@
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import { dispatchNativeCommand, hasNativeResolver } from "../shared/nativeCommand.js";
 
 // The one "Add to Queue" menu entry, shared by every long-press menu builder.

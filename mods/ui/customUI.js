@@ -1,5 +1,5 @@
 // Custom UI for video player
-import { t } from "i18next";
+import { t } from "../translations/t.js";
 import { extractAssignedFunctions } from "../utils/ASTParser.js";
 import { configRead, configChangeEmitter } from "../config.js";
 import { ButtonRenderer } from "./ytUI.js";
