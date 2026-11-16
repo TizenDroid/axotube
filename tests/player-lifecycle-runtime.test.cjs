@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -108,8 +109,8 @@ function runtime() {
   function load(filename) {
     const code = fs
       .readFileSync(path.join(ROOT, filename), "utf8")
-      .replace(/^import[\s\S]*?from\s+["'][^"']+["'];?\s*$/gm, "")
-      .replace(/^export\s+\{[^}]+\};?\s*$/gm, "");
+      .replace(BLANK_IMPORT, blank)
+      .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
     vm.runInContext(code, context, { filename });
   }
   function loadLifecycle() {

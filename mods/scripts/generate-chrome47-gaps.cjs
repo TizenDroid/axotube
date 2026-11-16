@@ -36,3 +36,16 @@ const gaps = new Set();
 const out = path.join(__dirname, "..", "..", "tests", "fixtures", "chrome47-gaps.json");
 fs.writeFileSync(out, JSON.stringify([...gaps].sort(), null, 1) + "\n");
 console.log("wrote", path.relative(process.cwd(), out), "with", gaps.size, "entries");
+
+// DOM interfaces (top-level names in MDN's api tree). Chromium 47 has some of them; the rest read as undefined.
+const dom = { supported: [], unsupported: [] };
+for (const name of Object.keys(bcd.api).sort()) {
+  const node = bcd.api[name];
+  if (!/^[A-Z]/.test(name) || !node || typeof node !== "object") continue;
+  const v = node.__compat ? chromeVersion(node.__compat) : null;
+  if (v === false || (v !== null && v > TARGET)) dom.unsupported.push(name);
+  else dom.supported.push(name);
+}
+const domOut = path.join(__dirname, "..", "..", "tests", "fixtures", "chrome47-dom.json");
+fs.writeFileSync(domOut, JSON.stringify(dom, null, 1) + "\n");
+console.log("wrote", path.relative(process.cwd(), domOut), "with", dom.supported.length, "supported and", dom.unsupported.length, "unsupported interfaces");

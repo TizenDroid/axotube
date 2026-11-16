@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -13,8 +14,8 @@ const ROOT = path.resolve(__dirname, "..");
 function loadLongPress() {
   const source = fs
     .readFileSync(path.join(ROOT, "mods/features/longPressMenu.js"), "utf8")
-    .replace(/^import\s+[\s\S]*?;\s*$/gm, "")
-    .replace(/^export\s+/gm, "");
+    .replace(BLANK_IMPORT, blank)
+    .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
   const ctx = chrome47.createContext({
     configRead: (key) => key === "enableLongPress",
     cloneJSON: (value) => JSON.parse(JSON.stringify(value)),

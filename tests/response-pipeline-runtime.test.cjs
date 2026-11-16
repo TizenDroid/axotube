@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -60,8 +61,8 @@ function runtime(overrides = {}) {
 
   function evaluate(name) {
     const source = read(name)
-      .replace(/^import\s+[\s\S]*?;\s*$/gm, "")
-      .replace(/^export\s+(?=(function|const|let|var)\b)/gm, "");
+      .replace(BLANK_IMPORT, blank)
+      .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
     vm.runInContext(source, ctx, { filename: name });
   }
 

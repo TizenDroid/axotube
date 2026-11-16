@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 "use strict";
 // The shim is ESM source. Strip the export keywords and run it in a VM with a
 // fake window, so the real code is what gets tested.
@@ -9,7 +10,7 @@ const vm = require("vm");
 const chrome47 = require("./support/chrome47.cjs");
 
 const ROOT = path.join(__dirname, "..");
-const src = fs.readFileSync(path.join(ROOT, "mods/features/corsShim.js"), "utf8").replace(/^export /gm, "");
+const src = fs.readFileSync(path.join(ROOT, "mods/features/corsShim.js"), "utf8").replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
 
 function makeWindow(origin) {
   const base = origin + "/watch";

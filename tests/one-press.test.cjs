@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 // One-press remote mode, run as the real module in a vm context with a fake
 // clock. Each press sends keydown then keyup, the way a remote does.
 const test = require("node:test");
@@ -45,7 +46,7 @@ function build({ controlsShown = false, playing = true, duration = 600, start = 
   });
   ctx.window = win;
   const src = fs.readFileSync(path.join(ROOT, "mods/features/onePressMode.js"), "utf8")
-    .replace(/^import[\s\S]*?from\s+["'][^"']+["'];?\s*$/gm, "");
+    .replace(BLANK_IMPORT, blank);
   vm.runInContext(src, ctx, { filename: "onePressMode.js" });
 
   const fire = (type, code, target) => {

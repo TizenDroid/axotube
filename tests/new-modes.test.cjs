@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 // Runs the real experimentalResolution.js and onePressMode.js in a vm context
 // with stubbed globals, and checks what they actually do.
 const test = require("node:test");
@@ -12,8 +13,8 @@ const ROOT = path.resolve(__dirname, "..");
 function load(file, ctx) {
   const src = fs
     .readFileSync(path.join(ROOT, file), "utf8")
-    .replace(/^import[\s\S]*?from\s+["'][^"']+["'];?\s*$/gm, "")
-    .replace(/^export\s+\{[^}]+\};?\s*$/gm, "");
+    .replace(BLANK_IMPORT, blank)
+    .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
   vm.runInContext(src, ctx, { filename: file });
 }
 

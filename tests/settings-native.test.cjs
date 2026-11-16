@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 // Drives the real mods/ui/settings.js native renderer with stubbed YouTube
 // renderers. Checks lazy panel opening, in-place refresh after a write, schema
 // clamping for the stepper, the SponsorBlock segment cycle, and that every
@@ -79,9 +80,9 @@ function harness(initial = {}, pairing = null, status = { checked: true, service
     nativeHost: () => hostWindow.h5vcc.tizentube,
     console,
   });
-  let src = SOURCE.replace(/^import[\s\S]*?from\s+["'][^"']+["'];?\s*$/gm, "")
-    .replace(/^export default function modernUI/m, "function modernUI")
-    .replace(/^export function /gm, "function ");
+  let src = SOURCE.replace(BLANK_IMPORT, blank)
+    .replace(/^export default /m, blank)
+    .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
   src += "\n;globalThis.__api = { modernUI, handleSettingsAction, buildSettingsTree };";
   vm.runInContext(src, ctx, { filename: "settings.js" });
   return { api: ctx.__api, config, shown, writes, launchWrites, toasts, hostLocation, status };

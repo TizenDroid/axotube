@@ -59,7 +59,8 @@ const REMOVE = `(function (gaps) {
 // Names of the JavaScript built-in globals of a fresh realm (String, Object, Math, ...).
 const BUILTIN_GLOBALS = new Set(vm.runInContext("Object.getOwnPropertyNames(globalThis)", vm.createContext({})));
 
-function createContext(sandbox = {}) {
+// options.polyfills: false leaves polyfills.js out, for code that carries its own (the bundles).
+function createContext(sandbox = {}, options = {}) {
   const ctx = vm.createContext(sandbox);
   // While the realm is prepared, the host's built-in constructors are hidden so the removal and
   // polyfills act on this realm's own intrinsics. They are restored under the same names after.
@@ -72,7 +73,9 @@ function createContext(sandbox = {}) {
       throw new Error("Chromium 47 gaps that could not be removed: " + report.failed.join(", "));
     }
     vm.runInContext("if (typeof window === 'undefined') { var window = this; }", ctx);
-    vm.runInContext(POLYFILLS, ctx, { filename: path.join(ROOT, "mods", "polyfills.js") });
+    if (options.polyfills !== false) {
+      vm.runInContext(POLYFILLS, ctx, { filename: path.join(ROOT, "mods", "polyfills.js") });
+    }
   } finally {
     hidden.forEach((k) => { ctx[k] = saved[k]; });
   }

@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -169,7 +170,7 @@ function openTvClient(origin, initialConfig) {
   const source = fs
     .readFileSync(path.join(ROOT, "mods", "features", "webConfig.js"), "utf8")
     .replace(/import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";/g, "")
-    .replace(/^import\s+[^\n;]+;\s*$/gm, "")
+    .replace(BLANK_IMPORT, blank)
     .replace("http://127.0.0.1:8090", origin);
   const context = chrome47.createContext({
     nativeHost: () => ({}),

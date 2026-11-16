@@ -5,6 +5,7 @@ import replace from "@rollup/plugin-replace";
 import json from "@rollup/plugin-json";
 import terser from "@rollup/plugin-terser";
 import fs from "fs";
+import MagicString from "magic-string";
 
 // Two bundles come from one source tree:
 //   ../dist/service.js                       Tizen module (control server, 8090)
@@ -12,22 +13,39 @@ import fs from "fs";
 //                                            plus the same control server)
 // Both are built here, so they cannot drift apart.
 
+// Rewrites rendered code and keeps a source map. A plain string replace would drop the map,
+// and Rollup then has no sources to show, so the edits go through MagicString. Each match is
+// replaced the way String.prototype.replace would replace it: a global pattern replaces every
+// match and a plain pattern only the first; a string replacement expands $1-style groups; a
+// function replacement is used exactly as it returns.
+function rewriteRendered(code, pattern, replacement) {
+  const edits = new MagicString(code);
+  const re = new RegExp(pattern.source, pattern.global ? "g" : "");
+  let match;
+  while ((match = re.exec(code)) !== null) {
+    if (match[0].length === 0) throw new Error("empty match in rewrite of " + pattern);
+    const start = match.index;
+    const end = start + match[0].length;
+    const text =
+      typeof replacement === "function"
+        ? replacement(...match)
+        : replacement.replace(/\$(\d)/g, (_, n) => (match[Number(n)] === undefined ? "" : match[Number(n)]));
+    if (text === "") edits.remove(start, end);
+    else edits.overwrite(start, end, text);
+    if (!pattern.global) break;
+  }
+  return { code: edits.toString(), map: edits.generateMap({ hires: true }) };
+}
+
 function injectXmlContent() {
+  const pattern = /var\s+(\w+)_TEMPLATE\s+=\s+.*?readFileSync\([^)]*?'([^']+)'[^)]*?\);/g;
   return {
     name: "inject-xml-content",
     renderChunk(code) {
-      // Better regex - less fragile
-      const pattern = /var\s+(\w+)_TEMPLATE\s+=\s+.*?readFileSync\([^)]*?'([^']+)'[^)]*?\);/g;
-
-      const modifiedCode = code.replace(pattern, (match, varName, fileName) => {
-        const xmlContent = fs.readFileSync(
-          `node_modules/@patrickkfkan/peer-dial/xml/${fileName}`,
-          "utf8",
-        );
+      return rewriteRendered(code, pattern, (match, varName, fileName) => {
+        const xmlContent = fs.readFileSync(`node_modules/@patrickkfkan/peer-dial/xml/${fileName}`, "utf8");
         return `var ${varName}_TEMPLATE = ${JSON.stringify(xmlContent)};`;
       });
-
-      return { code: modifiedCode };
     },
   };
 }
@@ -36,16 +54,23 @@ function injectXmlContent() {
 // the output. Those edits now run here, with the same patterns and the same
 // first-match-only behaviour, so the standalone output is unchanged.
 function standaloneNodeFetchPatches() {
-  return {
-    name: "standalone-node-fetch-patches",
-    renderChunk(code) {
-      const relativeUrl =
-        /if\s*\(\/.*?\/i?\.exec\(urlStr\)\)\s*\{\s*urlStr\s*=\s*new\s+URL\(urlStr\)\.toString\(\);\s*\}/g;
-      const patched = code.replace(relativeUrl, "");
-      const headerLimit = /(method:\s*request\.method,)/;
-      return { code: patched.replace(headerLimit, "$1 maxHeaderSize: 5*1024*1024,") };
+  const relativeUrl =
+    /if\s*\(\/.*?\/i?\.exec\(urlStr\)\)\s*\{\s*urlStr\s*=\s*new\s+URL\(urlStr\)\.toString\(\);\s*\}/g;
+  const headerLimit = /(method:\s*request\.method,)/;
+  return [
+    {
+      name: "standalone-node-fetch-relative-url",
+      renderChunk(code) {
+        return rewriteRendered(code, relativeUrl, "");
+      },
     },
-  };
+    {
+      name: "standalone-node-fetch-header-limit",
+      renderChunk(code) {
+        return rewriteRendered(code, headerLimit, "$1 maxHeaderSize: 5*1024*1024,");
+      },
+    },
+  ];
 }
 
 function sharedPlugins() {
@@ -78,12 +103,9 @@ function guardNativeSuperConstruct() {
   return {
     name: "guard-native-super-construct",
     renderChunk(code) {
-      const guarded = code.replace(
-        pattern,
-        (match, target) =>
+      return rewriteRendered(code, pattern, (match, target) =>
           '(typeof Reflect!=="undefined"&&Reflect.construct?Reflect.construct(' + target + ',arguments,this.constructor):function(){var r=' + target + '.apply(this,arguments);return r&&typeof r==="object"?(Object.setPrototypeOf(r,Object.getPrototypeOf(this)),r):this}.apply(this,arguments))'
       );
-      return { code: guarded };
     },
   };
 }
@@ -112,6 +134,6 @@ export default [
     input: "standalone.js",
     output: { file: "../standalone/service/dist/core.js", format: "cjs" },
     onwarn,
-    plugins: [...sharedPlugins(), standaloneNodeFetchPatches(), minify(), guardNativeSuperConstruct()],
+    plugins: [...sharedPlugins(), ...standaloneNodeFetchPatches(), minify(), guardNativeSuperConstruct()],
   },
 ];

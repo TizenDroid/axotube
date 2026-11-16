@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 // Drives the real mods/features/sponsorblock.js against a virtual clock and a
 // simulated <video> that seeks asynchronously, the way a browser does.
 const test = require("node:test");
@@ -10,7 +11,7 @@ const chrome47 = require("./support/chrome47.cjs");
 const ROOT = path.resolve(__dirname, "..");
 const SOURCE = fs
   .readFileSync(path.join(ROOT, "mods/features/sponsorblock.js"), "utf8")
-  .replace(/^import[\s\S]*?from\s+["'][^"']+["'];?\s*$/gm, "");
+  .replace(BLANK_IMPORT, blank);
 
 class Events {
   constructor() {

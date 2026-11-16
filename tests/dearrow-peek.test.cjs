@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 // The long-press peek shows the other version: DeArrow when DeArrow is off for
 // that field, the original when it is on. Runs the real deArrowPeek.js.
 const test = require("node:test");
@@ -15,8 +16,8 @@ const DATA = { titles: [{ title: "Clear title", votes: 3 }], thumbnails: [] };
 function run({ titles, thumbs, peek = true }) {
   const source = fs
     .readFileSync(path.join(ROOT, "mods/features/deArrowPeek.js"), "utf8")
-    .replace(/^import\s+[\s\S]*?;\s*$/gm, "")
-    .replace(/^export\s+/gm, "");
+    .replace(BLANK_IMPORT, blank)
+    .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
   const ctx = chrome47.createContext({
     configRead: (key) =>
       ({

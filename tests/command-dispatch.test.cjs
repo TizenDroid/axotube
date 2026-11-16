@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -15,8 +16,8 @@ function loadPipWithFakeHost(host) {
   // captured dispatcher. Nothing in this harness modifies the repository.
   const source = fs
     .readFileSync(path.join(__dirname, "../mods/features/pictureInPicture.js"), "utf8")
-    .replace(/^import \{[^\n]+\} from "\.\.\/shared\/nativeCommand\.js";\s*/m, "")
-    .replace(/^export \{[^\n]+\};\s*$/m, "");
+    .replace(BLANK_IMPORT, blank)
+    .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
   const context = chrome47.createContext(host);
   vm.runInContext(source, context, { filename: "pictureInPicture.js" });
   return context;

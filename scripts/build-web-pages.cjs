@@ -57,7 +57,9 @@ function integrity(file) {
 }
 
 function render(page) {
-  let html = fs.readFileSync(path.join(ROOT, page.source), "utf8");
+  // Line endings are normalised here, as for the other sources, so the output is the same on
+  // every OS. Without this a Windows checkout embeds literal carriage returns in the pages.
+  let html = fs.readFileSync(path.join(ROOT, page.source), "utf8").replace(/\r\n/g, "\n");
   if (page.schema) {
     const schema = JSON.stringify(require(path.join(ROOT, "config-schema.json")))
       .replace(/</g, "\\u003c");

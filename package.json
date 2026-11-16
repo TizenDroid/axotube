@@ -1,7 +1,7 @@
 {
   "name": "axotube",
   "appName": "axotube",
-  "version": "1.48.0",
+  "version": "1.48.1",
   "description": "YouTube TV for Samsung Tizen TVs with ad filtering, SponsorBlock and playback controls.",
   "packageType": "mods",
   "websiteURL": "https://youtube.com/tv?additionalDataUrl=http%3A%2F%2Flocalhost%3A8090%2Fdial%2Fapps%2FYouTube",
@@ -28,7 +28,10 @@
     "build:service": "npm run build --prefix service",
     "build:standalone": "npm run build && node scripts/build-standalone.js",
     "package:wgt": "powershell -ExecutionPolicy Bypass -File scripts/package-wgt.ps1",
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "check:node4-routes": "node scripts/node4-routes.cjs",
+    "check:node4-routes:coverage": "node scripts/node4-routes.cjs --coverage",
+    "coverage:modules": "node scripts/module-coverage.cjs"
   },
   "bundlePackage": "axotube"
 }

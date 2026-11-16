@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -8,7 +9,7 @@ const chrome47 = require("./support/chrome47.cjs");
 const ROOT = path.resolve(__dirname, "..");
 const source = fs
   .readFileSync(path.join(ROOT, "mods/features/overlayState.js"), "utf8")
-  .replace(/^export\s+/gm, "");
+  .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
 const ctx = chrome47.createContext({});
 vm.runInContext(source + "\n;globalThis.s = { isOverlayOpenCommand, classifyOverlayCommand };", ctx);
 const { isOverlayOpenCommand, classifyOverlayCommand } = ctx.s;

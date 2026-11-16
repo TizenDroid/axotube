@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 // Behaviour tests for the subtitle, focus and motion changes.
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -19,8 +20,8 @@ function loadSubtitles(config) {
     setTimeout: (fn) => timers.push(fn),
     console,
   });
-  const src = read("mods/features/autoSubtitles.js").replace(/^import[\s\S]*?from\s+["'][^"']+["'];?\s*$/gm, "")
-    .replace(/^export\s+\{[^}]+\};?\s*$/gm, "");
+  const src = read("mods/features/autoSubtitles.js").replace(BLANK_IMPORT, blank)
+    .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
   vm.runInContext(src, ctx, { filename: "autoSubtitles.js" });
   return { ctx, listeners, timers, api: vm.runInContext("({ chooseTrack, tryEnable })", ctx) };
 }

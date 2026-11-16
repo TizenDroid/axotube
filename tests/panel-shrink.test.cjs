@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 // Panel open/closed is read from the markup in the probe dump:
 // one root per panel; inner overlay gets "frHKed" while closing; root removed when closed.
 const test = require("node:test");
@@ -10,8 +11,8 @@ const chrome47 = require("./support/chrome47.cjs");
 const ROOT = path.resolve(__dirname, "..");
 const source = fs
   .readFileSync(path.join(ROOT, "mods/features/panelShrink.js"), "utf8")
-  .replace(/^import\s+[\s\S]*?;\s*$/gm, "")
-  .replace(/^export\s+/gm, "")
+  .replace(BLANK_IMPORT, blank)
+  .replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank)
   .replace(/^start\(\);\s*$/m, "");
 const ctx = chrome47.createContext({
   configRead: () => true,

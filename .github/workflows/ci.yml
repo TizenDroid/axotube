@@ -65,6 +65,12 @@ jobs:
       - name: Check the standalone service on Node 4 (the TV runtime)
         run: node scripts/node4-smoke.cjs
 
+      # Every route and error branch of the service, run against the same Node 4.4.4 binary.
+      # Fails if any route answers differently from the source. Ports 8081 and 8090 are fixed,
+      # so this runs as its own step, not inside npm test.
+      - name: Check every service route on Node 4 (the TV runtime)
+        run: node scripts/node4-routes.cjs
+
       - name: Pull requests must commit an up-to-date dist/
         if: github.event_name == 'pull_request'
         run: |

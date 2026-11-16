@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -9,7 +10,7 @@ const ROOT = path.resolve(__dirname, "..");
 const read = (name) => fs.readFileSync(path.join(ROOT, name), "utf8");
 
 function loadBoundedCache() {
-  const source = read("mods/shared/boundedCache.js").replace(/^export\s+/gm, "");
+  const source = read("mods/shared/boundedCache.js").replace(BLANK_EXPORT_LIST, blank).replace(BLANK_EXPORT, blank);
   const ctx = chrome47.createContext({});
   vm.runInContext(source + "\n;globalThis.createBoundedCache = createBoundedCache;", ctx);
   return ctx.createBoundedCache;

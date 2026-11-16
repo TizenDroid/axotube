@@ -1,3 +1,4 @@
+const { blank, BLANK_IMPORT, BLANK_EXPORT, BLANK_EXPORT_LIST } = require("./support/module-source.cjs");
 // The queue must keep working after YouTube replaces the player element.
 // Runs the real videoQueuing.js with playerLifecycle and the resolver stubbed.
 const test = require("node:test");
@@ -40,7 +41,7 @@ function makePlayer(name) {
 function load() {
   const source = fs
     .readFileSync(path.join(ROOT, "mods/features/videoQueuing.js"), "utf8")
-    .replace(/^import\s+[\s\S]*?;\s*$/gm, "");
+    .replace(BLANK_IMPORT, blank);
   const played = [];
   let playerCallback = null;
   const sandbox = {
