@@ -728,6 +728,24 @@
       "control": "switch",
       "searchAliases": ["log", "analytics", "recommendations"]
     },
+    "prefetchContinuations": {
+      "label": "Prefetch the next rows",
+      "description": "Requests the next page of rows as soon as the current one loads, so scrolling to the end does not wait. Uses more network. Optional.",
+      "section": "playback",
+      "group": "Performance",
+      "order": 10,
+      "control": "switch",
+      "searchAliases": ["prefetch", "scroll", "continuation", "network"]
+    },
+    "useCustomBackground": {
+      "label": "Custom background image",
+      "description": "Shows the background image set on the phone. Off shows the plain page color.",
+      "section": "appearance",
+      "group": "Theme",
+      "order": 1,
+      "control": "switch",
+      "searchAliases": ["background", "wallpaper", "image"]
+    },
     "enableHqThumbnails": {
       "label": "High-quality thumbnails",
       "description": "Load larger thumbnails when they are available.",

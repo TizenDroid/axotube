@@ -24,7 +24,14 @@ export function installResponsePipeline(filters) {
     // trackingParams are click-tracking tokens the TV never reads. Blanking them in the text
     // (one regex) is cheaper than parsing them and walking the object to remove them.
     const args = Array.prototype.slice.call(arguments);
-    if (typeof text === "string" && text.indexOf('"trackingParams"') !== -1 && configRead("stripTrackingParams") !== false) {
+    // A player response carries playbackTracking, the URLs of the watch-history reports. Its
+    // tokens are left alone.
+    if (
+      typeof text === "string" &&
+      text.indexOf('"trackingParams"') !== -1 &&
+      text.indexOf('"playbackTracking"') === -1 &&
+      configRead("stripTrackingParams") !== false
+    ) {
       args[0] = text.replace(TRACKING_PARAMS_RE, '"trackingParams":""');
     }
     const result = nativeParse.apply(this, args);

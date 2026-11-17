@@ -22,6 +22,14 @@ class PreferredQualityHandler {
   #hasAppliedQuality = false;
 
   constructor() {
+    // The route decides the cap. When the hash changes (browse to watch, or back) the quality is
+    // applied again, so a preview cap never stays on a watch video.
+    if (window.addEventListener) {
+      window.addEventListener("hashchange", () => {
+        this.#resetApplyState();
+        this.#handleStateChange();
+      });
+    }
     this.#setupConfigListener();
     watchPlayer((player) => this.#attachPlayer(player));
     // A player node may be reused for another video without an onStateChange.

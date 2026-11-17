@@ -208,7 +208,7 @@ test("the size table lists maxres, then sd, then hq: a probe walks it in that or
     maxPos !== -1 && maxPos < sdPos && sdPos < hqPos,
     "maxresdefault, then sddefault, then hqdefault",
   );
-  const probe = between(src, "export function probeBestThumbnailQuality", "export function isVideoThumbnailArray");
+  const probe = between(src, "export function resolveThumbnailFile", "export const PREFETCH_CONCURRENCY");
   has(probe, "thumbnailChain(preferredId)");
 });
 

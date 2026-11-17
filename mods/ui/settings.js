@@ -497,9 +497,9 @@ export function buildSettingsTree() {
               t("settings.browsing.hqQuality.title"),
               "VIDEO_QUALITY",
               [
-                radio(t("settings.browsing.hqQuality.hq"), "hqThumbnailQuality", "hq"),
                 radio(t("settings.browsing.hqQuality.max"), "hqThumbnailQuality", "max"),
                 radio(t("settings.browsing.hqQuality.sd"), "hqThumbnailQuality", "sd"),
+                radio(t("settings.browsing.hqQuality.hq"), "hqThumbnailQuality", "hq"),
                 radio(t("settings.browsing.hqQuality.mq"), "hqThumbnailQuality", "mq"),
                 radio(t("settings.browsing.hqQuality.default"), "hqThumbnailQuality", "default"),
               ],
@@ -545,6 +545,7 @@ export function buildSettingsTree() {
           ],
           heading(t("settings.browsing.previews.title"), t("settings.browsing.previews.subtitle")),
         ),
+        toggle(t("settings.browsing.prefetch"), "prefetchContinuations", "TV"),
         submenu(
           t("settings.browsing.hideWatched.title"),
           "VISIBILITY_OFF",
@@ -650,11 +651,13 @@ export function buildSettingsTree() {
             submenu(
               t("settings.appearance.theme.background.title"),
               "LENS_BLACK",
-              PRESET_NAMES.map((name) =>
-                radio(
-                  t(`settings.appearance.colors.${name}`),
-                  "routeColor",
-                  configSchema.themePresetColors[name],
+              [toggle(t("settings.appearance.theme.background.useCustom"), "useCustomBackground", "LENS_BLACK")].concat(
+                PRESET_NAMES.map((name) =>
+                  radio(
+                    t(`settings.appearance.colors.${name}`),
+                    "routeColor",
+                    configSchema.themePresetColors[name],
+                  ),
                 ),
               ),
               heading(
@@ -853,6 +856,9 @@ export function buildSettingsTree() {
           ),
         ),
         toggle(t("settings.advanced.debugLogs"), "enableDebugLogs", "BUG_REPORT"),
+        toggle(t("settings.advanced.lowMemory"), "enableLowMemoryMode", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.advanced.reducedMotion"), "enableReducedMotion", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.advanced.stripTracking"), "stripTrackingParams", "HEALTH_AND_SAFETY"),
         submenu(
           t("settings.advanced.launch.title"),
           "CAST_MOBILE",

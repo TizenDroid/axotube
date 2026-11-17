@@ -77,13 +77,16 @@ function textThemeCss(theme) {
 }
 
 function updateStyle() {
-  const bgUrl = safeBackgroundUrl(configRead("routeBackgroundUrl"));
+  // The switch in the TV menu turns the custom background off without touching the URL.
+  const bgUrl = configRead("useCustomBackground") === false ? "" : safeBackgroundUrl(configRead("routeBackgroundUrl"));
+  // A dark scrim sits between the background and the content, so text stays readable on top of it.
   const bg = bgUrl
-    ? `\n        background-image: url("${bgUrl}") !important;\n        background-size: cover !important;\n        background-position: center !important;\n        background-repeat: no-repeat !important;`
+    ? `\n        background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("${bgUrl}") !important;\n        background-size: cover !important;\n        background-position: center !important;\n        background-repeat: no-repeat !important;`
     : `\n        background-color: ${safeColor(configRead("routeColor"))} !important;`;
-  const navbar = bgUrl
-    ? `\n      ytlr-guide-response {\n          background-image: none !important;\n          background-color: rgba(15, 15, 15, 0.35) !important;\n      }\n      ytlr-guide-response > div {\n          background-image: none !important;\n          background-color: transparent !important;\n      }\n      ytlr-guide-response .zylon-ve {\n          background-image: none !important;\n          background-color: transparent !important;\n      }`
-    : "";
+  // The navigation bar takes the page color (pure black for the OLED preset), not YouTube's gray.
+  // The navigation bar is transparent in both cases: it shows the page behind it and does not
+  // paint a block over the content.
+  const navbar = `\n      ytlr-guide-response {\n          background-image: none !important;\n          background-color: transparent !important;\n      }\n      ytlr-guide-response > div {\n          background-image: none !important;\n          background-color: transparent !important;\n      }\n      ytlr-guide-response .zylon-ve {\n          background-image: none !important;\n          background-color: transparent !important;\n      }`;
   const textTheme = textThemeCss(configRead("textTheme"));
   css = `\n    ${THEME_BLOCK_PREFIX}\n    #container {\n        ${bg}\n    }\n    ${navbar}\n    ${textTheme}\n    ${THEME_BLOCK_SUFFIX}\n`;
 

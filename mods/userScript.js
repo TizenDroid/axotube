@@ -32,6 +32,7 @@ import "./domrect-polyfill";
 import "./features/adblock.js";
 import "./features/featureTweaks.js";
 import "./features/hqThumbnailsFocusObserver.js";
+import "./features/continuationPrefetch.js";
 import "./features/sponsorblock.js";
 import "./features/remainingTime.js";
 import "./features/pauseOnBlur.js";

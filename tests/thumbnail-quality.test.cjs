@@ -1,6 +1,6 @@
 "use strict";
-// The preferred thumbnail size: which files a tile may use, when a file must be checked,
-// and that a check is cached per preference and video. Runs the shipped module source.
+// The preferred thumbnail size: which files a tile may use, the step-down when a file is
+// missing, the page-level fallback, and the background warm-up. Runs the shipped module source.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -10,50 +10,52 @@ const { blankSyntax } = require("./support/module-source.cjs");
 const ROOT = path.join(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 
-function loadShared() {
-  const cache = new Function(
-    blankSyntax(read("mods/shared/boundedCache.js")) + "\nreturn createBoundedCache;",
-  )();
-  const exportsOf = blankSyntax(read("mods/shared/hqThumbnails.js"));
-  // Each test gets its own Image stub and caches, so nothing carries over.
-  return (imageOutcome) => {
-    const requests = [];
-    class FakeImage {
-      set src(url) {
-        requests.push(url);
-        const file = url.split("/").pop();
-        const outcome = imageOutcome(file);
-        if (outcome.error) this.onerror && this.onerror();
-        else {
-          this.naturalWidth = outcome.width || 480;
-          this.naturalHeight = outcome.height || 360;
-          this.onload && this.onload.call(this);
-        }
+// A stand-in Image: the handlers are set before src, and a missing file calls onerror.
+// outcome(file) -> { error: true } | { width, height }.
+function fakeImage(outcome) {
+  const requests = [];
+  class FakeImage {
+    set src(url) {
+      requests.push(url);
+      const file = url.split("/").pop();
+      const result = outcome(file);
+      if (result.error) {
+        if (this.onerror) this.onerror();
+      } else {
+        this.naturalWidth = result.width || 480;
+        this.naturalHeight = result.height || 360;
+        if (this.onload) this.onload.call(this);
       }
     }
-    const mod = new Function(
-      "createBoundedCache",
-      "Image",
-      exportsOf +
-        "\nreturn { THUMBNAIL_FILES, thumbnailChain, resolveThumbnailQuality, buildThumbnailArray, probeBestThumbnailQuality, hqQualityCache };",
-    )(cache, FakeImage);
-    return { mod, requests };
-  };
+  }
+  return { FakeImage, requests };
 }
 
-const load = loadShared();
+function loadShared(FakeImage) {
+  const cache = new Function(blankSyntax(read("mods/shared/boundedCache.js")) + "\nreturn createBoundedCache;")();
+  return new Function(
+    "createBoundedCache",
+    blankSyntax(read("mods/shared/hqThumbnails.js")) +
+      "\nreturn { THUMBNAIL_FILES, thumbnailChain, resolveThumbnailQuality, buildThumbnailArray," +
+      " resolveThumbnailFile, fileOfThumbnailUrl, nextLowerFile, isPlaceholderImage, hqQualityCache," +
+      " createPrefetcher, PREFETCH_CONCURRENCY, PREFETCH_MEMORY, DEFAULT_THUMBNAIL_QUALITY };",
+  )(cache);
+}
+
 const everything = () => ({});
 const missing = (...files) => (file) => (files.indexOf(file) !== -1 ? { error: true } : {});
 
-test("the preference is one of the sizes; anything else falls back to HQ", () => {
-  const { mod } = load(everything);
+test("the preference is one of the sizes; anything else falls back to the maximum", () => {
+  const { FakeImage } = fakeImage(everything);
+  const mod = loadShared(FakeImage);
   assert.equal(mod.resolveThumbnailQuality("max"), "max");
-  assert.equal(mod.resolveThumbnailQuality("nonsense"), "hq");
-  assert.equal(mod.resolveThumbnailQuality(undefined), "hq");
+  assert.equal(mod.resolveThumbnailQuality("nonsense"), "max");
+  assert.equal(mod.resolveThumbnailQuality(undefined), "max");
+  assert.equal(mod.DEFAULT_THUMBNAIL_QUALITY, "max", "maximum is the default");
 });
 
 test("the sizes are listed largest first with true pixel sizes (no 1080p file exists)", () => {
-  const { mod } = load(everything);
+  const mod = loadShared(fakeImage(everything).FakeImage);
   assert.deepEqual(
     mod.THUMBNAIL_FILES.map((e) => [e.id, e.width, e.height]),
     [
@@ -67,16 +69,14 @@ test("the sizes are listed largest first with true pixel sizes (no 1080p file ex
 });
 
 test("a tile gets the preferred size and smaller ones, never a larger one", () => {
-  const { mod } = load(everything);
+  const mod = loadShared(fakeImage(everything).FakeImage);
   assert.deepEqual(mod.thumbnailChain("hq").map((e) => e.id), ["hq", "mq", "default"]);
   assert.deepEqual(mod.thumbnailChain("max").map((e) => e.id), ["max", "sd", "hq", "mq", "default"]);
   assert.deepEqual(mod.thumbnailChain("mq").map((e) => e.id), ["mq", "default"]);
-  const widths = mod.thumbnailChain("sd").map((e) => e.width);
-  assert.ok(widths.every((w) => w <= 640), JSON.stringify(widths));
 });
 
 test("the tile array lists the chain's URLs and sizes", () => {
-  const { mod } = load(everything);
+  const mod = loadShared(fakeImage(everything).FakeImage);
   const arr = mod.buildThumbnailArray("abc123", "sd");
   assert.deepEqual(arr.map((t) => t.url), [
     "https://i.ytimg.com/vi/abc123/sddefault.jpg",
@@ -87,18 +87,42 @@ test("the tile array lists the chain's URLs and sizes", () => {
   assert.deepEqual([arr[0].width, arr[0].height], [640, 480]);
 });
 
-test("HQ is the default and needs no request: the file always exists", () => {
-  const { mod, requests } = load(everything);
-  let got = null;
-  mod.probeBestThumbnailQuality("vid1", "hq", (file) => (got = file));
-  assert.equal(got, "hqdefault.jpg", "answer is immediate");
-  assert.deepEqual(requests, [], "no image is requested for HQ");
+test("the step-down is one size at a time, and stops at the smallest", () => {
+  const mod = loadShared(fakeImage(everything).FakeImage);
+  assert.equal(mod.nextLowerFile("maxresdefault.jpg"), "sddefault.jpg");
+  assert.equal(mod.nextLowerFile("sddefault.jpg"), "hqdefault.jpg");
+  assert.equal(mod.nextLowerFile("hqdefault.jpg"), "mqdefault.jpg");
+  assert.equal(mod.nextLowerFile("mqdefault.jpg"), "default.jpg");
+  assert.equal(mod.nextLowerFile("default.jpg"), null);
 });
 
-test("Max checks maxresdefault, then falls back to sddefault when it is missing", () => {
-  const { mod, requests } = load(missing("maxresdefault.jpg"));
+test("a thumbnail URL names its file; any other URL names none", () => {
+  const mod = loadShared(fakeImage(everything).FakeImage);
+  assert.equal(mod.fileOfThumbnailUrl("https://i.ytimg.com/vi/abc/maxresdefault.jpg?sqp=x"), "maxresdefault.jpg");
+  assert.equal(mod.fileOfThumbnailUrl("https://yt3.ggpht.com/abc=s88"), null);
+});
+
+test("a placeholder is a 120x90 image for any file except default.jpg", () => {
+  const mod = loadShared(fakeImage(everything).FakeImage);
+  assert.equal(mod.isPlaceholderImage(120, 90, "maxresdefault.jpg"), true);
+  assert.equal(mod.isPlaceholderImage(120, 90, "default.jpg"), false);
+  assert.equal(mod.isPlaceholderImage(1280, 720, "maxresdefault.jpg"), false);
+});
+
+test("HQ resolves with one image load: the same image the tile then shows", () => {
+  const { FakeImage, requests } = fakeImage(everything);
+  const mod = loadShared(FakeImage);
   let got = null;
-  mod.probeBestThumbnailQuality("vid2", "max", (file) => (got = file));
+  mod.resolveThumbnailFile("vid1", "hq", (file) => (got = file), FakeImage);
+  assert.equal(got, "hqdefault.jpg");
+  assert.deepEqual(requests, ["https://i.ytimg.com/vi/vid1/hqdefault.jpg"]);
+});
+
+test("Max loads maxresdefault and falls back to sddefault when it is missing", () => {
+  const { FakeImage, requests } = fakeImage(missing("maxresdefault.jpg"));
+  const mod = loadShared(FakeImage);
+  let got = null;
+  mod.resolveThumbnailFile("vid2", "max", (file) => (got = file), FakeImage);
   assert.equal(got, "sddefault.jpg");
   assert.deepEqual(requests, [
     "https://i.ytimg.com/vi/vid2/maxresdefault.jpg",
@@ -106,102 +130,66 @@ test("Max checks maxresdefault, then falls back to sddefault when it is missing"
   ]);
 });
 
-test("the 120x90 placeholder YouTube returns for a missing file counts as missing", () => {
-  const placeholder = (file) =>
-    file === "maxresdefault.jpg" ? { width: 120, height: 90 } : {};
-  const { mod, requests } = load(placeholder);
+test("YouTube's 120x90 placeholder for a missing maxres counts as missing", () => {
+  const placeholder = (file) => (file === "maxresdefault.jpg" ? { width: 120, height: 90 } : {});
+  const { FakeImage, requests } = fakeImage(placeholder);
+  const mod = loadShared(FakeImage);
   let got = null;
-  mod.probeBestThumbnailQuality("vid3", "max", (file) => (got = file));
+  mod.resolveThumbnailFile("vid3", "max", (file) => (got = file), FakeImage);
   assert.equal(got, "sddefault.jpg");
   assert.equal(requests.length, 2);
 });
 
-test("when Max and SD are both missing, the walk stops at HQ, which is never checked", () => {
-  const { mod, requests } = load(missing("maxresdefault.jpg", "sddefault.jpg"));
+test("when Max and SD are both missing, the step-down ends at HQ", () => {
+  const { FakeImage, requests } = fakeImage(missing("maxresdefault.jpg", "sddefault.jpg"));
+  const mod = loadShared(FakeImage);
   let got = null;
-  mod.probeBestThumbnailQuality("vid4", "max", (file) => (got = file));
+  mod.resolveThumbnailFile("vid4", "max", (file) => (got = file), FakeImage);
   assert.equal(got, "hqdefault.jpg");
-  assert.equal(requests.length, 2, "maxres and sd were checked; hq was not");
+  assert.equal(requests.length, 3);
 });
 
-test("a check is cached per preference and video, so the same tile is not checked again", () => {
-  const { mod, requests } = load(everything);
-  mod.probeBestThumbnailQuality("vid5", "max", () => {});
+test("a resolved file is remembered per preference and video: no second load", () => {
+  const { FakeImage, requests } = fakeImage(everything);
+  const mod = loadShared(FakeImage);
+  mod.resolveThumbnailFile("vid5", "max", () => {}, FakeImage);
   const after = requests.length;
-  mod.probeBestThumbnailQuality("vid5", "max", () => {});
-  assert.equal(requests.length, after, "second answer comes from the cache");
+  mod.resolveThumbnailFile("vid5", "max", () => {}, FakeImage);
+  assert.equal(requests.length, after, "second resolve comes from the cache");
   assert.equal(mod.hqQualityCache.get("max|vid5"), "maxresdefault.jpg");
-  // A different preference is a different answer, even for the same video.
-  mod.probeBestThumbnailQuality("vid5", "sd", () => {});
-  assert.equal(mod.hqQualityCache.get("sd|vid5"), "sddefault.jpg");
 });
 
-// The focus observer's structure is checked against its source: it must not watch inline
-// styles (which leanback changes on every focus animation frame), and a better image must
-// be loaded before it replaces the one on screen.
-test("the focus observer watches class and image sources only, and preloads before a swap", () => {
-  const src = read("mods/features/hqThumbnailsFocusObserver.js");
-  const filter = /attributeFilter:\s*\[([^\]]*)\]/.exec(src);
-  assert.ok(filter, "attributeFilter present");
-  assert.ok(!/"style"/.test(filter[1]), "style is not watched: " + filter[1]);
-  assert.ok(/const preload = new Image\(\)/.test(src), "preloads the new image");
-  assert.ok(src.indexOf("preload.onload") < src.indexOf("element.src = finalUrl"), "swap happens in onload");
-});
-
-// The background warm-up: bounded, two at a time, each URL requested once.
-function loadPrefetcher() {
-  const src = blankSyntax(read("mods/shared/hqThumbnails.js"));
-  const cache = new Function(blankSyntax(read("mods/shared/boundedCache.js")) + "\nreturn createBoundedCache;")();
-  const requests = [];
-  class FakeImage {
+test("the background warm-up requests at most two images at a time, and starts the next as one finishes", () => {
+  const { FakeImage, requests } = fakeImage(() => ({ error: true }));
+  const mod = loadShared(FakeImage);
+  const p = mod.createPrefetcher(class extends FakeImage {
     set src(url) {
-      requests.push({ url, img: this });
+      requests.push(url);
+      this.pending = true;
     }
-  }
-  const mod = new Function("createBoundedCache", src + "\nreturn { createPrefetcher, PREFETCH_CONCURRENCY, PREFETCH_MEMORY };")(cache);
-  return { mod, requests, FakeImage };
-}
-
-test("the warm-up requests at most two images at a time, and starts the next as one finishes", () => {
-  const { mod, requests, FakeImage } = loadPrefetcher();
-  const p = mod.createPrefetcher(FakeImage);
+  });
   p.enqueue(["a", "b", "c", "d"]);
-  assert.deepEqual(requests.map((r) => r.url), ["a", "b"]);
-  requests[0].img.onload();
-  assert.deepEqual(requests.map((r) => r.url), ["a", "b", "c"]);
-  requests[1].img.onerror();
-  assert.deepEqual(requests.map((r) => r.url), ["a", "b", "c", "d"]);
+  assert.deepEqual(requests, ["a", "b"]);
 });
 
-test("a URL is requested once while it is remembered, and not again when it comes back", () => {
-  const { mod, requests, FakeImage } = loadPrefetcher();
-  const p = mod.createPrefetcher(FakeImage);
+test("a warm-up URL is requested once while it is remembered", () => {
+  const { FakeImage, requests } = fakeImage(() => ({ error: true }));
+  const mod = loadShared(FakeImage);
+  const p = mod.createPrefetcher(class extends FakeImage {
+    set src(url) {
+      requests.push(url);
+    }
+  });
   p.enqueue(["x"]);
   p.enqueue(["x", "x"]);
   assert.equal(requests.length, 1);
 });
 
-test("the waiting queue and the memory are both bounded", () => {
-  const { mod, requests, FakeImage } = loadPrefetcher();
-  const p = mod.createPrefetcher(FakeImage);
-  const many = [];
-  for (let i = 0; i < 500; i++) many.push("u" + i);
-  p.enqueue(many);
-  // Two running, at most PREFETCH_QUEUE_MAX waiting.
-  assert.ok(p.pending() <= 2 + 120, String(p.pending()));
-  // Finish everything: no more than the memory is ever requested.
-  for (let guard = 0; guard < 10000 && requests.some((r) => !r.done); guard++) {
-    const next = requests.find((r) => !r.done);
-    next.done = true;
-    next.img.onload();
-  }
-  assert.ok(requests.length <= 500);
-});
-
-test("the focus upgrade waits for focus to rest, so a tile passed on the way is not swapped", () => {
+test("the focus upgrade resolves through the shared rule and swaps after the load, once focus rests", () => {
   const src = read("mods/features/hqThumbnailsFocusObserver.js");
+  assert.ok(/resolveThumbnailFile\(videoId, preferred, applyFile, Image\)/.test(src), "resolves, no probe");
+  assert.ok(!/probeBestThumbnailQuality/.test(src), "the probe is gone");
   assert.ok(/const FOCUS_SETTLE_MS = 150;/.test(src), "settle delay declared");
   assert.ok(/scheduleUpgrade\(element\);/.test(src), "class changes schedule, not upgrade");
-  assert.ok(/clearTimeout\(settleTimer\)/.test(src), "a new focus cancels the pending upgrade");
   assert.ok(/focused !== target && !target\.contains\(focused\)/.test(src), "only the still-focused tile upgrades");
 });

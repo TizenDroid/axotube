@@ -13,6 +13,7 @@ import {
   isVideoThumbnailArray,
 } from "../shared/hqThumbnails.js";
 import { createBoundedCache } from "../shared/boundedCache.js";
+import { installThumbnailFallback } from "./thumbnailFallback.js";
 import { hqThumbnailMode } from "../shared/performanceMode.js";
 import { configRead, configChangeEmitter } from "../config.js";
 
@@ -36,6 +37,7 @@ configChangeEmitter.addEventListener("configChange", (event) => {
 export function buildHqThumbnails(videoID, preferredId) {
   return buildThumbnailArray(videoID, preferredId);
 }
+
 
 function deepSetThumbnails(obj, thumbnails) {
   if (!obj || typeof obj !== "object") return;
@@ -91,3 +93,6 @@ export function hqify(items) {
   }
   if (warm.length > 0) warmThumbnails(warm);
 }
+
+// Tiles the response did not cover, and images that fail later, step down to a file that exists.
+installThumbnailFallback(typeof document !== "undefined" ? document : null);

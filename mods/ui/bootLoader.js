@@ -3,6 +3,8 @@
 // The app removes #loader itself when its UI mounts; we snapshot its computed
 // style into our own fixed overlay so the user never sees a flash of unpatched UI.
 
+import { setBootHeld } from "../shared/bootState.js";
+
 let held = false;
 let overlay = null;
 let grabbed = false;
@@ -11,6 +13,7 @@ let observer = null;
 function release() {
   if (!held) return;
   held = false;
+  setBootHeld(false);
   stopSettle();
   if (observer) {
     try {
@@ -112,6 +115,7 @@ function grab() {
     ";";
   (document.body || document.documentElement).appendChild(overlay);
   held = true;
+  setBootHeld(true);
   grabbed = true;
 }
 

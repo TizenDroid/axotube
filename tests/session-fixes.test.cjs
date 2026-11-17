@@ -61,8 +61,22 @@ test("subtitles: turns the chosen track on when captions are off", () => {
       set.push([mod, opt, value.name]);
     },
   };
-  assert.equal(api.tryEnable(ctx.__player, "en", true), "done");
+  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "set");
   assert.deepEqual(set, [["captions", "track", "English"]]);
+  // Once the track is in place, the next check finds it and does nothing more.
+  let chosen = null;
+  ctx.__player.getOption = (mod, opt) => {
+    if (opt === "track") return chosen || {};
+    if (opt === "tracklist") return [autoEn, manualEn];
+    return null;
+  };
+  ctx.__player.setOption = (mod, opt, value) => {
+    chosen = value;
+    set.push([mod, opt, value.name]);
+  };
+  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "set");
+  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "done");
+  assert.equal(set.length, 2, "the track is set once it is missing, and not again");
 });
 
 test("subtitles: leaves captions alone when something is already on", () => {
@@ -70,21 +84,23 @@ test("subtitles: leaves captions alone when something is already on", () => {
   let touched = false;
   ctx.__player = {
     getOptions: () => ["captions"],
-    getOption: (m, o) => (o === "track" ? { languageCode: "fr" } : []),
+    getOption: (m, o) =>
+      o === "track" ? { languageCode: "fr", kind: "" } : o === "tracklist" ? [{ languageCode: "fr", kind: "" }] : [],
     setOption() {
       touched = true;
     },
   };
-  assert.equal(api.tryEnable(ctx.__player, "en", true), "done");
-  assert.equal(touched, false, "a choice already made (by YouTube or the user) is kept");
+  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "done");
+  assert.equal(touched, false, "a track this video offers, already chosen, is kept");
 });
 
 test("subtitles: asks for a retry until the caption list exists", () => {
   const { api } = loadSubtitles({});
-  assert.equal(api.tryEnable(null, "en", true), "retry");
+  assert.equal(api.tryEnable(null, "vid", "en", true), "retry");
   assert.equal(
     api.tryEnable(
       { getOptions: () => [], getOption: () => null },
+      "vid",
       "en",
       true,
     ),

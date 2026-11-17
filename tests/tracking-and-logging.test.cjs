@@ -90,3 +90,12 @@ test("event logging never blocks watch-history reports", () => {
   assert.equal(shouldBlockRequestUrl(WATCHTIME, { eventLogging: true, viewStats: false }), false);
   assert.equal(shouldBlockRequestUrl(WATCHTIME, { eventLogging: true, viewStats: true }), true);
 });
+
+test("a player response (it carries playbackTracking, the watch-history report URLs) is not touched", () => {
+  const ctx = pipelineWith({ stripTrackingParams: true });
+  ctx.installResponsePipeline([]);
+  const player = '{"playbackTracking":{"videostatsWatchtimeUrl":{"baseUrl":"https://s.youtube.com/api/stats/watchtime"}},"responseContext":{"trackingParams":"CAEQ-player"}}';
+  const out = ctx.JSON.parse(player);
+  assert.equal(out.responseContext.trackingParams, "CAEQ-player", "left as YouTube sent it");
+  assert.equal(out.playbackTracking.videostatsWatchtimeUrl.baseUrl, "https://s.youtube.com/api/stats/watchtime");
+});

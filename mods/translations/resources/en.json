@@ -158,12 +158,13 @@
       "hqQuality": {
         "title": "Preferred size",
         "subtitle": "The largest thumbnail to use. Sizes above it are never downloaded. A smaller one is used when a video has no larger one.",
-        "hq": "HQ (360p), default",
-        "max": "Max (720p)",
+        "hq": "HQ (360p)",
+        "max": "Max (720p), default",
         "sd": "SD (480p)",
         "mq": "Medium (180p)",
         "default": "Low (90p)"
       },
+      "prefetch": "Prefetch the next rows (faster scrolling, more network)",
       "deArrowTitles": "DeArrow titles",
       "deArrowThumbnails": "DeArrow thumbnails",
       "previews": {
@@ -225,6 +226,7 @@
           "subtitle": "A ready-made colour set."
         },
         "background": {
+          "useCustom": "Custom background image (set on the phone)",
           "title": "Background colour",
           "subtitle": "Colour behind the main content."
         },
@@ -359,6 +361,9 @@
         "subtitle": "Launch log, versions and what the app last did"
       },
       "debugLogs": "Verbose logs",
+      "lowMemory": "Low memory mode",
+      "reducedMotion": "Reduced motion",
+      "stripTracking": "Strip tracking tokens",
       "userAgent": {
         "title": "User agent",
         "subtitle": "The browser identity YouTube sees. Takes effect after AxoTube reloads. The phone agent is experimental on TV.",

@@ -13,7 +13,7 @@ import { configChangeEmitter, configRead } from "../config.js";
 import { hqThumbnailMode } from "../shared/performanceMode.js";
 import {
   extractVideoIdFromThumbnailUrl,
-  probeBestThumbnailQuality,
+  resolveThumbnailFile,
   resolveThumbnailQuality,
 } from "../shared/hqThumbnails.js";
 
@@ -64,21 +64,16 @@ function upgradeThumbnailQuality(element) {
     if (!element || element.isConnected === false) return;
     if (file === currentFile) return;
     const finalUrl = "https://i.ytimg.com/vi/" + videoId + "/" + file;
-    // The image is loaded before it replaces the one on screen, so the swap is not seen.
-    const preload = new Image();
-    preload.onload = function () {
-      if (!element || element.isConnected === false) return;
-      if (isBackgroundImage) {
-        element.style.backgroundImage = 'url("' + finalUrl + '")';
-      } else {
-        element.removeAttribute("srcset");
-        element.src = finalUrl;
-      }
-    };
-    preload.src = finalUrl;
+    // resolveThumbnailFile has already loaded this image, so the swap is not seen.
+    if (isBackgroundImage) {
+      element.style.backgroundImage = 'url("' + finalUrl + '")';
+    } else {
+      element.removeAttribute("srcset");
+      element.src = finalUrl;
+    }
   };
 
-  probeBestThumbnailQuality(videoId, preferred, applyFile);
+  resolveThumbnailFile(videoId, preferred, applyFile, Image);
 }
 
 function initFocusObserver() {

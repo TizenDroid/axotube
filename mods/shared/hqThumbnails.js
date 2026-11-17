@@ -1,8 +1,8 @@
 // Shared thumbnail-quality helpers.
 //
-// YouTube serves each video's thumbnail in fixed sizes. The user picks the size they
-// want (the preferred size); tiles get that size and the sizes below it, never anything
-// larger, so a small tile does not download a 1280x720 image it cannot show.
+// YouTube serves each video's thumbnail in fixed sizes. The preferred size (from settings)
+// is where a tile starts. When that file is missing, the tile steps down one size at a time
+// until a file exists. Tiles never get a size above the preference.
 import { createBoundedCache } from "./boundedCache.js";
 
 // Largest first. The sizes are the real pixel sizes of each file: YouTube does not serve
@@ -21,10 +21,7 @@ THUMBNAIL_FILES.forEach((entry) => {
   THUMBNAIL_SIZES[entry.file] = { width: entry.width, height: entry.height };
 });
 
-// Every video has these files. maxresdefault and sddefault can be missing (older or
-// unlisted uploads), so only those are checked before they are used.
-const ALWAYS_PRESENT = { hq: true, mq: true, default: true };
-export const DEFAULT_THUMBNAIL_QUALITY = "hq";
+export const DEFAULT_THUMBNAIL_QUALITY = "max";
 
 export function resolveThumbnailQuality(value) {
   for (let i = 0; i < THUMBNAIL_FILES.length; i++) {
@@ -52,10 +49,66 @@ export function buildThumbnailArray(videoID, preferredId) {
 }
 
 export const MAX_HQ_CACHE_ENTRIES = 256;
-// Keyed by preferred size and video, so changing the preference never reuses a stale answer.
+// Resolved file per preferred size and video, so a file is looked up once.
 export const hqQualityCache = createBoundedCache(MAX_HQ_CACHE_ENTRIES);
-// key -> callbacks waiting on an in-flight check.
-export const hqPendingTesters = new Map();
+
+export function extractVideoIdFromThumbnailUrl(url) {
+  if (!url || !url.includes("i.ytimg.com/vi/")) return null;
+  const match = url.match(/\/vi\/([a-zA-Z0-9_-]+)\//);
+  return match ? match[1] : null;
+}
+
+// The thumbnail file a URL names (for example "sddefault.jpg"), or null for any other URL.
+export function fileOfThumbnailUrl(url) {
+  if (!url || url.indexOf("i.ytimg.com/vi/") === -1) return null;
+  const match = /\/(maxresdefault|sddefault|hqdefault|mqdefault|default)\.jpg/.exec(url);
+  return match ? match[1] + ".jpg" : null;
+}
+
+// The next smaller file, or null when the file is already the smallest.
+export function nextLowerFile(file) {
+  for (let i = 0; i < THUMBNAIL_FILES.length - 1; i++) {
+    if (THUMBNAIL_FILES[i].file === file) return THUMBNAIL_FILES[i + 1].file;
+  }
+  return null;
+}
+
+// YouTube answers a missing maxresdefault or sddefault with a 120x90 placeholder rather than an
+// error. default.jpg is 120x90 by design, so it is never a placeholder.
+export function isPlaceholderImage(width, height, file) {
+  return file !== "default.jpg" && width === 120 && height === 90;
+}
+
+// The file to show for a video at the preferred size: the preferred file when it loads, else
+// the next size down. The image that is loaded here is the one the tile then shows, so there is
+// no separate check request. onResolved gets the file name.
+export function resolveThumbnailFile(videoId, preferredId, onResolved, ImageCtor) {
+  const chain = thumbnailChain(preferredId);
+  const key = chain[0].id + "|" + videoId;
+  const cached = hqQualityCache.get(key);
+  if (cached) {
+    onResolved(cached);
+    return;
+  }
+  const tryAt = function (index) {
+    const entry = chain[index];
+    const img = new ImageCtor();
+    img.onload = function () {
+      if (isPlaceholderImage(this.naturalWidth, this.naturalHeight, entry.file) && index + 1 < chain.length) {
+        tryAt(index + 1);
+        return;
+      }
+      hqQualityCache.set(key, entry.file);
+      onResolved(entry.file);
+    };
+    img.onerror = function () {
+      if (index + 1 < chain.length) tryAt(index + 1);
+      else onResolved(entry.file);
+    };
+    img.src = "https://i.ytimg.com/vi/" + videoId + "/" + entry.file;
+  };
+  tryAt(0);
+}
 
 // Background warm-up of the preferred thumbnail for each new tile. The image is not attached
 // to the page, so the browser fetches the bytes without decoding them for display. At most
@@ -107,63 +160,6 @@ export function createPrefetcher(ImageCtor) {
       return queue.length + active;
     },
   };
-}
-
-export function extractVideoIdFromThumbnailUrl(url) {
-  if (!url || !url.includes("i.ytimg.com/vi/")) return null;
-  const match = url.match(/\/vi\/([a-zA-Z0-9_-]+)\//);
-  return match ? match[1] : null;
-}
-
-// The file to show for a video at the preferred size: the preferred file when it exists,
-// otherwise the next size down. Files that always exist need no request at all. Only
-// maxresdefault and sddefault are checked, once per video and preference, and the answer
-// is cached. The 120x90 image YouTube returns for a missing file counts as missing.
-export function probeBestThumbnailQuality(videoId, preferredId, onResult) {
-  if (!videoId || typeof onResult !== "function") return;
-  const chain = thumbnailChain(preferredId);
-  const key = chain[0].id + "|" + videoId;
-
-  const cached = hqQualityCache.get(key);
-  if (cached) {
-    onResult(cached);
-    return;
-  }
-
-  if (hqPendingTesters.has(key)) {
-    hqPendingTesters.get(key).push(onResult);
-    return;
-  }
-
-  hqPendingTesters.set(key, [onResult]);
-  const finish = (file) => {
-    const waiters = hqPendingTesters.get(key) || [];
-    hqPendingTesters.delete(key);
-    hqQualityCache.set(key, file);
-    waiters.forEach((cb) => {
-      try {
-        cb(file);
-      } catch (e) {}
-    });
-  };
-
-  // Walks down the chain. A file that always exists ends the walk without a request.
-  const check = (index) => {
-    const entry = chain[index];
-    if (ALWAYS_PRESENT[entry.id]) {
-      finish(entry.file);
-      return;
-    }
-    const tester = new Image();
-    tester.onload = function () {
-      const isPlaceholder = this.naturalWidth === 120 && this.naturalHeight === 90;
-      if (isPlaceholder) check(index + 1);
-      else finish(entry.file);
-    };
-    tester.onerror = () => check(index + 1);
-    tester.src = `https://i.ytimg.com/vi/${videoId}/${entry.file}`;
-  };
-  check(0);
 }
 
 export function isVideoThumbnailArray(thumbnails) {

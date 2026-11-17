@@ -67,8 +67,9 @@ function world() {
     "MutationObserver",
     "setTimeout",
     "clearTimeout",
+    "setBootHeld",
     SOURCE,
-  )(sandbox.window, sandbox.document, sandbox.MutationObserver, sandbox.setTimeout, sandbox.clearTimeout);
+  )(sandbox.window, sandbox.document, sandbox.MutationObserver, sandbox.setTimeout, sandbox.clearTimeout, () => {});
   const shown = () => body.children.some((c) => c.id === OVERLAY);
   return {
     shown,
