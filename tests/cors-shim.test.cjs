@@ -118,6 +118,23 @@ test("rewrites a GET Request object and drops cookies", () => {
   assert.deepStrictEqual(win.fetchCalls[0].init, { mode: "cors" });
 });
 
+test("a GET Request for a YouTube cookie host keeps the session cookies (same-origin to localhost)", () => {
+  const { win } = load("http://localhost:8081");
+  win.fetch({ url: "https://s.youtube.com/api/stats/watchtime?ver=2", method: "GET", headers: { a: "b" } }, { mode: "cors" });
+  const req = win.fetchCalls[0].input;
+  assert.strictEqual(req.url, "http://localhost:8081/cors-bypass/https://s.youtube.com/api/stats/watchtime?ver=2");
+  assert.strictEqual(req.credentials, "same-origin");
+});
+
+test("the browser cookie hosts match the proxy's cookie hosts", () => {
+  const proxy = fs.readFileSync(path.join(ROOT, "service/proxy.js"), "utf8");
+  const block = /var COOKIE_CORS_HOSTS = \{([\s\S]*?)\};/.exec(proxy)[1];
+  const proxyHosts = Array.from(block.matchAll(/'([^']+)'\s*:\s*true/g), (m) => m[1]).sort();
+  const shimBlock = /COOKIE_SHIM_HOSTS = \{([\s\S]*?)\};/.exec(src)[1];
+  const shimHosts = Array.from(shimBlock.matchAll(/"([^"]+)"\s*:\s*true/g), (m) => m[1]).sort();
+  assert.deepStrictEqual(shimHosts, proxyHosts);
+});
+
 test("rewrites a POST Request built with the page's Request constructor, body included", () => {
   const { win } = load("http://localhost:8081");
   const req = new win.Request("https://rr1---sn-abc.googlevideo.com/videoplayback?rn=5", {

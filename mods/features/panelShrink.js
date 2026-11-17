@@ -47,10 +47,27 @@ let rootObserver = null;
 let observedRoot = null;
 let frame = null;
 
+// Runs only while a panel can open: the watch page, with the feature on. Watching the
+// container all the time meant every tile added during a browse-page scroll scheduled a sync.
+let containerObserver = null;
+let observedContainer = null;
+function syncContainerObserver(wanted) {
+  const container = wanted ? document.getElementById("container") || document.body : null;
+  if (container === observedContainer && !!containerObserver === wanted) return;
+  if (containerObserver) containerObserver.disconnect();
+  containerObserver = null;
+  observedContainer = container;
+  if (!container || typeof MutationObserver === "undefined") return;
+  containerObserver = new MutationObserver(scheduleSync);
+  containerObserver.observe(container, { childList: true, subtree: true });
+}
+
 function sync() {
   frame = null;
   if (!document.body) return;
-  const root = document.querySelector(PANEL_SELECTOR);
+  const wanted = !!configRead("enablePanelShrink") && onWatchPage();
+  syncContainerObserver(wanted);
+  const root = wanted ? document.querySelector(PANEL_SELECTOR) : null;
   attachRootObserver(root);
   ensureStyle();
 
@@ -84,11 +101,6 @@ function start() {
   if (!document.body) {
     setTimeout(start, 250);
     return;
-  }
-  // Panels appear and disappear as children of the app container, so watch that.
-  const container = document.getElementById("container") || document.body;
-  if (typeof MutationObserver !== "undefined") {
-    new MutationObserver(scheduleSync).observe(container, { childList: true, subtree: true });
   }
   window.addEventListener("hashchange", scheduleSync);
   configChangeEmitter.addEventListener("configChange", (event) => {

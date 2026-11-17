@@ -85,14 +85,14 @@ suite parses the shipped output as ES5 for that reason.
 Windows, macOS, Linux, Android, and iPhone (beta). It finds the TV, creates the
 signing certificate, and installs the WGT. No Tizen Studio, no command line.
 
-1. Download `axotube.wgt` from the [latest release](https://github.com/TizenDroid/axotube/releases/latest).
+1. Download `AxoTube-<version>.wgt` from the [latest release](https://github.com/TizenDroid/axotube/releases/latest).
 2. On the TV, open **Apps**, enter `12345`, and set **Host PC IP** to the address
    of the computer or phone running Apps2Samsung. Power-cycle the TV if it asks.
 3. Install Apps2Samsung from [apps2samsung.com](https://apps2samsung.com/) or its
    [GitHub releases](https://github.com/Apps2Samsung/Apps2Samsung/releases). Keep
    it on the same network as the TV.
 4. Open Apps2Samsung and let it scan. Select your TV from the list.
-5. Choose **Custom WGT**, pick `axotube.wgt`, and install. The first install asks
+5. Choose **Custom WGT**, pick `AxoTube-<version>.wgt`, and install. The first install asks
    you to sign in to Samsung to create a signing certificate; later installs reuse
    it.
 6. Launch **axotube** from the Apps screen.
@@ -101,7 +101,7 @@ signing certificate, and installs the WGT. No Tizen Studio, no command line.
 
 If you already have Tizen Studio and a signing profile, the CLI is quicker:
 
-1. Download `axotube.wgt` from the [latest release](https://github.com/TizenDroid/axotube/releases/latest).
+1. Download `AxoTube-<version>.wgt` from the [latest release](https://github.com/TizenDroid/axotube/releases/latest).
 2. Put the TV in developer mode: open **Apps**, enter `12345`, and set the host
    PC address to the machine running Tizen Studio.
 3. WGT files from automated releases are unsigned. Repackage the WGT with your
@@ -109,7 +109,7 @@ If you already have Tizen Studio and a signing profile, the CLI is quicker:
    install the signed WGT over the network:
 
    ```sh
-   tizen install -n axotube.wgt -t <tv-name>
+   tizen install -n AxoTube-<version>.wgt -t <tv-name>
    ```
 
 4. Launch **axotube** from the Apps screen.
@@ -127,7 +127,7 @@ can lag behind the GitHub source; the WGT is built from the same tree.
 Download `AxoTube-Android-<version>.apk` from [GitHub Releases](https://github.com/TizenDroid/axotube/releases)
 and sideload it on your Android TV, for example with `adb install`. The
 [TV installers workflow](https://github.com/TizenDroid/axotube/actions/workflows/android-apk.yml)
-builds both the Android APK and Samsung `axotube.wgt` on every push to `main`,
+builds both the Android APK and Samsung `AxoTube-<version>.wgt` on every push to `main`,
 on `vX.Y.Z` tags, and when run manually. Both files appear together in the
 same prerelease for `main` builds or the same stable release for version tags.
 Both are also available from workflow artifacts.

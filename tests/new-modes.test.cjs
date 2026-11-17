@@ -180,6 +180,8 @@ test("user agent: the webview gets the Samsung TV string once", () => {
   const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,
+    // The module imports the verbose-log gate; the test has no log window, so logs stay off.
+    debugLogsOn: () => false,
     sessionStorage: {
       getItem: (k) => (session.has(k) ? session.get(k) : null),
       setItem: (k, v) => session.set(k, String(v)),
@@ -207,6 +209,8 @@ function runSpoofer({ navigatorUA, session = new Map(), profile = "auto" }) {
   const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,
+    // The module imports the verbose-log gate; the test has no log window, so logs stay off.
+    debugLogsOn: () => false,
     sessionStorage: {
       getItem: (k) => (session.has(k) ? session.get(k) : null),
       setItem: (k, v) => session.set(k, String(v)),
@@ -253,6 +257,8 @@ test("user agent: an unavailable setter is reported, not silently ignored", () =
   const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,
+    // The module imports the verbose-log gate; the test has no log window, so logs stay off.
+    debugLogsOn: () => false,
     sessionStorage: { getItem: () => null, setItem() {} },
     location: win.location,
     console: { log() {}, warn() {} },
@@ -274,6 +280,8 @@ test("user agent: the android profile sends the phone agent, reloading once", ()
   const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,
+    // The module imports the verbose-log gate; the test has no log window, so logs stay off.
+    debugLogsOn: () => false,
     sessionStorage: {
       getItem: (k) => (session.has(k) ? session.get(k) : null),
       setItem: (k, v) => session.set(k, String(v)),

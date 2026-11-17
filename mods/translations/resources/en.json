@@ -36,7 +36,8 @@
       "sponsorBlock": "Enable SponsorBlock",
       "playerTracking": "Block player ad tracking",
       "adTelemetry": "Block ad telemetry",
-      "viewStats": "Block view statistics",
+      "viewStats": "Pause watch history",
+      "eventLogging": "Block event logging (may change recommendations)",
       "liveVideos": "Hide Live shelf",
       "topLiveGames": "Hide Top Live Games shelf",
       "mostRelevant": "Hide Most Relevant shelf",
@@ -154,13 +155,30 @@
         "subtitle": "DeArrow shows community titles and thumbnails in place of clickbait. Service: dearrow.ajay.app"
       },
       "hqThumbnails": "High-quality thumbnails",
+      "hqQuality": {
+        "title": "Preferred size",
+        "subtitle": "The largest thumbnail to use. Sizes above it are never downloaded. A smaller one is used when a video has no larger one.",
+        "hq": "HQ (360p), default",
+        "max": "Max (720p)",
+        "sd": "SD (480p)",
+        "mq": "Medium (180p)",
+        "default": "Low (90p)"
+      },
       "deArrowTitles": "DeArrow titles",
       "deArrowThumbnails": "DeArrow thumbnails",
       "previews": {
         "title": "Video previews",
         "subtitle": "Plays a short preview when a video is focused.",
         "on": "Show video previews",
-        "length": "Preview length"
+        "length": "Preview length",
+        "quality": {
+          "title": "Maximum preview quality",
+          "subtitle": "Previews play at most at this quality, to save CPU and GPU. Watching a video is not affected.",
+          "off": "No limit",
+          "480p": "480p",
+          "720p": "720p"
+        },
+        "sound": "Preview sound"
       },
       "hideWatched": {
         "title": "Hide watched videos",
@@ -340,6 +358,7 @@
         "title": "Diagnostics page",
         "subtitle": "Launch log, versions and what the app last did"
       },
+      "debugLogs": "Verbose logs",
       "userAgent": {
         "title": "User agent",
         "subtitle": "The browser identity YouTube sees. Takes effect after AxoTube reloads. The phone agent is experimental on TV.",

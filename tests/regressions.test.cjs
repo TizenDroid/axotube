@@ -155,7 +155,7 @@ test("launchToOnStartup stays string-or-null across TV and web", () => {
 
 test("HQ probes fan out and cache is bounded", () => {
   const src = read("mods/shared/hqThumbnails.js");
-  has(src, "hqPendingTesters.get(videoId).push(onResult)");
+  has(src, "hqPendingTesters.get(key).push(onResult)");
   has(src, "createBoundedCache(MAX_HQ_CACHE_ENTRIES)");
   has(src, "MAX_HQ_CACHE_ENTRIES = 256");
 });

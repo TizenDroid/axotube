@@ -49,7 +49,12 @@ final class LocalProxy {
             "content-security-policy", "alt-svc", "connection",
             "access-control-allow-origin", "access-control-allow-credentials", "keep-alive"));
     // Same host list as COOKIE_CORS_HOSTS in service/proxy.js.
-    private static final Set<String> COOKIE_CORS_HOSTS = new HashSet<>(Arrays.asList("www.youtube.com", "youtube.com"));
+    private static final Set<String> COOKIE_CORS_HOSTS = new HashSet<>(Arrays.asList("www.youtube.com", "youtube.com", "s.youtube.com"));
+    // Same host list as ACCOUNT_CORS_HOSTS in service/proxy.js: the hosts that also identify the
+    // account by its Authorization header. The last one the page sent on /youtubei/ is kept and
+    // given to /api/stats/ requests, which cannot carry one themselves.
+    private static final Set<String> ACCOUNT_CORS_HOSTS = new HashSet<>(Arrays.asList("www.youtube.com", "youtube.com", "s.youtube.com"));
+    private static volatile String lastYoutubeAuthorization = null;
     private static final Set<String> DROP_REQUEST = new HashSet<>(Arrays.asList(
             "host", "connection", "proxy-connection", "content-length", "transfer-encoding",
             "accept-encoding", "upgrade"));
@@ -490,6 +495,13 @@ final class LocalProxy {
         conn.setRequestProperty("Host", upstream.getHost());
         conn.setRequestProperty("Origin", "https://www.youtube.com");
         boolean cookieHost = COOKIE_CORS_HOSTS.contains(upstream.getHost().toLowerCase(java.util.Locale.ROOT));
+        String upstreamHost = upstream.getHost().toLowerCase(java.util.Locale.ROOT);
+        String upstreamPath = upstream.getPath() == null ? "" : upstream.getPath();
+        boolean accountHost = ACCOUNT_CORS_HOSTS.contains(upstreamHost);
+        String pageAuthorization = req.headers.get("authorization");
+        if (accountHost && pageAuthorization != null && upstreamPath.startsWith("/youtubei/")) {
+            lastYoutubeAuthorization = pageAuthorization;
+        }
         for (Map.Entry<String, String> entry : req.headers.entrySet()) {
             String key = entry.getKey();
             if (DROP_REQUEST.contains(key) || (cors && (("cookie".equals(key) && !cookieHost)
@@ -503,6 +515,10 @@ final class LocalProxy {
                 continue;
             }
             conn.setRequestProperty(key, value);
+        }
+        if (accountHost && upstreamPath.startsWith("/api/stats/") && lastYoutubeAuthorization != null
+                && (cors || pageAuthorization == null)) {
+            conn.setRequestProperty("authorization", lastYoutubeAuthorization);
         }
         if (req.body.length > 0 && !"GET".equals(req.method) && !"HEAD".equals(req.method)) {
             conn.setDoOutput(true);

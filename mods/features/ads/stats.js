@@ -1,3 +1,5 @@
+import { debugLogsOn } from "../../shared/debugLog.js";
+
 /**
  * Counters and debug logging for the ad filters. Counters are always kept
  * (cheap, read from the console as window.__axotubeAdblockStats). Logging is
@@ -15,7 +17,7 @@ export function bump(key, n) {
 
 export function debugLog() {
   try {
-    if (typeof window === "undefined" || window.__axotubeAdblockDebug !== true) return;
+    if (typeof window === "undefined" || !debugLogsOn()) return;
     if (typeof console === "undefined") return;
     const args = ["[AxoTube:adblock]"].concat(Array.prototype.slice.call(arguments));
     console.log.apply(console, args);

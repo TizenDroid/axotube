@@ -23,6 +23,7 @@ const MODULES = [
   "mods/features/sponsorBlockActions.js",
   "mods/features/queuedVideosShelf.js",
   "mods/features/playbackContextStringify.js",
+  "mods/features/avatarQuality.js",
   "mods/features/adblock.js",
 ];
 

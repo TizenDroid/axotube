@@ -97,7 +97,9 @@ function makeWorld(opts = {}) {
     get: () => ct,
     set: (target) => {
       seeks.push({ at: clock, to: target, from: ct });
-      ct = snaps.length ? snaps.shift() : target;
+      const grid = opts.keyframeEvery;
+      const keyframe = grid ? Math.floor(target / grid) * grid : target;
+      ct = snaps.length ? snaps.shift() : keyframe;
       seeking = true;
       seekDone = true;
     },
@@ -113,12 +115,26 @@ function makeWorld(opts = {}) {
   win.location = { hash: opts.hash || "#/watch?v=vid1" };
   const doc = new Events();
   doc.readyState = "complete";
-  const styleEl = { id: "", textContent: "" };
+  // Counts the writes to the bar's rules, so a test can see when the bar is rebuilt.
+  let cssText = "";
+  const styleEl = {
+    id: "",
+    writes: 0,
+    get textContent() {
+      return cssText;
+    },
+    set textContent(value) {
+      styleEl.writes += 1;
+      cssText = value;
+    },
+  };
   doc.getElementById = (id) => (id === styleEl.id ? styleEl : null);
   doc.createElement = () => styleEl;
   doc.head = { appendChild() {} };
   doc.querySelector = (selector) => (selector === "video" ? video : null);
-  doc.querySelectorAll = () => [];
+  // Chapter pieces of the bar, when a test gives some (the bar is drawn in each piece).
+  doc.querySelectorAll = (selector) =>
+    opts.chapterPieces && selector.indexOf("chapter-") !== -1 ? opts.chapterPieces : [];
 
   const config = { ...DEFAULT_CONFIG, ...(opts.config || {}) };
   const configEmitter = new Events();
@@ -313,13 +329,49 @@ test("a segment at the very end lands before the end and is not skipped again", 
   );
 });
 
-test("a keyframe snap-back is re-sought, then accepted, with no loop", async () => {
+test("a keyframe snap-back is re-sought further on, then accepted, with no loop", async () => {
   const world = makeWorld({ entries: [seg("sponsor", 30, 60)], snaps: [55] });
   await play(world, 40000);
   assert.deepEqual(
     world.seeks.map((s) => s.to),
-    [60, 60],
+    [60, 62],
   );
+  assert.equal(skipToasts(world).length, 1);
+});
+
+test("a TV that snaps every request to the same keyframe is outrun by later targets, never repeated", async () => {
+  // Keyframes every 10 s. Each request for 36 lands on 30, before the segment starts at 33.
+  // The old loop asked for 36 again and again. Each retry here aims later, and the first
+  // target that lands past the segment is accepted.
+  const world = makeWorld({ entries: [seg("sponsor", 33, 36)], keyframeEvery: 10 });
+  await play(world, 40000);
+  assert.deepEqual(
+    world.seeks.map((s) => s.to),
+    [36, 38, 41],
+  );
+  assert.equal(skipToasts(world).length, 1);
+  assert.ok(world.video.currentTime > 36, String(world.video.currentTime));
+});
+
+test("when no later target holds, the segment plays through once: bounded seeks, no toast, no loop", async () => {
+  // Keyframes every 100 s: every request lands at 0, far before the segment.
+  const world = makeWorld({ entries: [seg("sponsor", 33, 36)], keyframeEvery: 100 });
+  await play(world, 90000);
+  const targets = world.seeks.map((s) => s.to);
+  assert.deepEqual(targets, [36, 38, 41, 46]);
+  assert.equal(new Set(targets).size, targets.length);
+  assert.equal(skipToasts(world).length, 0);
+  // Playback went on past the segment and was not held or re-sought after giving up.
+  assert.ok(world.video.currentTime > 40, String(world.video.currentTime));
+});
+
+test("the bar segments use only edge offsets that Chromium 56 supports (no inset shorthand)", async () => {
+  const world = makeWorld({ entries: [seg("sponsor", 30, 60)] });
+  await play(world, 2000);
+  const css = world.styleEl.textContent;
+  assert.ok(css.indexOf("background:") !== -1, css);
+  assert.equal(css.indexOf("inset"), -1, css);
+  assert.match(css, /position: absolute; top: 0; right: 0; bottom: 0; left: 0;/);
 });
 
 test("a decoder settle back before a skipped segment does not skip it again", async () => {
@@ -328,7 +380,8 @@ test("a decoder settle back before a skipped segment does not skip it again", as
   // Long enough for playback to reach the segment again if it were re-armed.
   await play(world, 90000, [{ at: 30300, run: (w) => w.decoderSeek(20) }]);
   assert.equal(skipToasts(world).length, 1);
-  assert.ok(world.seeks.every((s) => s.to === 60), JSON.stringify(world.seeks));
+  // The settle is put back once, at the landing; nothing re-skips the segment.
+  assert.deepEqual(world.seeks.map((s) => s.to), [60, 60]);
 });
 
 test("a manual (show) category is not skipped", async () => {
@@ -516,4 +569,19 @@ test("a skip and its toast are off when notices are disabled", async () => {
   await play(world, 40000);
   assert.deepEqual(world.seeks.map((s) => s.to), [60]);
   assert.equal(world.toasts.length, 0);
+});
+
+const piece = (key, width) => ({ getAttribute: (n) => (n === "idomkey" ? key : null), style: { width } });
+
+test("the bar's rules are written only when its layout changes, not on every redraw", async () => {
+  const pieces = [piece("chapter-a", "50%"), piece("chapter-b", "50%")];
+  const world = makeWorld({ entries: [seg("sponsor", 30, 60)], duration: 600, chapterPieces: pieces });
+  await play(world, 5000);
+  const settled = world.styleEl.writes;
+  await play(world, 15000);
+  assert.equal(world.styleEl.writes, settled, "steady playback rewrites nothing");
+  pieces[1].style.width = "20%";
+  await play(world, 2000);
+  assert.equal(world.styleEl.writes, settled + 1, "one rewrite when the chapter pieces change");
+  assert.match(world.styleEl.textContent, /chapter-b/);
 });

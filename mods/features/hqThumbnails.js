@@ -1,32 +1,40 @@
 // Response-level HQ thumbnails.
 //
-// Upgrades every video tile's thumbnail array to the hi-res tier set at
-// response-parse time (before it reaches the DOM), so all tiles render sharp
-// previews without waiting for the focus observer. The focus observer in
+// Sets every video tile's thumbnail list to the preferred size and the sizes below it,
+// at response-parse time (before it reaches the DOM), so tiles render at the chosen
+// quality without waiting for the focus observer. The focus observer in
 // hqThumbnailsFocusObserver.js only handles tiles the response patch missed.
 
 import {
-  THUMBNAIL_URLS,
-  THUMBNAIL_SIZES,
+  buildThumbnailArray,
+  createPrefetcher,
+  resolveThumbnailQuality,
   MAX_HQ_CACHE_ENTRIES,
   isVideoThumbnailArray,
 } from "../shared/hqThumbnails.js";
 import { createBoundedCache } from "../shared/boundedCache.js";
 import { hqThumbnailMode } from "../shared/performanceMode.js";
+import { configRead, configChangeEmitter } from "../config.js";
 
 const hqThumbnailsCache = createBoundedCache(MAX_HQ_CACHE_ENTRIES);
-
-export function buildHqThumbnails(videoID) {
-  const thumbnails = [];
-  for (const filename of THUMBNAIL_URLS) {
-    const size = THUMBNAIL_SIZES[filename];
-    thumbnails.push({
-      url: `https://i.ytimg.com/vi/${videoID}/${filename}`,
-      width: size.width,
-      height: size.height,
-    });
+// The browser fetches each new tile's preferred image before the TV asks for it. Created on
+// first use, so evaluating this module needs no Image.
+let prefetcher = null;
+function warmThumbnails(urls) {
+  if (!prefetcher) {
+    if (typeof Image === "undefined") return;
+    prefetcher = createPrefetcher(Image);
   }
-  return thumbnails;
+  prefetcher.enqueue(urls);
+}
+
+// A new preferred size makes every cached tile list wrong.
+configChangeEmitter.addEventListener("configChange", (event) => {
+  if (event.detail && event.detail.key === "hqThumbnailQuality") hqThumbnailsCache.clear();
+});
+
+export function buildHqThumbnails(videoID, preferredId) {
+  return buildThumbnailArray(videoID, preferredId);
 }
 
 function deepSetThumbnails(obj, thumbnails) {
@@ -43,6 +51,8 @@ function deepSetThumbnails(obj, thumbnails) {
 export function hqify(items) {
   // In performance mode the focus observer upgrades only the tile being focused.
   if (hqThumbnailMode() !== "eager") return;
+  const preferred = resolveThumbnailQuality(configRead("hqThumbnailQuality"));
+  const warm = [];
   for (const item of items) {
     if (!item.tileRenderer) continue;
 
@@ -50,12 +60,14 @@ export function hqify(items) {
       const videoID = item.tileRenderer.onSelectCommand?.watchEndpoint?.videoId;
       if (!videoID) continue;
 
+      const cacheKey = preferred + ":" + videoID;
       const primaryThumbnails = item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails;
-      if (primaryThumbnails === hqThumbnailsCache.get(videoID)) continue;
+      if (primaryThumbnails === hqThumbnailsCache.get(cacheKey)) continue;
 
-      let thumbnails = hqThumbnailsCache.get(videoID);
+      let thumbnails = hqThumbnailsCache.get(cacheKey);
       if (!thumbnails) {
-        thumbnails = hqThumbnailsCache.set(videoID, buildHqThumbnails(videoID));
+        thumbnails = hqThumbnailsCache.set(cacheKey, buildHqThumbnails(videoID, preferred));
+        if (thumbnails && thumbnails.length > 0) warm.push(thumbnails[0].url);
       }
 
       if (item.tileRenderer.header?.tileHeaderRenderer?.thumbnail?.thumbnails) {
@@ -77,4 +89,5 @@ export function hqify(items) {
       console.warn("[AxoTube:hqThumbnails] Error processing thumbnail:", e);
     }
   }
+  if (warm.length > 0) warmThumbnails(warm);
 }

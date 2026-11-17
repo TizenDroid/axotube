@@ -1,13 +1,34 @@
 // High-Quality Thumbnails for Focused Items
 // Fixes issue where focused thumbnails revert to default quality
+//
+// Two things keep this cheap and calm:
+//  - It watches class and image-source changes only. Inline style changes are most of what
+//    leanback's focus animations produce, and watching them made the observer run every frame
+//    while the user moved through a row. A focused tile's background image is still checked
+//    when that tile gets focus.
+//  - A better image is loaded first, and only then shown in place of the old one, so a tile
+//    does not flash to a blank or to the small image while the sharp one arrives.
 
-import { configChangeEmitter } from "../config.js";
+import { configChangeEmitter, configRead } from "../config.js";
 import { hqThumbnailMode } from "../shared/performanceMode.js";
 import {
   extractVideoIdFromThumbnailUrl,
-  hqQualityCache,
   probeBestThumbnailQuality,
+  resolveThumbnailQuality,
 } from "../shared/hqThumbnails.js";
+
+// Marks a tile as handled for one preference and one video.
+function lockFor(preferred, videoId) {
+  return preferred + ":" + videoId;
+}
+
+function currentPreference() {
+  return resolveThumbnailQuality(configRead("hqThumbnailQuality"));
+}
+
+// A tile is upgraded only once focus has rested on it this long. Tiles passed on the way are
+// never upgraded: a new image decoded and painted in the middle of a move is the stutter.
+const FOCUS_SETTLE_MS = 150;
 
 function upgradeThumbnailQuality(element) {
   if (hqThumbnailMode() === "off") return;
@@ -31,40 +52,33 @@ function upgradeThumbnailQuality(element) {
   let videoId = extractVideoIdFromThumbnailUrl(currentUrl);
   if (!videoId) return;
 
-  if (element.getAttribute("data-hq-upgraded") === videoId) return;
+  const preferred = currentPreference();
+  const lock = lockFor(preferred, videoId);
+  if (element.getAttribute("data-hq-upgraded") === lock) return;
+  element.setAttribute("data-hq-upgraded", lock);
 
-  let qualityMatch = currentUrl.match(
-    /\/(maxresdefault|sddefault|hqdefault|mqdefault|default)\.jpg/,
-  );
-  let currentQuality = qualityMatch ? qualityMatch[1] : "default";
-  let cachedQuality = hqQualityCache.get(videoId);
+  let qualityMatch = currentUrl.match(/\/(maxresdefault|sddefault|hqdefault|mqdefault|default)\.jpg/);
+  const currentFile = qualityMatch ? qualityMatch[1] + ".jpg" : "default.jpg";
 
-  if (cachedQuality && currentQuality + ".jpg" === cachedQuality) {
-    element.setAttribute("data-hq-upgraded", videoId);
-    return;
-  }
-
-  element.setAttribute("data-hq-upgraded", videoId);
-
-  let applyFinalQuality = function (qualityName) {
+  const applyFile = function (file) {
     if (!element || element.isConnected === false) return;
-    let finalUrl = "https://i.ytimg.com/vi/" + videoId + "/" + qualityName;
-    if (isBackgroundImage) {
-      element.style.backgroundImage = 'url("' + finalUrl + '")';
-    } else {
-      element.removeAttribute("srcset");
-      element.src = finalUrl;
-    }
+    if (file === currentFile) return;
+    const finalUrl = "https://i.ytimg.com/vi/" + videoId + "/" + file;
+    // The image is loaded before it replaces the one on screen, so the swap is not seen.
+    const preload = new Image();
+    preload.onload = function () {
+      if (!element || element.isConnected === false) return;
+      if (isBackgroundImage) {
+        element.style.backgroundImage = 'url("' + finalUrl + '")';
+      } else {
+        element.removeAttribute("srcset");
+        element.src = finalUrl;
+      }
+    };
+    preload.src = finalUrl;
   };
 
-  if (cachedQuality) {
-    applyFinalQuality(cachedQuality);
-    return;
-  }
-
-  probeBestThumbnailQuality(videoId, function (qualityName) {
-    applyFinalQuality(qualityName);
-  });
+  probeBestThumbnailQuality(videoId, preferred, applyFile);
 }
 
 function initFocusObserver() {
@@ -72,7 +86,7 @@ function initFocusObserver() {
     subtree: true,
     childList: true,
     attributes: true,
-    attributeFilter: ["class", "src", "srcset", "style"],
+    attributeFilter: ["class", "src", "srcset"],
   };
 
   let findTargetsAndUpgrade = function (container) {
@@ -100,6 +114,24 @@ function initFocusObserver() {
     }
   };
 
+  let settleTimer = null;
+  let settleTarget = null;
+  let scheduleUpgrade = function (container) {
+    settleTarget = container;
+    if (settleTimer !== null) clearTimeout(settleTimer);
+    settleTimer = setTimeout(function () {
+      settleTimer = null;
+      const target = settleTarget;
+      settleTarget = null;
+      if (!target || target.isConnected === false) return;
+      const focused = document.querySelector(".zylon-focus");
+      if (!focused) return;
+      // Still the focused tile, or one that contains it, or one inside it.
+      if (focused !== target && !target.contains(focused) && !focused.contains(target)) return;
+      findTargetsAndUpgrade(target);
+    }, FOCUS_SETTLE_MS);
+  };
+
   let closestFocused = function (element) {
     let current = element;
     while (current) {
@@ -123,44 +155,34 @@ function initFocusObserver() {
   let processMutations = function (mutations) {
     try {
       let focusedEl = null;
+      const preferred = currentPreference();
       for (let m = 0; m < mutations.length; m++) {
         let mutation = mutations[m];
         let element = mutation.target;
 
         if (mutation.type === "attributes" && mutation.attributeName === "class") {
           if (element.classList && element.classList.contains("zylon-focus")) {
-            findTargetsAndUpgrade(element);
+            scheduleUpgrade(element);
           }
           continue;
         }
 
         if (mutation.type === "attributes") {
-          if (mutation.attributeName === "src" || mutation.attributeName === "srcset") {
-            if (element.tagName !== "IMG") continue;
-            let attr =
-              mutation.attributeName === "src"
-                ? element.getAttribute("src")
-                : element.getAttribute("srcset");
-            if (!attr || attr.indexOf("i.ytimg.com/vi/") === -1) continue;
-          } else if (mutation.attributeName === "style") {
-            let bg = element.style && element.style.backgroundImage;
-            if (!bg || bg.indexOf("i.ytimg.com/vi/") === -1) continue;
-          } else {
-            continue;
-          }
+          if (mutation.attributeName !== "src" && mutation.attributeName !== "srcset") continue;
+          if (element.tagName !== "IMG") continue;
+          let attr =
+            mutation.attributeName === "src"
+              ? element.getAttribute("src")
+              : element.getAttribute("srcset");
+          if (!attr || attr.indexOf("i.ytimg.com/vi/") === -1) continue;
 
           let focusedParent = closestFocused(element);
           if (focusedParent) {
-            let lockedVideoId = element.getAttribute("data-hq-upgraded");
-            let liveUrl = "";
-            if (element.tagName === "IMG") {
-              liveUrl = element.src;
-            } else if (element.style && element.style.backgroundImage) {
-              let liveMatch = element.style.backgroundImage.match(/url\(['"]?(.*?)['"]?\)/);
-              liveUrl = liveMatch ? liveMatch[1] : "";
-            }
-            let liveVideoId = liveUrl ? extractVideoIdFromThumbnailUrl(liveUrl) : null;
-            if (lockedVideoId && lockedVideoId === liveVideoId) continue;
+            // Our own swap changes src too; a tile already upgraded for this preference and
+            // video is left alone, so a swap does not start another round.
+            let lockedValue = element.getAttribute("data-hq-upgraded");
+            let liveVideoId = extractVideoIdFromThumbnailUrl(element.src || "");
+            if (lockedValue && lockedValue === lockFor(preferred, liveVideoId)) continue;
             element.removeAttribute("data-hq-upgraded");
             upgradeThumbnailQuality(element);
           }
@@ -179,13 +201,13 @@ function initFocusObserver() {
               (focusedEl === node || focusedEl.contains(node) || node.contains(focusedEl))
             ) {
               if (!upgradedOnce) {
-                findTargetsAndUpgrade(focusedEl);
+                scheduleUpgrade(focusedEl);
                 upgradedOnce = true;
               }
             } else if (!focusedEl && node.querySelectorAll) {
               let focusedChildren = node.querySelectorAll(".zylon-focus");
               for (let c = 0; c < focusedChildren.length; c++) {
-                findTargetsAndUpgrade(focusedChildren[c]);
+                scheduleUpgrade(focusedChildren[c]);
               }
             }
           }
@@ -235,7 +257,13 @@ function initFocusObserver() {
   };
 
   // Performance-mode switches change the thumbnail mode, so they re-sync too.
-  let syncKeys = ["enableHqThumbnails", "enablePerformanceMode", "enableReducedMotion", "enableLowMemoryMode"];
+  let syncKeys = [
+    "enableHqThumbnails",
+    "hqThumbnailQuality",
+    "enablePerformanceMode",
+    "enableReducedMotion",
+    "enableLowMemoryMode",
+  ];
   configChangeEmitter.addEventListener("configChange", function (event) {
     if (event.detail && syncKeys.indexOf(event.detail.key) !== -1) syncWithConfig();
   });

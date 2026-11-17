@@ -1,3 +1,4 @@
+import { debugLogsOn } from "../shared/debugLog.js";
 // Update popup. The standalone proxy (localhost:8081) compares the bundle in use
 // with the latest published one (standalone/service/bundleUpdates.js). This
 // module asks the proxy and shows the popup. Applying an update re-checks in the
@@ -79,7 +80,7 @@ function checkForUpdates(showNoUpdateToast) {
       }
     })
     .catch((error) => {
-      console.info("[AxoTube:updater] update check skipped:", error && error.message);
+      if (debugLogsOn()) console.info("[AxoTube:updater] update check skipped:", error && error.message);
       if (showNoUpdateToast) {
         showToast(t("app.name"), t("toasts.updateCheckFailed"), null);
       }

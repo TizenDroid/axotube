@@ -24,6 +24,7 @@
 import { configRead } from "../config.js";
 import { PatchSettings } from "../ui/customYTSettings.js";
 import { filterGuideItems } from "../ui/customGuideAction.js";
+import { filterAvatarQuality } from "./avatarQuality.js";
 import { installResponsePipeline } from "../shared/responsePipeline.js";
 import { hasKnownTopLevelKey, textMayHaveAds } from "./ads/rules.js";
 import { runGuarded } from "./ads/breaker.js";
@@ -50,7 +51,8 @@ function readFlags() {
     shorts: !!configRead("enableShorts"),
     sortSubscriptions: !!configRead("sortSubscriptionsByAlphabet"),
     preferredCodec: configRead("videoPreferredCodec"),
-    blockPlayerTracking: configRead("blockPlayerAdTracking") !== false,
+    // Player ad tracking follows the ad blocker: it is not a separate setting in the TV menu.
+    blockPlayerTracking: !!configRead("enableAdBlock") && configRead("blockPlayerAdTracking") !== false,
     removeLiveVideos: !!configRead("removeLiveVideos"),
     removeTopLiveGames: !!configRead("removeTopLiveGames"),
     removeMostRelevant: !!configRead("removeMostRelevant"),
@@ -182,5 +184,5 @@ function filterYoutubeResponse(r, text) {
 }
 
 installTelemetryHooks(typeof window !== "undefined" ? window : null);
-installResponsePipeline([filterYoutubeResponse, filterGuideItems]);
+installResponsePipeline([filterYoutubeResponse, filterGuideItems, filterAvatarQuality]);
 installPlaybackStringifyFix();

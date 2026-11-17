@@ -8,8 +8,10 @@ const BLANK_JSON_URL = "data:application/json,{}";
 
 function currentFlags() {
   return {
-    ads: configRead("blockAdTelemetry") !== false,
+    // Ad telemetry follows the ad blocker, like player ad tracking.
+    ads: !!configRead("enableAdBlock") && configRead("blockAdTelemetry") !== false,
     viewStats: !!configRead("blockViewStatsTelemetry"),
+    eventLogging: !!configRead("blockEventLogging"),
   };
 }
 

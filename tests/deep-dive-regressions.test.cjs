@@ -198,20 +198,18 @@ test("remote config revision is marked applied only after values are processed",
   );
 });
 
-test("focused HQ thumbnail probing tries sddefault before falling back to hqdefault", () => {
+test("the size table lists maxres, then sd, then hq: a probe walks it in that order", () => {
   const src = read("mods/shared/hqThumbnails.js");
-  const probe = between(
-    src,
-    "export function probeBestThumbnailQuality",
-    "export function isVideoThumbnailArray",
-  );
-  has(probe, "sddefault.jpg");
-  const sdPos = probe.indexOf("sddefault.jpg");
-  const hqPos = probe.lastIndexOf("hqdefault.jpg");
+  const table = between(src, "export const THUMBNAIL_FILES", "export const THUMBNAIL_URLS");
+  const maxPos = table.indexOf("maxresdefault.jpg");
+  const sdPos = table.indexOf("sddefault.jpg");
+  const hqPos = table.indexOf("hqdefault.jpg");
   assert.ok(
-    sdPos !== -1 && hqPos !== -1 && sdPos < hqPos,
-    "sddefault should be tested before hqdefault fallback",
+    maxPos !== -1 && maxPos < sdPos && sdPos < hqPos,
+    "maxresdefault, then sddefault, then hqdefault",
   );
+  const probe = between(src, "export function probeBestThumbnailQuality", "export function isVideoThumbnailArray");
+  has(probe, "thumbnailChain(preferredId)");
 });
 
 test("stutter-fix speed is selected when 1.0001x is the configured speed", () => {

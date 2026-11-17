@@ -62,12 +62,31 @@ function scheduleCheck() {
   if (checkTimer === null) checkTimer = setTimeout(checkNow, CHECK_DELAY_MS);
 }
 
+// The error overlay exists only on the watch page, so the whole-page observer runs only there.
+let bodyObserver = null;
+function syncBodyObserver() {
+  if (!document.body) return;
+  const onWatch = /#\/watch/.test(location.hash || "");
+  if (onWatch && !bodyObserver) {
+    bodyObserver = new MutationObserver(scheduleCheck);
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+  } else if (!onWatch && bodyObserver) {
+    bodyObserver.disconnect();
+    bodyObserver = null;
+    if (checkTimer !== null) {
+      clearTimeout(checkTimer);
+      checkTimer = null;
+    }
+  }
+}
+
 function start() {
   if (!document.body) {
     setTimeout(start, 200);
     return;
   }
-  new MutationObserver(scheduleCheck).observe(document.body, { childList: true, subtree: true });
+  syncBodyObserver();
+  window.addEventListener("hashchange", syncBodyObserver);
 }
 
 // A media error on the video element is the same failure from the other side.

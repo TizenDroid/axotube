@@ -2,7 +2,7 @@
 //   "always"      on every screen
 //   "notPlaying"  only when no video is playing (paused, ended, or not on a video)
 import { configRead, configChangeEmitter } from "../config.js";
-import { getCurrentVideo } from "../shared/playerLifecycle.js";
+import { getCurrentPlayer, getCurrentVideo } from "../shared/playerLifecycle.js";
 import { formatClock } from "../shared/clockFormat.js";
 
 const CLOCK_ID = "axo-clock";
@@ -34,6 +34,7 @@ const CSS = `
 
 let node = null;
 let timer = null;
+let timerSeconds = false;
 
 function ensureStyle() {
   if (document.getElementById(STYLE_ID)) return;
@@ -43,8 +44,17 @@ function ensureStyle() {
   (document.head || document.documentElement).appendChild(style);
 }
 
+// Only the watch page counts as playback. A video preview on a browse page plays in a
+// tile, and it is not something the viewer is watching, so it must not hide the clock.
+function onWatchRoute() {
+  return /#\/watch/.test(window.location.hash || "");
+}
+
 function isVideoPlaying() {
-  const video = getCurrentVideo();
+  if (!onWatchRoute()) return false;
+  // The player's own video, not the first <video> in the page.
+  const player = getCurrentPlayer();
+  const video = (player && player.querySelector && player.querySelector("video")) || getCurrentVideo();
   return !!(video && !video.paused && !video.ended);
 }
 
@@ -56,8 +66,26 @@ function shouldShow() {
 }
 
 function stopTimer() {
-  if (timer !== null) clearInterval(timer);
+  if (timer !== null) clearTimeout(timer);
   timer = null;
+}
+
+function msToNextMinute() {
+  return 60000 - (Date.now() % 60000) + 50;
+}
+
+// With seconds shown the text changes every second. Without them it changes once a minute,
+// so the clock waits for the minute instead of repainting every second.
+function startTimer(seconds) {
+  timerSeconds = seconds;
+  timer = setTimeout(tick, seconds ? 1000 : msToNextMinute());
+}
+
+function tick() {
+  timer = null;
+  if (!node) return;
+  render();
+  startTimer(timerSeconds);
 }
 
 function removeNode() {
@@ -90,9 +118,9 @@ export function syncClock() {
   }
   ensureStyle();
   render();
-  // Once a second keeps seconds accurate. Without seconds it still matches the
-  // minute within a second, and the cost is one text compare.
-  if (timer === null) timer = setInterval(render, 1000);
+  const seconds = !!configRead("clockShowSeconds");
+  if (timer !== null && timerSeconds !== seconds) stopTimer();
+  if (timer === null) startTimer(seconds);
 }
 
 // Playback state changes come as media events, which do not bubble, so listen
@@ -100,6 +128,9 @@ export function syncClock() {
 ["play", "playing", "pause", "ended", "emptied"].forEach((type) => {
   document.addEventListener(type, syncClock, true);
 });
+
+// Leaving or entering the watch page changes the answer without a media event.
+window.addEventListener("hashchange", () => syncClock());
 
 configChangeEmitter.addEventListener("configChange", (event) => {
   const key = event.detail && event.detail.key;

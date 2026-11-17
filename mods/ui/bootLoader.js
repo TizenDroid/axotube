@@ -11,6 +11,7 @@ let observer = null;
 function release() {
   if (!held) return;
   held = false;
+  stopSettle();
   if (observer) {
     try {
       observer.disconnect();
@@ -25,20 +26,54 @@ function release() {
   overlay = null;
 }
 
-window.__releaseBootLoader = release;
+// The splash stays until the app has finished starting and the page has stopped changing.
+// ui.js calls __releaseBootLoader when its own setup is done; from then the splash goes once
+// the DOM has been quiet for QUIET_MS. HARD_CAP_MS bounds the wait if the page never settles.
+const QUIET_MS = 1500;
+const HARD_CAP_MS = 20000;
+let quietTimer = null;
+let settleObserver = null;
+let readyRequested = false;
 
-// Never hold the loader longer than this in case init never completes.
-setTimeout(() => {
-  if (observer) {
+function stopSettle() {
+  if (settleObserver) {
     try {
-      observer.disconnect();
+      settleObserver.disconnect();
     } catch (e) {
       /* noop */
     }
-    observer = null;
+    settleObserver = null;
   }
+  if (quietTimer !== null) {
+    clearTimeout(quietTimer);
+    quietTimer = null;
+  }
+}
+
+function armQuiet() {
+  if (quietTimer !== null) clearTimeout(quietTimer);
+  quietTimer = setTimeout(() => {
+    quietTimer = null;
+    release();
+  }, QUIET_MS);
+}
+
+function requestRelease() {
+  if (readyRequested || !held) return;
+  readyRequested = true;
+  armQuiet();
+  if (typeof MutationObserver !== "undefined" && document.documentElement) {
+    settleObserver = new MutationObserver(() => armQuiet());
+    settleObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
+}
+
+window.__releaseBootLoader = requestRelease;
+
+setTimeout(() => {
+  stopSettle();
   release();
-}, 10000);
+}, HARD_CAP_MS);
 
 function grab() {
   if (held || grabbed) return;

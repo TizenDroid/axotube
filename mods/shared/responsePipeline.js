@@ -1,9 +1,13 @@
+import { configRead } from "../config.js";
+
 /**
  * One JSON.parse interception for response features. Filters mutate parsed
  * YouTube response objects in order; a broken filter cannot break JSON.parse
  * or prevent the remaining filters from running.
  */
 let installedParse = null;
+// Matches "trackingParams" only; "clickTrackingParams" keeps its value.
+const TRACKING_PARAMS_RE = /"trackingParams":"[^"]*"/g;
 // Total rescans of YouTube's module registry: 20 quick ones plus about a minute
 // of slower ones.
 const PARSER_RESCAN_LIMIT = 32;
@@ -17,7 +21,13 @@ export function installResponsePipeline(filters) {
   function parse(text, reviver) {
     // Leave native errors, reviver behavior, receiver and argument forwarding
     // alone. In particular, do not catch syntax errors from nativeParse.
-    const result = nativeParse.apply(this, arguments);
+    // trackingParams are click-tracking tokens the TV never reads. Blanking them in the text
+    // (one regex) is cheaper than parsing them and walking the object to remove them.
+    const args = Array.prototype.slice.call(arguments);
+    if (typeof text === "string" && text.indexOf('"trackingParams"') !== -1 && configRead("stripTrackingParams") !== false) {
+      args[0] = text.replace(TRACKING_PARAMS_RE, '"trackingParams":""');
+    }
+    const result = nativeParse.apply(this, args);
     if (!result || typeof result !== "object" || Array.isArray(result)) {
       return result;
     }

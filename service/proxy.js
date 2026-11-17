@@ -342,9 +342,27 @@ app.get('/axotube/diagnostics/qr', function (req, res) {
 
 // Hosts that get the page's login cookies on cors-bypass requests. Without a
 // proxy, the page sends these cookies to YouTube itself, so the proxied player's
-// innertube and attestation calls need them to look like the same session.
-// Googlevideo and every other bypass host stay cookie-free.
-var COOKIE_CORS_HOSTS = { 'www.youtube.com': true, 'youtube.com': true };
+// innertube, attestation and watch-history reports need them to look like the same
+// session. s.youtube.com carries those reports. Googlevideo and every other bypass
+// host stay cookie-free.
+var COOKIE_CORS_HOSTS = { 'www.youtube.com': true, 'youtube.com': true, 's.youtube.com': true };
+
+// The TV client identifies the signed-in account by its Authorization header as well
+// as by cookies. Its /youtubei/ calls carry that header, but a watch-history report is
+// an image or beacon request that cannot carry one, so YouTube records it against no
+// one. The proxy keeps the last header the page sent on a /youtubei/ call to these
+// hosts, and gives it to /api/stats/ requests that have none. The page's own
+// Authorization header is still dropped on cors-bypass.
+var ACCOUNT_CORS_HOSTS = { 'www.youtube.com': true, 'youtube.com': true, 's.youtube.com': true };
+var lastYoutubeAuthorization = null;
+
+function rememberYoutubeAuthorization(req, parsedTarget) {
+    var auth = req.headers && req.headers.authorization;
+    if (!auth || !parsedTarget || !parsedTarget.pathname) return;
+    var host = String(parsedTarget.hostname || '').toLowerCase();
+    if (!ACCOUNT_CORS_HOSTS[host] || parsedTarget.pathname.indexOf('/youtubei/') !== 0) return;
+    lastYoutubeAuthorization = String(auth);
+}
 
 function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
     var headers = {};
@@ -379,6 +397,12 @@ function buildUpstreamHeaders(req, parsedTarget, isCorsBypass) {
     }
 
     headers.host = parsedTarget.host;
+    // A watch-history report names the account only through this header (see above).
+    var statsPath = String(parsedTarget.pathname || '');
+    if (!headers.authorization && statsPath.indexOf('/api/stats/') === 0 &&
+        ACCOUNT_CORS_HOSTS[String(parsedTarget.hostname || '').toLowerCase()] && lastYoutubeAuthorization) {
+        headers.authorization = lastYoutubeAuthorization;
+    }
     headers.origin = 'https://www.youtube.com';
     if (headers.referer) headers.referer = 'https://www.youtube.com/tv';
     headers['accept-encoding'] = 'gzip, deflate';
@@ -510,6 +534,7 @@ app.all('*', function (req, res) {
     }
 
     var targetUrl = URL.format(parsedTarget);
+    rememberYoutubeAuthorization(req, parsedTarget);
     var hasBody = ['POST', 'PUT', 'PATCH'].indexOf(req.method) !== -1;
     var fetchOptions = {
         method: req.method,

@@ -2,7 +2,15 @@ import { configRead, configChangeEmitter } from "../config.js";
 import { getCurrentPlayer, watchPlayer, watchVideoId } from "../shared/playerLifecycle.js";
 
 const EVENTS = { YT_STATE_CHANGE: "onStateChange", CONFIG_CHANGE: "configChange" };
-const CONFIG_KEYS = { QUALITY: "preferredVideoQuality" };
+const CONFIG_KEYS = { QUALITY: "preferredVideoQuality", PREVIEW_CAP: "previewMaxQuality" };
+// A preview on a browse page is capped here. The watch page keeps the preferred quality.
+function onWatchRoute() {
+  return /#\/watch/.test(location.hash || "");
+}
+function previewCap() {
+  const cap = configRead(CONFIG_KEYS.PREVIEW_CAP);
+  return cap === "480p" || cap === "720p" ? cap : null;
+}
 const MAX_APPLY_RETRIES = 10;
 const APPLY_RETRY_DELAY_MS = 500;
 
@@ -125,7 +133,18 @@ class PreferredQualityHandler {
   #applyQuality() {
     if (!this.#player || typeof this.#player.setPlaybackQualityRange !== "function") return false;
     const preferredQuality = configRead(CONFIG_KEYS.QUALITY);
+    const cap = onWatchRoute() ? null : previewCap();
     try {
+      if (cap) {
+        // A preview never plays above the cap. A lower preference is kept as it is.
+        const capValue = parseInt(cap, 10);
+        const prefValue = parseInt(preferredQuality, 10) || 0;
+        const target = prefValue && prefValue < capValue ? preferredQuality : cap;
+        const quality = this.#determineQuality(target);
+        if (!quality) return false;
+        this.#player.setPlaybackQualityRange(quality, quality);
+        return true;
+      }
       if (!preferredQuality || preferredQuality === "auto") {
         this.#player.setPlaybackQualityRange("auto", "auto");
         return true;

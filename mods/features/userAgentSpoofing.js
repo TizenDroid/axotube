@@ -1,3 +1,4 @@
+import { debugLogsOn } from "../shared/debugLog.js";
 // The webview's user agent follows the "userAgentProfile" setting, applied with
 // tizen.websetting.setUserAgentString so HTTP requests and navigator.userAgent both
 // carry it. Same meaning as the Android app's profiles:
@@ -48,7 +49,7 @@ function record(wanted, status) {
   try {
     window.__axotubeUserAgent = { wanted: wanted, actual: navigator.userAgent, status: status };
   } catch (e) {}
-  console.log("[AxoTube:userAgentSpoofing] " + status + ": " + navigator.userAgent);
+  if (debugLogsOn()) console.log("[AxoTube:userAgentSpoofing] " + status + ": " + navigator.userAgent);
 }
 
 function triedBefore(ua) {

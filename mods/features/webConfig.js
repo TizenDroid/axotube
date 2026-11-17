@@ -26,7 +26,10 @@ let nowPlayingPushing = false;
 let serverConfig = null;
 const dirtyKeys = new Set();
 let applyingServerConfig = false;
-let lastNowPlaying = "";
+let lastNowPlayingIdentity = "";
+let lastNowPlayingPushAt = 0;
+// Progress changes every second, so it is posted at most this often, not on every poll.
+const NOW_PLAYING_PROGRESS_INTERVAL_MS = 30000;
 let pushTimer = null;
 let serviceToastShown = false;
 let pairingCodeShown = false;
@@ -313,18 +316,26 @@ function consumeCommand() {
     });
 }
 
+// The playing video, from the player. A preview in a browse tile is also a <video>, and it
+// is not what the viewer is watching, so this only looks on the watch page.
+function nowPlayingVideo() {
+  if (!/#\/watch/.test(location.hash || "")) return null;
+  const player = document.querySelector(".html5-video-player");
+  return (player && player.querySelector("video")) || document.querySelector("video");
+}
+
 function pushNowPlaying() {
   if (!serviceHost() || nowPlayingPushing) return;
   let info = null;
   try {
-    const video = document.querySelector("video");
+    const video = nowPlayingVideo();
     if (video && video.currentSrc) {
       const match = location.hash.match(/[?&]v=([^&]+)/);
       info = {
         videoId: match ? match[1] : null,
         title: document.querySelector("ytlr-player-header-title")?.textContent || document.title,
         state: video.paused ? "paused" : "playing",
-        progress: video.currentTime,
+        progress: Math.floor(video.currentTime),
         duration: video.duration,
       };
     }
@@ -332,9 +343,15 @@ function pushNowPlaying() {
     return;
   }
 
+  const identity = info ? [info.videoId, info.title, info.state].join("|") : "none";
+  const now = Date.now();
+  if (identity === lastNowPlayingIdentity && now - lastNowPlayingPushAt < NOW_PLAYING_PROGRESS_INTERVAL_MS) {
+    return;
+  }
+  lastNowPlayingIdentity = identity;
+  lastNowPlayingPushAt = now;
+
   const serialized = info ? nativeJSONStringify(info) : "none";
-  if (serialized === lastNowPlaying) return;
-  lastNowPlaying = serialized;
   nowPlayingPushing = true;
   fetchWithTimeout(`${WEB_CONFIG_URL}/api/nowplaying`, {
     method: "POST",
@@ -345,7 +362,8 @@ function pushNowPlaying() {
       if (!res.ok) throw new Error(`now playing HTTP ${res.status}`);
     })
     .catch(() => {
-      lastNowPlaying = "";
+      lastNowPlayingIdentity = "";
+      lastNowPlayingPushAt = 0;
     })
     .then(() => {
       nowPlayingPushing = false;

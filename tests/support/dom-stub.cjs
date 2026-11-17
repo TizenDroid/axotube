@@ -117,6 +117,13 @@ function createPageSandbox(timers) {
     },
     localStorage: makeStorage(),
     sessionStorage: makeStorage(),
+    // Every page has Image. It never loads here: the test page has no network, so onload and
+    // onerror are never called, which is what a page without a reachable host sees.
+    Image: function Image() {
+      this.src = "";
+      this.onload = null;
+      this.onerror = null;
+    },
   };
   DOM.supported.forEach(function (name) {
     if (!unsupported.has(name) && !(name in sandbox)) sandbox[name] = makeStub(name, unsupported);

@@ -2,6 +2,8 @@
 import { configRead, cloneJSON } from "../config.js";
 import { previewsEnabled } from "../shared/performanceMode.js";
 
+// A preview plays muted unless "Preview sound" is on: audio decode runs on every browse page.
+
 // Watch-page suggestions (including the continuation pages loaded while you
 // scroll) must not preview: a preview starting over the suggestions takes over
 // the video that is still playing.
@@ -27,7 +29,7 @@ export function addPreviews(items) {
         caption: false,
         delayMs: 3000,
         durationMs,
-        muted: false,
+        muted: !configRead("previewSound"),
         restartPlaybackBeforeSeconds: 10,
         resumeVideo: true,
         playbackEndpoint: copiedEndpoint,

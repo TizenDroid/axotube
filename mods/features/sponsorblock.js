@@ -35,19 +35,25 @@ const END_CLAMP_S = 0.5;
 const REARM_MARGIN_S = 1;
 // Within this of the next segment, the check runs every frame instead of per timeupdate.
 const NEAR_S = 1.5;
-// A skip that keyframe-snapped back before its landing is re-sought this many times.
-const LANDING_RETRIES = 2;
-const LANDING_MAX_MS = 2000;
+// The TV seeks to the keyframe at or before the time asked for, so a skip can land short
+// of its target, back before the segment it skips. The landing is verified, and each retry
+// aims later by the next margin. Every retry target is strictly later than the one before,
+// so the same timestamp is never asked for twice. The margins stop at a keyframe interval
+// (KEYFRAME_SLACK_S): past that the skip gives up and the segment plays, rather than the
+// seek going further into the video.
+const SEEK_RETRY_MARGINS_S = [2, 5, 10];
+const KEYFRAME_SLACK_S = 10;
+// A landing this close to the target counts as landed.
+const LANDING_TOLERANCE_S = 0.5;
+// A seek that has not reported `seeked` by now is abandoned; the segment stays done.
+const LANDING_MAX_MS = 4000;
 // Back undoes the last skip only this long (media seconds) after it landed.
 const UNDO_WINDOW_S = 10;
-// A seek that never reports `seeked` stops blocking skips after this long.
+// A seek that never reports `seeked` stops blocking the check that runs each tick.
 const SEEK_STUCK_MS = 2000;
-// After a skip lands, the decoder may settle on a keyframe before the skip's start and
-// report `seeked` by itself. For this long, such a report is the skip settling, not the
-// viewer: the playhead goes back to the landing, and the segments it covered stay done.
+// After a verified landing, a `seeked` report back before the skip's start (within a
+// keyframe interval) is the decoder settling, not the viewer. Only for this long.
 const SETTLE_MS = 3000;
-// How far before a skip's start a keyframe settle can land (a keyframe interval).
-const KEYFRAME_SLACK_S = 10;
 // The segments of a video are the same when the element plays a video this long.
 const DURATION_TOLERANCE_S = 3;
 const FETCH_TIMEOUT_MS = 4000;
@@ -101,7 +107,7 @@ const SLIDER_SELECTOR = 'ytlr-progress-bar [idomkey="slider"]';
 const CHAPTER_PIECE_SELECTOR =
   'ytlr-multi-markers-player-bar-renderer [idomkey="progress-bar"] > [idomkey^="chapter-"]';
 const CHAPTER_SELECTOR = 'ytlr-multi-markers-player-bar-renderer [idomkey^="chapter-"]';
-const BAR_BASE_RULE = `${SLIDER_SELECTOR}::after, ${CHAPTER_SELECTOR}::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.7; }`;
+const BAR_BASE_RULE = `${SLIDER_SELECTOR}::after, ${CHAPTER_SELECTOR}::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: none; opacity: 0.7; }`;
 
 function colorOf(category) {
   return COLORS[category] || "blue";
@@ -281,6 +287,16 @@ function buildSegmentCss(items, duration, chapters) {
   return css;
 }
 
+// Identifies the chapter pieces the bar is drawn in, so a redraw can tell whether they moved.
+function chapterKey(chapters) {
+  if (!chapters) return "-";
+  let key = "";
+  for (let i = 0; i < chapters.length; i++) {
+    key += chapters[i].key + ":" + chapters[i].from + ":" + chapters[i].to + ";";
+  }
+  return key;
+}
+
 class SponsorBlockHandler {
   constructor(videoID) {
     this.videoID = videoID;
@@ -291,15 +307,18 @@ class SponsorBlockHandler {
     this.active = [];
     // The segments the bar shows.
     this.drawn = [];
+    // Identifies this.drawn (keys, edges and categories), and the CSS built for the bar.
+    this.drawnKey = "";
+    this.barKey = null;
+    this.barCss = "";
     // key -> true once a segment has been skipped (or played through) in this pass.
     this.done = {};
     // { from, to, names } of the last skip, for Back.
     this.lastSkip = null;
-    // The seek a skip issued and the retries its landing may still need.
-    this.landing = null;
-    // { from, to, until, retries }: the window in which the decoder may settle after a skip.
+    // The seek this engine issued and has not verified yet (see startSeek).
+    this.pending = null;
+    // { from, to, until }: the window in which the decoder may settle after a verified skip.
     this.settle = null;
-    this.suppressRearm = false;
     this.lastT = 0;
     this.videoDuration = 0;
     this.video = null;
@@ -370,6 +389,7 @@ class SponsorBlockHandler {
     }
     this.active = active;
     this.drawn = drawn;
+    this.drawnKey = drawn.map((seg) => seg.key + ":" + seg.start + ":" + seg.end + ":" + seg.category).join(",");
     this.redrawBar();
   }
 
@@ -427,6 +447,12 @@ class SponsorBlockHandler {
       Math.abs(video.duration - this.videoDuration) > DURATION_TOLERANCE_S
     ) {
       return;
+    }
+    // A seek this engine issued owns the playhead until it is verified. Nothing else is decided
+    // meanwhile: a second skip from here would be a decision made on a position not yet trusted.
+    if (this.pending) {
+      if (Date.now() - this.pending.issuedAt < LANDING_MAX_MS) return;
+      this.pending = null;
     }
     // Time going backwards with no seek event is a replay: segments ahead are armed again.
     if (time < this.lastT - REARM_MARGIN_S && !this.settling(time)) this.rearm(time);
@@ -505,22 +531,42 @@ class SponsorBlockHandler {
     const jump = this.jumpTarget(index, time);
     for (let i = 0; i < jump.keys.length; i++) this.done[jump.keys[i]] = true;
     if (jump.to <= time + MIN_MOVE_S) return;
+    this.startSeek({ kind: "skip", to: jump.to, from: seg.start, names: jump.names });
+  }
 
-    this.lastSkip = { from: seg.start, to: jump.to, names: jump.names };
-    this.landing = { to: jump.to, retries: 0, at: Date.now() };
-    this.settle = {
-      from: seg.start,
-      to: jump.to,
-      until: Date.now() + SETTLE_MS,
-      retries: 0,
-    };
-    this.seekTo(jump.to);
+  // Starts a seek the engine owns. The request is a target, not a position: the TV may land
+  // earlier than asked, so handleSeeked checks where it landed before anything else happens.
+  startSeek(seek) {
+    seek.attempt = 0;
+    seek.lastTarget = seek.to;
+    seek.issuedAt = Date.now();
+    this.pending = seek;
+    this.seekTo(seek.to);
+  }
 
+  // A landing came up short: asks again, later than before. False when no later target is
+  // left to ask for, so the caller gives up on this seek.
+  retrySeek(seek) {
+    if (seek.attempt >= SEEK_RETRY_MARGINS_S.length) return false;
+    seek.attempt += 1;
+    let target = seek.to + SEEK_RETRY_MARGINS_S[seek.attempt - 1];
+    const duration = this.video ? this.video.duration : NaN;
+    if (duration > 0 && target > duration - END_CLAMP_S) target = duration - END_CLAMP_S;
+    if (!(target > seek.lastTarget + MIN_MOVE_S)) return false;
+    seek.lastTarget = target;
+    seek.issuedAt = Date.now();
+    this.pending = seek;
+    this.seekTo(target);
+    return true;
+  }
+
+  // A skip is announced and becomes undoable once it has landed. Nothing else is announced.
+  landed(seek) {
+    if (seek.kind !== "skip") return;
+    this.lastSkip = { from: seek.from, to: seek.to, names: seek.names };
+    this.settle = { from: seek.from, to: seek.to, until: Date.now() + SETTLE_MS };
     if (configRead("enableSponsorBlockToasts")) {
-      showToast(
-        t("app.name"),
-        t("sponsorblock.toasts.skipping", { segment: joinNames(jump.names) }),
-      );
+      showToast(t("app.name"), t("sponsorblock.toasts.skipping", { segment: joinNames(seek.names) }));
     }
   }
 
@@ -529,54 +575,47 @@ class SponsorBlockHandler {
     this.video.currentTime = target;
   }
 
-  // A seek ends. A skip's own seek is checked for keyframe snapping back short of its
-  // target. Any other seek is the viewer's: segments ahead of where it lands are armed again.
+  // A seek ends. A seek the engine issued is verified: it landed, or it is asked for again
+  // at a later target. Any other seek is the viewer's: segments ahead of it are armed again.
   handleSeeked() {
     const video = this.video;
     if (this.destroyed || !video) return;
     const time = video.currentTime;
-    const landing = this.landing;
-    this.landing = null;
+    const pending = this.pending;
 
-    if (
-      landing &&
-      Date.now() - landing.at < LANDING_MAX_MS &&
-      time < landing.to - 1.5 &&
-      landing.retries < LANDING_RETRIES
-    ) {
-      this.landing = { to: landing.to, retries: landing.retries + 1, at: Date.now() };
-      this.seekTo(landing.to);
-      return;
-    }
-
-    if (!landing) {
-      if (this.suppressRearm) {
-        this.suppressRearm = false;
-      } else if (this.settling(time)) {
-        // The decoder settled back into the skip's range by itself. Put the playhead back
-        // at the landing, a bounded number of times; the skipped segments stay done.
-        const settle = this.settle;
-        if (time < settle.to - 1.5 && settle.retries < LANDING_RETRIES) {
-          settle.retries += 1;
-          this.seekTo(settle.to);
-          return;
-        }
-      } else {
-        this.rearm(time);
-        this.lastSkip = null;
+    if (pending) {
+      if (pending.kind === "undo") {
+        // Back goes to before the segment. Landing early is what it asks for; the segment stays done.
+        this.pending = null;
+      } else if (time >= pending.to - LANDING_TOLERANCE_S) {
+        this.pending = null;
+        this.landed(pending);
+      } else if (!this.retrySeek(pending)) {
+        // No target in reach holds. The segment stays done and plays through: no loop, no toast.
+        this.pending = null;
       }
+    } else if (this.settling(time)) {
+      // The decoder settled back before the skip's start by itself. Put the playhead back at the
+      // landing, once per skip; the segments the skip covered stay done.
+      const settle = this.settle;
+      this.settle = null;
+      this.startSeek({ kind: "settle", to: settle.to, from: settle.from, names: [] });
+    } else {
+      this.rearm(time);
+      this.lastSkip = null;
+      this.settle = null;
     }
     this.lastT = time;
     this.redrawBar();
     this.tick();
   }
 
-  // Whether a time report belongs to the skip that just landed rather than to the viewer:
-  // inside the skip's range, or up to a keyframe interval before its start, within the window.
+  // Whether a time report belongs to the decoder settling after a verified skip: back before
+  // the skip's start, within a keyframe interval, and inside the settle window.
   settling(time) {
     const settle = this.settle;
     if (!settle || Date.now() > settle.until) return false;
-    return time >= settle.from - KEYFRAME_SLACK_S && time <= settle.to;
+    return time >= settle.from - KEYFRAME_SLACK_S && time < settle.to - LANDING_TOLERANCE_S;
   }
 
   // A viewer seek back before a segment makes it skippable again.
@@ -605,10 +644,8 @@ class SponsorBlockHandler {
     const since = this.video.currentTime - last.to;
     if (since < 0 || since > UNDO_WINDOW_S) return false;
     this.lastSkip = null;
-    this.landing = null;
     this.settle = null;
-    this.suppressRearm = true;
-    this.seekTo(last.from);
+    this.startSeek({ kind: "undo", to: last.from, from: last.from, names: [] });
     if (configRead("enableSponsorBlockToasts")) {
       showToast(t("app.name"), t("sponsorblock.toasts.undone", { segment: joinNames(last.names) }));
     }
@@ -624,16 +661,26 @@ class SponsorBlockHandler {
     this.redrawBar();
   }
 
+  // The bar's CSS depends only on the drawn segments, the duration and the chapter pieces, so
+  // it is built again only when one of those changes. A redraw that finds nothing changed is
+  // one query of the chapter pieces and one string comparison, not a rebuild of every gradient.
   redrawBar() {
     if (this.destroyed) return;
     const video = this.video || getCurrentVideo();
     const duration = video ? video.duration : 0;
-    const items = [];
-    for (let i = 0; i < this.drawn.length; i++) {
-      const seg = this.drawn[i];
-      items.push({ start: seg.start, end: seg.end, color: colorOf(seg.category) });
+    const chapters = getChapters(duration);
+    const key = this.drawnKey + "|" + duration + "|" + chapterKey(chapters);
+    if (key !== this.barKey) {
+      const items = [];
+      for (let i = 0; i < this.drawn.length; i++) {
+        const seg = this.drawn[i];
+        items.push({ start: seg.start, end: seg.end, color: colorOf(seg.category) });
+      }
+      this.barKey = key;
+      this.barCss = buildSegmentCss(items, duration, chapters);
     }
-    setSegmentStyle(buildSegmentCss(items, duration, getChapters(duration)));
+    // Still compared on every redraw: if the page removes the rules, they come back here.
+    setSegmentStyle(this.barCss);
   }
 
   destroy() {
@@ -646,7 +693,8 @@ class SponsorBlockHandler {
     setSegmentStyle("");
     this.done = {};
     this.lastSkip = null;
-    this.landing = null;
+    this.pending = null;
+    this.settle = null;
   }
 }
 

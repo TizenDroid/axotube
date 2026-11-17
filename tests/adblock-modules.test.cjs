@@ -178,6 +178,26 @@ test("telemetry rules: ad tracking on by default, view stats off, log_event neve
   assert.equal(ctx.shouldBlockRequestUrl("https://x/pagead/x", { ads: false, viewStats: true }), false);
 });
 
+test("ad tracking and ad telemetry follow Block YouTube ads: off means nothing is blocked", () => {
+  // There is no separate TV setting for these any more. Turning the ad blocker off turns them off.
+  const make = () => ({ attestation: { a: 1 }, adBreakHeartbeatParams: "x", playerResponse: { videoDetails: {} } });
+  const { filters } = loadBundle({ ...BASE, enableAdBlock: false });
+  const r = make();
+  filters[0](r, JSON.stringify(r) + "adSlot");
+  assert.ok("attestation" in r, "player tracking kept while the ad blocker is off");
+
+  const calls = [];
+  function FakeXHR() {}
+  FakeXHR.prototype.open = function (method, url) {
+    calls.push(url);
+  };
+  const win = { XMLHttpRequest: FakeXHR, fetch: () => Promise.resolve("ok") };
+  const { ctx } = loadBundle({ ...BASE, enableAdBlock: false });
+  ctx.installTelemetryHooks(win);
+  new win.XMLHttpRequest().open("POST", "https://x/pagead/y", true);
+  assert.deepEqual(calls, ["https://x/pagead/y"], "pagead passes while the ad blocker is off");
+});
+
 test("telemetry hooks: XHR rewritten to a blank JSON document, fetch and beacon blocked, others pass", () => {
   const calls = [];
   function FakeXHR() {}

@@ -24,6 +24,21 @@ var SHIM_HOSTS = {
   "youtube.com": true,
 };
 
+// Hosts whose requests carry the page's login cookies. The proxy gives them to these
+// hosts only (see COOKIE_CORS_HOSTS in service/proxy.js). The cookies are the proxy's own
+// localhost cookies, so the rebuilt request has to be same-origin to send them.
+var COOKIE_SHIM_HOSTS = {
+  "www.youtube.com": true,
+  "youtube.com": true,
+  "s.youtube.com": true,
+};
+
+function isCookieShimUrl(url) {
+  var m = /^https?:\/\/([^\/?#:]+)/i.exec(String(url || ""));
+  if (!m) return false;
+  return !!COOKIE_SHIM_HOSTS[String(m[1] || "").toLowerCase()];
+}
+
 function isShimHost(host) {
   var h = String(host || "").toLowerCase();
   if (SHIM_HOSTS[h]) return true;
@@ -84,10 +99,11 @@ export function installCorsShim(win) {
           } else if (input.method === "GET" || input.method === "HEAD") {
             // Rebuilds a GET or HEAD made outside the wrapped constructor. A
             // Request the page built through win.Request already has the proxied URL.
+            // Dropping the credentials here dropped the watch-history reports' session.
             input = new win.Request(rewritten, {
               method: input.method,
               headers: input.headers,
-              credentials: "omit",
+              credentials: isCookieShimUrl(isRequest ? input.url : input) ? "same-origin" : "omit",
               mode: "cors",
             });
           }

@@ -463,9 +463,8 @@ export function buildSettingsTree() {
       "SLASH_CIRCLE_LEFT",
       [
         toggle(t("settings.ads.blockAds"), "enableAdBlock", "HEALTH_AND_SAFETY"),
-        toggle(t("settings.ads.playerTracking"), "blockPlayerAdTracking", "HEALTH_AND_SAFETY"),
-        toggle(t("settings.ads.adTelemetry"), "blockAdTelemetry", "HEALTH_AND_SAFETY"),
         toggle(t("settings.ads.viewStats"), "blockViewStatsTelemetry", "HEALTH_AND_SAFETY"),
+        toggle(t("settings.ads.eventLogging"), "blockEventLogging", "HEALTH_AND_SAFETY"),
         toggle(t("settings.ads.liveVideos"), "removeLiveVideos", "VISIBILITY_OFF"),
         toggle(t("settings.ads.topLiveGames"), "removeTopLiveGames", "VISIBILITY_OFF"),
         toggle(t("settings.ads.mostRelevant"), "removeMostRelevant", "VISIBILITY_OFF"),
@@ -494,6 +493,21 @@ export function buildSettingsTree() {
           "EYE",
           [
             toggle(t("settings.browsing.hqThumbnails"), "enableHqThumbnails", "VIDEO_QUALITY"),
+            submenu(
+              t("settings.browsing.hqQuality.title"),
+              "VIDEO_QUALITY",
+              [
+                radio(t("settings.browsing.hqQuality.hq"), "hqThumbnailQuality", "hq"),
+                radio(t("settings.browsing.hqQuality.max"), "hqThumbnailQuality", "max"),
+                radio(t("settings.browsing.hqQuality.sd"), "hqThumbnailQuality", "sd"),
+                radio(t("settings.browsing.hqQuality.mq"), "hqThumbnailQuality", "mq"),
+                radio(t("settings.browsing.hqQuality.default"), "hqThumbnailQuality", "default"),
+              ],
+              heading(
+                t("settings.browsing.hqQuality.title"),
+                t("settings.browsing.hqQuality.subtitle"),
+              ),
+            ),
             toggle(t("settings.browsing.deArrowTitles"), "enableDeArrowTitles", "TEXT_BOX"),
             toggle(t("settings.browsing.deArrowThumbnails"), "enableDeArrowThumbnails", "EYE"),
             toggle(t("settings.browsing.deArrowPeek"), "enableDeArrowPeek", "VISIBILITY"),
@@ -514,6 +528,20 @@ export function buildSettingsTree() {
               value: "previewLengthSeconds",
               stepper: 5,
             },
+            submenu(
+              t("settings.browsing.previews.quality.title"),
+              "PLAY_CIRCLE",
+              [
+                radio(t("settings.browsing.previews.quality.off"), "previewMaxQuality", "off"),
+                radio(t("settings.browsing.previews.quality.480p"), "previewMaxQuality", "480p"),
+                radio(t("settings.browsing.previews.quality.720p"), "previewMaxQuality", "720p"),
+              ],
+              heading(
+                t("settings.browsing.previews.quality.title"),
+                t("settings.browsing.previews.quality.subtitle"),
+              ),
+            ),
+            toggle(t("settings.browsing.previews.sound"), "previewSound", "PLAY_ARROW_CIRCLE"),
           ],
           heading(t("settings.browsing.previews.title"), t("settings.browsing.previews.subtitle")),
         ),
@@ -824,6 +852,7 @@ export function buildSettingsTree() {
             t("settings.advanced.userAgent.subtitle"),
           ),
         ),
+        toggle(t("settings.advanced.debugLogs"), "enableDebugLogs", "BUG_REPORT"),
         submenu(
           t("settings.advanced.launch.title"),
           "CAST_MOBILE",

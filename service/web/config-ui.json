@@ -57,7 +57,8 @@
       "section": "ads",
       "group": "Ads",
       "order": 101,
-      "control": "switch",
+      "control": "hidden",
+      "hiddenReason": "Managed by Block YouTube ads (enableAdBlock). Not a separate setting.",
       "searchAliases": [
         "ads",
         "tracking",
@@ -70,7 +71,8 @@
       "section": "ads",
       "group": "Ads",
       "order": 102,
-      "control": "switch",
+      "control": "hidden",
+      "hiddenReason": "Managed by Block YouTube ads (enableAdBlock). Not a separate setting.",
       "searchAliases": [
         "ads",
         "tracking",
@@ -78,8 +80,8 @@
       ]
     },
     "blockViewStatsTelemetry": {
-      "label": "Block view statistics",
-      "description": "Block watch-time, playback and quality statistics. Off by default.",
+      "label": "Pause watch history",
+      "description": "Block watch-time, playback and quality pings. Keep off so YouTube records your watch history and resume position.",
       "section": "ads",
       "group": "Ads",
       "order": 103,
@@ -634,6 +636,97 @@
         "peek",
         "dearrow"
       ]
+    },
+    "hqThumbnailQuality": {
+      "label": "Preferred thumbnail size",
+      "description": "The largest thumbnail size to use. Sizes above it are never downloaded. Smaller sizes are used when a video has no larger one.",
+      "section": "browse",
+      "group": "Thumbnails",
+      "order": 5,
+      "control": "select",
+      "options": {
+        "hq": "HQ (360p)",
+        "max": "Max (720p)",
+        "sd": "SD (480p)",
+        "mq": "Medium (180p)",
+        "default": "Low (90p)"
+      },
+      "dependencies": [
+        {
+          "key": "enableHqThumbnails",
+          "notValue": false
+        }
+      ],
+      "searchAliases": [
+        "thumbnail size",
+        "resolution",
+        "image quality",
+        "hq",
+        "sd",
+        "max"
+      ]
+    },
+    "enableDebugLogs": {
+      "label": "Verbose logs",
+      "description": "Writes detailed logs to the console. Off keeps warnings and errors only, which cost nothing.",
+      "section": "system",
+      "group": "Diagnostics",
+      "order": 1,
+      "control": "switch",
+      "searchAliases": [
+        "logs",
+        "debug",
+        "console"
+      ]
+    },
+    "previewMaxQuality": {
+      "label": "Maximum preview quality",
+      "description": "Previews play at most at this quality, which saves CPU and GPU on browse pages. Watching a video is not affected.",
+      "section": "playback",
+      "group": "Previews",
+      "order": 6,
+      "control": "select",
+      "options": {
+        "off": "No limit",
+        "480p": "480p",
+        "720p": "720p"
+      },
+      "searchAliases": [
+        "preview quality",
+        "resolution",
+        "cpu",
+        "gpu"
+      ]
+    },
+    "previewSound": {
+      "label": "Preview sound",
+      "description": "Plays sound in video previews. Off saves the audio decoding on every browse page.",
+      "section": "playback",
+      "group": "Previews",
+      "order": 7,
+      "control": "switch",
+      "searchAliases": [
+        "preview audio",
+        "mute"
+      ]
+    },
+    "stripTrackingParams": {
+      "label": "Strip tracking tokens",
+      "description": "Removes click-tracking tokens from YouTube's responses before they are read. Less data to parse on every page.",
+      "section": "ads",
+      "group": "Performance",
+      "order": 8,
+      "control": "switch",
+      "searchAliases": ["tracking", "parse", "performance"]
+    },
+    "blockEventLogging": {
+      "label": "Block event logging",
+      "description": "Blocks YouTube's click and interaction logging. Saves requests on every page. YouTube uses this data for home and recommendations, so recommendations may change.",
+      "section": "ads",
+      "group": "Performance",
+      "order": 9,
+      "control": "switch",
+      "searchAliases": ["log", "analytics", "recommendations"]
     },
     "enableHqThumbnails": {
       "label": "High-quality thumbnails",
