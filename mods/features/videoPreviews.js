@@ -12,13 +12,15 @@ function onWatchPage() {
   return /#\/watch/.test(location.hash || "");
 }
 
+let initialFocusHandled = false;
+
 export function addPreviews(items) {
   if (!previewsEnabled()) return;
   if (onWatchPage()) return;
-  // While the splash is held the first screen is being built. A preview command there would
-  // start its 3 s timer on the focused tile before the viewer sees anything, so it starts at once
-  // on release. Tiles from responses after the splash clears get their previews as usual.
-  if (isBootHeld()) return;
+  // The tile that holds focus when the first screen appears (the first tile of the first batch,
+  // while the splash is up) gets no preview. Its 3 s timer would otherwise run during the splash
+  // and fire as soon as the splash clears. Every other tile keeps its preview.
+  let initialFocusTile = isBootHeld() && !initialFocusHandled;
   const durationMs = configRead("previewLengthSeconds") * 1000; // read once, not per item
   for (const item of items) {
     if (!item.tileRenderer) continue;
@@ -26,6 +28,11 @@ export function addPreviews(items) {
     if (!watchEndpoint) continue;
     if (item.tileRenderer?.onFocusCommand?.playbackEndpoint) continue;
     if (item.tileRenderer?.onFocusCommand?.commandExecutorCommand) continue;
+    if (initialFocusTile) {
+      initialFocusTile = false;
+      initialFocusHandled = true;
+      continue;
+    }
 
     const copiedEndpoint = cloneJSON({ watchEndpoint });
     item.tileRenderer.onFocusCommand = {

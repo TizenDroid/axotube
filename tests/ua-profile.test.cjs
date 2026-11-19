@@ -47,3 +47,10 @@ test("MainActivity wires the save hook to the UI-thread apply", () => {
   assert.ok(src.includes("control.setOnConfigSaved(() -> applyUserAgentFromSave());"));
   assert.ok(src.includes("runOnUiThread("));
 });
+
+test("MainActivity sends the Android TV agent for auto, and the WebView agent only for android", () => {
+  const src = read("android/app/src/main/java/org/axotube/tv/MainActivity.java");
+  assert.ok(src.includes("ANDROID_TV_USER_AGENT"), "Android TV agent constant");
+  assert.ok(/if \("android"\.equals\(profile\)\)/.test(src), "android is the only profile that uses the WebView agent");
+  assert.ok(/return ANDROID_TV_USER_AGENT;/.test(src), "auto falls through to the Android TV agent");
+});

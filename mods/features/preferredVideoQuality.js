@@ -20,12 +20,19 @@ class PreferredQualityHandler {
   #applyRetryAttempts = 0;
   #lastVideoId = null;
   #hasAppliedQuality = false;
+  // The video and range last sent to the player. A repeat would restart the stream.
+  #appliedRange = null;
 
   constructor() {
-    // The route decides the cap. When the hash changes (browse to watch, or back) the quality is
-    // applied again, so a preview cap never stays on a watch video.
+    // The route decides the cap. When it changes between browse and watch the quality is applied
+    // again, so a preview cap never stays on a watch video. Other hash changes (the watch page
+    // updates its hash several times) change nothing.
+    let routeIsWatch = onWatchRoute();
     if (window.addEventListener) {
       window.addEventListener("hashchange", () => {
+        const nowWatch = onWatchRoute();
+        if (nowWatch === routeIsWatch) return;
+        routeIsWatch = nowWatch;
         this.#resetApplyState();
         this.#handleStateChange();
       });
@@ -45,6 +52,23 @@ class PreferredQualityHandler {
     if (this.#applyRetryTimer) {
       clearTimeout(this.#applyRetryTimer);
       this.#applyRetryTimer = null;
+    }
+  }
+
+  #setRange(quality) {
+    const videoId = this.#currentVideoId();
+    const key = videoId + "|" + quality;
+    if (this.#appliedRange === key) return;
+    this.#appliedRange = key;
+    this.#player.setPlaybackQualityRange(quality, quality);
+  }
+
+  #currentVideoId() {
+    try {
+      const data = this.#player && this.#player.getVideoData ? this.#player.getVideoData() : null;
+      return data && data.video_id ? data.video_id : "";
+    } catch (e) {
+      return "";
     }
   }
 
@@ -150,16 +174,16 @@ class PreferredQualityHandler {
         const target = prefValue && prefValue < capValue ? preferredQuality : cap;
         const quality = this.#determineQuality(target);
         if (!quality) return false;
-        this.#player.setPlaybackQualityRange(quality, quality);
+        this.#setRange(quality);
         return true;
       }
       if (!preferredQuality || preferredQuality === "auto") {
-        this.#player.setPlaybackQualityRange("auto", "auto");
+        this.#setRange("auto");
         return true;
       }
       const quality = this.#determineQuality(preferredQuality);
       if (!quality) return false;
-      this.#player.setPlaybackQualityRange(quality, quality);
+      this.#setRange(quality);
       return true;
     } catch (e) {
       console.warn("[AxoTube:preferredVideoQuality] Failed to apply quality:", e);

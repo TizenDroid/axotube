@@ -649,14 +649,18 @@ function randomUuidV4() {
 // is ES2015+ and does not load on Node 4, so the device identity fell back to a random
 // UUID on every start. This keeps the identity stable across restarts.
 function sha1Uuid(name, namespace) {
-  var ns = new Buffer(namespace.replace(/-/g, ""), "hex");
-  var hash = crypto.createHash("sha1").update(ns).update(new Buffer(String(name), "utf8")).digest();
+  var ns = Buffer.from(namespace.replace(/-/g, ""), "hex");
+  var hash = crypto.createHash("sha1").update(ns).update(Buffer.from(String(name), "utf8")).digest();
   hash[6] = hash[6] & 0x0f | 0x50;
   hash[8] = hash[8] & 0x3f | 0x80;
   var h = hash.toString("hex", 0, 16);
   return "".concat(h.slice(0, 8), "-").concat(h.slice(8, 12), "-").concat(h.slice(12, 16), "-").concat(h.slice(16, 20), "-").concat(h.slice(20));
 }
+// Off a Tizen TV there is no tizenid. A random identity is the normal result there, not an
+// error, so nothing is logged for it. On a TV, a failed read is logged, since it changes the
+// identity on every start.
 var deviceUuid = function () {
+  if (typeof tizen === "undefined" || !tizen || !tizen.systeminfo) return randomUuidV4();
   try {
     var tizenid = tizen.systeminfo.getCapability("http://tizen.org/system/tizenid");
     if (tizenid) return sha1Uuid(tizenid, "4bcbc514-bdd6-4163-8215-316526fd1d9b");

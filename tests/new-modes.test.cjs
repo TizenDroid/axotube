@@ -253,7 +253,8 @@ test("user agent: if the platform still reports another string after the reload,
 });
 
 test("user agent: an unavailable setter is reported, not silently ignored", () => {
-  const win = makeWindow({ navigator: { userAgent: "Mozilla/5.0 (Linux) Chrome/56" } });
+  // A Tizen device (window.tizen exists) whose websetting API is missing.
+  const win = makeWindow({ navigator: { userAgent: "Mozilla/5.0 (Linux) Chrome/56" }, tizen: {} });
   const ctx = chrome47.createContext({
     window: win,
     navigator: win.navigator,

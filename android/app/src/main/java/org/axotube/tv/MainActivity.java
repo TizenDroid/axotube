@@ -33,6 +33,10 @@ public final class MainActivity extends Activity {
     private static final String TV_USER_AGENT =
             "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) AppleWebKit/537.3 "
                     + "(KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3";
+    // What an Android TV sends (Chromecast / Google TV family). YouTube serves its TV layout to it.
+    static final String ANDROID_TV_USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36 "
+                    + "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 CrKey/1.56.500000";
     private LocalProxy server;
     private ControlServer control;
     private ConfigStore store;
@@ -94,14 +98,18 @@ public final class MainActivity extends Activity {
     }
 
     /**
-     * Maps a profile to the agent string the WebView sends. "samsung" keeps the
-     * Tizen TV string. "auto" and "android" use the WebView's own Android agent
-     * with its "; wv" embedded-WebView marker removed. null resets to the default.
+     * Maps a profile to the agent string the WebView sends. "auto" (the default) is
+     * the Android TV agent, so YouTube serves the TV layout. "samsung" is the Tizen TV
+     * agent. "android" is the phone layout: the WebView's own agent with its "; wv"
+     * marker removed. null resets to the default.
      */
     static String resolveUserAgent(String profile, String webViewDefault) {
         if ("samsung".equals(profile)) return TV_USER_AGENT;
-        if (webViewDefault == null) return null;
-        return webViewDefault.replace("; wv", "");
+        if ("android".equals(profile)) {
+            if (webViewDefault == null) return null;
+            return webViewDefault.replace("; wv", "");
+        }
+        return ANDROID_TV_USER_AGENT;
     }
 
     /** Applies the saved profile. Must run on the UI thread; takes effect on the next navigation. */

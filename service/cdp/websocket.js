@@ -17,17 +17,17 @@ var OP_PONG = 10;
 var TWO_POW_32 = 4294967296;
 
 function zeroBuffer(size) {
-  var buf = new Buffer(size);
+  var buf = Buffer.alloc(size);
   buf.fill(0);
   return buf;
 }
 
 function utf8(text) {
-  return new Buffer(String(text), "utf8");
+  return Buffer.from(String(text), "utf8");
 }
 
 function xorMask(payload, key) {
-  var out = new Buffer(payload.length);
+  var out = Buffer.alloc(payload.length);
   for (var i = 0; i < payload.length; i += 1) out[i] = payload[i] ^ key[i & 3];
   return out;
 }

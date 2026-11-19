@@ -100,3 +100,11 @@ test("a route change re-applies the quality: a preview cap does not stay on the 
   r.changeRoute("#/watch?v=abc");
   assert.deepEqual(r.applied[r.applied.length - 1], ["auto", "auto"], "the watch video gets the preferred quality");
 });
+
+test("repeated route changes within the same kind of route, and repeated state changes, apply the range once", () => {
+  const r = run({ hash: "#/watch?v=abc", preferred: "auto", cap: "480p" });
+  const before = r.applied.length;
+  r.changeRoute("#/watch?v=abc&t=10");
+  r.changeRoute("#/watch?v=abc&t=11");
+  assert.equal(r.applied.length, before, "watch to watch changes nothing");
+});

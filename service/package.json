@@ -15,7 +15,8 @@
     "express": "4.22.2",
     "node-fetch": "2.7.0",
     "qrcode-npm": "^0.0.3",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "@patrickkfkan/peer-ssdp": "file:vendor/peer-ssdp"
   },
   "devDependencies": {
     "@babel/core": "^7.24.7",

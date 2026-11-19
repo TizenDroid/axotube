@@ -18,6 +18,7 @@ function loadSubtitles(config) {
     getCurrentPlayer: () => ctx.__player,
     watchVideoId: (fn) => listeners.push(fn),
     setTimeout: (fn) => timers.push(fn),
+    debugLog: () => {},
     console,
   });
   const src = read("mods/features/autoSubtitles.js").replace(BLANK_IMPORT, blank)
@@ -63,10 +64,11 @@ test("subtitles: turns the chosen track on when captions are off", () => {
   };
   assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "set");
   assert.deepEqual(set, [["captions", "track", "English"]]);
-  // Once the track is in place, the next check finds it and does nothing more.
-  let chosen = null;
+  // A set always takes the track from this video's list: a track with the same language from
+  // another video is not reused. The once-per-video decision is made by the caller.
+  let chosen = {};
   ctx.__player.getOption = (mod, opt) => {
-    if (opt === "track") return chosen || {};
+    if (opt === "track") return chosen;
     if (opt === "tracklist") return [autoEn, manualEn];
     return null;
   };
@@ -75,23 +77,31 @@ test("subtitles: turns the chosen track on when captions are off", () => {
     set.push([mod, opt, value.name]);
   };
   assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "set");
-  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "done");
-  assert.equal(set.length, 2, "the track is set once it is missing, and not again");
+  assert.equal(set.length, 2);
+  // A refresh puts back a track that is set, and does not turn captions on when none is set.
+  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true, true), "set");
+  chosen = {};
+  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true, true), "done");
+  assert.equal(set.length, 3, "the empty track is not turned back on");
 });
 
-test("subtitles: leaves captions alone when something is already on", () => {
+test("subtitles: a track of the same language from another video is replaced by this video's own", () => {
   const { api, ctx } = loadSubtitles({});
   let touched = false;
   ctx.__player = {
     getOptions: () => ["captions"],
     getOption: (m, o) =>
-      o === "track" ? { languageCode: "fr", kind: "" } : o === "tracklist" ? [{ languageCode: "fr", kind: "" }] : [],
+      o === "track"
+        ? { languageCode: "en", kind: "", name: "English (old video)" }
+        : o === "tracklist"
+          ? [{ languageCode: "en", kind: "", name: "English (this video)" }]
+          : [],
     setOption() {
       touched = true;
     },
   };
-  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "done");
-  assert.equal(touched, false, "a track this video offers, already chosen, is kept");
+  assert.equal(api.tryEnable(ctx.__player, "vid", "en", true), "set");
+  assert.equal(touched, true, "set from this video's list, not reused from before");
 });
 
 test("subtitles: asks for a retry until the caption list exists", () => {

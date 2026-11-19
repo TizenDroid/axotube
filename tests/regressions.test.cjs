@@ -225,7 +225,8 @@ test("SponsorBlock initializes current route and skips only from media time", ()
 
 test("Auto quality releases fixed range and replacement player is watched", () => {
   const src = read("mods/features/preferredVideoQuality.js");
-  has(src, 'setPlaybackQualityRange("auto", "auto")');
+  has(src, 'this.#setRange("auto")');
+  has(src, "this.#player.setPlaybackQualityRange(quality, quality);");
   has(src, "watchPlayer((player) => this.#attachPlayer(player))");
   has(src, "watchVideoId((id) =>");
 });

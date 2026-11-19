@@ -14,6 +14,9 @@ let attachTimer = null;
 let frameRateForced = false;
 let resumeTimer = null;
 let pendingResume = null;
+// The video and rate already handled. Setting the display rate can restart playback, which
+// fires another playback start; without this, each restart paused and set the rate again.
+let handledFrameRate = null;
 
 function isWatchRoute() {
   return window.location.href.indexOf("watch") !== -1;
@@ -46,6 +49,7 @@ function cancelPendingResume() {
 
 function detachFromVideoPlayer() {
   cancelPendingResume();
+  handledFrameRate = null;
   if (attachTimer) {
     clearTimeout(attachTimer);
     attachTimer = null;
@@ -75,6 +79,11 @@ function handlePlaybackStart() {
     const setFrameRate = getFrameRateApi();
     if (!resolutionMatch || !setFrameRate) return;
 
+    const rate = parseFloat(resolutionMatch[3]);
+    const key = getPlayerVideoId(attachedPlayer) + "|" + rate;
+    if (handledFrameRate === key) return;
+    handledFrameRate = key;
+
     const video = getCurrentVideo();
     const pauseFor = configRead("autoFrameRatePauseVideoFor");
     // Keep the pause around SetFrameRate, but only restore playback for
@@ -82,7 +91,7 @@ function handlePlaybackStart() {
     const temporarilyPause = pauseFor > 0 && video && !video.paused && !pendingResume;
     if (temporarilyPause) video.pause();
     try {
-      setFrameRate.call(nativeHost(), parseFloat(resolutionMatch[3]));
+      setFrameRate.call(nativeHost(), rate);
       frameRateForced = true;
     } finally {
       if (temporarilyPause && video.paused) {

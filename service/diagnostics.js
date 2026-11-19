@@ -125,7 +125,7 @@ function qrGif() {
   qr.addData(link);
   qr.make();
   var match = qr.createImgTag(8, 8).match(/src="data:image\/gif;base64,([^"]+)"/);
-  return match ? new Buffer(match[1], "base64") : null;
+  return match ? Buffer.from(match[1], "base64") : null;
 }
 
 module.exports = {

@@ -2,8 +2,10 @@ import { debugLogsOn } from "../shared/debugLog.js";
 // The webview's user agent follows the "userAgentProfile" setting, applied with
 // tizen.websetting.setUserAgentString so HTTP requests and navigator.userAgent both
 // carry it. Same meaning as the Android app's profiles:
-//   "samsung" and "auto" send the Tizen TV agent this app has always used
-//   "android" sends a phone agent (experimental: YouTube's TV layout may not suit it)
+//   On Tizen, "samsung" and "auto" send the TV agent this app has always used, and "android"
+//   sends a fixed phone agent (experimental: YouTube's TV layout may not suit it).
+//   On Android the app sets the agent natively; "samsung" is the TV agent, and "auto" and
+//   "android" are the WebView's own agent with "; wv" removed.
 //
 // The standalone splash page applies the TV agent first, before anything navigates to
 // YouTube. This module checks the page itself. It never trusts a partial match: the
@@ -21,6 +23,9 @@ const TV_USER_AGENT =
   "Mozilla/5.0 (SMART-TV; LINUX; Tizen 4.0) AppleWebKit/537.3 (KHTML, like Gecko) SamsungBrowser/2.1 TV Safari/537.3";
 const PHONE_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+// The Android TV agent, as MainActivity sends it for "auto" on the Android app.
+const ANDROID_TV_USER_AGENT =
+  "Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 CrKey/1.56.500000";
 const TRIED_SESSION_KEY = "axotube-user-agent-tried";
 
 // Statuses written to window.__axotubeUserAgent:
@@ -28,7 +33,20 @@ const TRIED_SESSION_KEY = "axotube-user-agent-tried";
 //   "set"          the agent was set; the reload that follows will confirm it
 //   "not-applied"  the page still reports something else after an attempt
 //   "unavailable"  tizen.websetting is missing, so nothing can be set
+// On Tizen, the profile's agent is set here (tizen.websetting). On Android the app sets it
+// natively (MainActivity.resolveUserAgent), and this module only checks what the page reports:
+// "auto" is the Android TV agent, "samsung" the Tizen TV agent, and "android" the WebView's own
+// agent with "; wv" removed.
+function onTizen() {
+  return !!window.tizen;
+}
+
 function agentFor(profile) {
+  if (profile === "samsung") return TV_USER_AGENT;
+  if (!onTizen()) {
+    if (profile === "android") return String(navigator.userAgent).replace("; wv", "");
+    return ANDROID_TV_USER_AGENT;
+  }
   if (profile === "android") return PHONE_USER_AGENT;
   return TV_USER_AGENT;
 }
@@ -67,9 +85,15 @@ function markTried(ua) {
 }
 
 function applyUserAgentProfile() {
-  const wanted = agentFor(configRead("userAgentProfile"));
+  const profile = configRead("userAgentProfile");
+  const wanted = agentFor(profile);
   if (navigator.userAgent === wanted) {
     record(wanted, "applied");
+    return;
+  }
+  if (!onTizen()) {
+    // Android: the app sets the agent before the page loads. Nothing to set here, no reload.
+    record(wanted, "not-applied");
     return;
   }
   if (!setWebviewUserAgent(wanted)) {

@@ -271,7 +271,6 @@ function patchSubtitleMenu() {
 }
 
 let subtitlePollCount = 0;
-let subtitlePollTimer = null;
 const SUBTITLE_POLL_LIMIT = 30;
 const SUBTITLE_POLL_DELAY_MS = 500;
 
@@ -283,7 +282,7 @@ function attemptSubtitlePatch() {
     console.warn("[AxoTube:moreSubtitles] resolveCommand did not become ready in time.");
     return;
   }
-  subtitlePollTimer = setTimeout(attemptSubtitlePatch, SUBTITLE_POLL_DELAY_MS);
+  setTimeout(attemptSubtitlePatch, SUBTITLE_POLL_DELAY_MS);
 }
 
 if (document.readyState === "loading") {
